@@ -1,0 +1,35 @@
+[package]
+name = "pg_enigma"
+version = "0.0.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[[bin]]
+name = "pgrx_embed_pg_enigma"
+path = "./src/bin/pgrx_embed.rs"
+
+[features]
+default = ["pg13"]
+pg12 = ["pgrx/pg12", "pgrx-tests/pg12" ]
+pg13 = ["pgrx/pg13", "pgrx-tests/pg13" ]
+pg14 = ["pgrx/pg14", "pgrx-tests/pg14" ]
+pg15 = ["pgrx/pg15", "pgrx-tests/pg15" ]
+pg16 = ["pgrx/pg16", "pgrx-tests/pg16" ]
+pg_test = []
+
+[dependencies]
+pgrx = "=0.12.0-alpha.1"
+
+[dev-dependencies]
+pgrx-tests = "=0.12.0-alpha.1"
+
+[profile.dev]
+panic = "unwind"
+
+[profile.release]
+panic = "unwind"
+opt-level = 3
+lto = "fat"
+codegen-units = 1
