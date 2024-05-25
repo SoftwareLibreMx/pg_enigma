@@ -2,6 +2,26 @@
 
 Encrypted postgres data type for fun and profit
 
+## Build
+
+### Quick start:
+
+Initialize pgrx
+
+```bash
+$ cargo install --locked cargo-pgrx
+$ cargo pgrx init
+```
+
+
+Run the extension:
+
+```bash
+$ cargo pgrx run
+```
+
+
+
 ## Roadmap
 
 ### Initial PoC
