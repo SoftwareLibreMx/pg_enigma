@@ -6,6 +6,10 @@ Encrypted postgres data type for fun and profit
 
 ### Quick start:
 
+Minimal requirements: 
+    - rustc 1.74 (`clap_builder v4.5.2` requires rustc 1.74 or newer)
+Almalinux 8 will fail to compile because of rustc version 1.71
+
 Initialize pgrx
 
 ```bash
