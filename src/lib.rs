@@ -56,12 +56,12 @@ impl InOutFuncs for Enigma {
 
 /// Encrypts the value
 pub fn decrypt(value: String) -> String {
-    format!("DECRYPTED {}", value)
+    format!("DECRYPTED ({})", value)
 }
 
 /// Decrypts the value
 pub fn encrypt(value: String) -> String {
-    format!("ENCRYPTED {}", value)
+    format!("ENCRYPTED ({})", value)
 }
 
 

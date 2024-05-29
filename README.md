@@ -24,10 +24,10 @@ Run the extension:
 $ cargo pgrx run
 ```
 
-SQL example:
+SQL example (first insert):
 
 ```sql
-CREATE EXTENSION Enigma;
+CREATE EXTENSION pg_enigma;
 CREATE TABLE testab (
     a SERIAL, 
     b Enigma
@@ -35,6 +35,21 @@ CREATE TABLE testab (
 INSERT INTO testab (b) VALUES ('my first record');
 SELECT * FROM testab;
 ```
+
+SQL example (after change and recompile):
+
+```sql
+DROP TABLE testab;
+DROP EXTENSION pg_enigma;
+CREATE EXTENSION pg_enigma;
+CREATE TABLE testab (
+    a SERIAL, 
+    b Enigma
+);
+INSERT INTO testab (b) VALUES ('my first record');
+SELECT * FROM testab;
+```
+
 
 ## Roadmap
 
