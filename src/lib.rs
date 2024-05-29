@@ -89,7 +89,10 @@ impl InOutFuncs for Enigma {
                 .to_string();
 
        if let Some(key) = PUB_KEY {
-            value = encrypt(value, key);
+            value = match encrypt(value, key) {
+                Ok(v) => v,
+                Err(e) => format!("Encrypt error: {}", e)
+            };
         } else {
             value = format!("NO KEY DEFINED");
         }
@@ -105,7 +108,10 @@ impl InOutFuncs for Enigma {
         let mut value: String = self.value.clone();
 
        if let Some(key) = PRV_KEY {
-            value = decrypt(value, key);
+            value = match decrypt(value, key) {
+                Ok(v) => v,
+                Err(e) => format!("Decrypt error: {}", e)
+            };
         }
 
         buffer.push_str(&value);
@@ -113,51 +119,31 @@ impl InOutFuncs for Enigma {
 }
 
 /// Encrypts the value
-pub fn decrypt(value: String, key: &str) -> String {
-    let (seckey, _headers) = match SignedSecretKey::from_string(key) {
-        Ok(k) => k,
-        Err(e) => return format!("Could not read key / {}", e)
-    };
+pub fn decrypt(value: String, key: &str) 
+-> Result<String, Box<(dyn std::error::Error + 'static)>> {
+    let (sec_key, _) = SignedSecretKey::from_string(key)?;
     let buf = Cursor::new(value);
-    let (msg, _) = match Message::from_armor_single(buf){
-        Ok(m) => m,
-        Err(e) => return format!("Could not dearmor message / {}", e)
-    };
-    let (decryptor, _) = match msg
-    .decrypt(|| String::from("Prueba123!"), &[&seckey]) {
-        Ok(d) => d,
-        Err(e) => return format!("Could not decrypt message / {}", e)
-    };
+    let (msg, _) = Message::from_armor_single(buf)?;
+    let (decryptor, _) = msg
+    .decrypt(|| String::from("Prueba123!"), &[&sec_key])?;
+    let mut clear_text = String::from("NOT DECRYPTED");
     for msg in decryptor {
-        let bytes = msg.unwrap().get_content().unwrap().unwrap();
-        let clear_text = String::from_utf8(bytes).unwrap();
-        return clear_text;
+        let bytes = msg?.get_content()?.unwrap();
+        clear_text = String::from_utf8(bytes).unwrap();
     }
-
-    format!("DECRYPTED")
+    Ok(clear_text)
 }
 
 /// Decrypts the value
-pub fn encrypt(value: String, key: &str) -> String {
-    let (pub_key, _headers) = match SignedPublicKey::from_string(key) {
-        Ok(k) => k,
-        Err(e) => return format!("Could not read key / {}", e)
-    };
+pub fn encrypt(value: String, key: &str) 
+-> Result<String, Box<(dyn std::error::Error + 'static)>> {
+    let (pub_key, _) = SignedPublicKey::from_string(key)?;
     let msg = Message::new_literal("none", value.as_str());
     let mut rng = StdRng::from_entropy();
-    let new_msg = match msg.encrypt_to_keys(
-        &mut rng,
-        SymmetricKeyAlgorithm::AES128,
-        &[&pub_key],
-    ) {
-        Ok(m) => m,
-        Err(e) => return format!("Could not encrypt message {} / {}", value, e),
-    };
-    let ret = match new_msg.to_armored_string(None) {
-        Ok(m) => m,
-        Err(e) => return format!("Could not armor encrypted message {}", value),
-    };
-    ret
+    let new_msg = msg.encrypt_to_keys(
+        &mut rng, SymmetricKeyAlgorithm::AES128, &[&pub_key])?;
+    let ret = new_msg.to_armored_string(None)?;
+    Ok(ret)
 }
 
 
