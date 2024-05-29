@@ -24,7 +24,17 @@ Run the extension:
 $ cargo pgrx run
 ```
 
+SQL example:
 
+```sql
+CREATE EXTENSION Enigma;
+CREATE TABLE testab (
+    a SERIAL, 
+    b Enigma
+);
+INSERT INTO testab (b) VALUES ('my first record');
+SELECT * FROM testab;
+```
 
 ## Roadmap
 
