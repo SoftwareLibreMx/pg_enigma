@@ -6,10 +6,12 @@ Encrypted postgres data type for fun and profit
 
 ### Quick start:
 
-Initialize pgrx
+Initialize pgrx. It only works with version 0.12.0-alpha.1 and newer
+but cargo will default to non-alpha versions so we need to specify it
+explicitly.
 
 ```bash
-$ cargo install --locked cargo-pgrx
+$ cargo install --locked cargo-pgrx@0.12.0-alpha.1
 $ cargo pgrx init
 ```
 
