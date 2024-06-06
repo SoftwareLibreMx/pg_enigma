@@ -6,16 +6,14 @@ Encrypted postgres data type for fun and profit
 
 ### Quick start:
 
-Minimal requirements: 
+Install the Rust toolchain version 1.74 or nwer.
 
-    - rustc 1.74 (`clap_builder v4.5.2` requires rustc 1.74 or newer)
-
-Almalinux 8 will fail to compile because of rustc version 1.71
-
-Initialize pgrx
+Initialize pgrx. It only works with version 0.12.0-alpha.1 and newer
+but cargo will default to non-alpha versions so we need to specify it
+explicitly.
 
 ```bash
-$ cargo install --locked cargo-pgrx
+$ cargo install --locked cargo-pgrx@0.12.0-alpha.1
 $ cargo pgrx init
 ```
 
@@ -26,7 +24,17 @@ Run the extension:
 $ cargo pgrx run
 ```
 
+SQL example:
 
+```sql
+CREATE EXTENSION Enigma;
+CREATE TABLE testab (
+    a SERIAL, 
+    b Enigma
+);
+INSERT INTO testab (b) VALUES ('my first record');
+SELECT * FROM testab;
+```
 
 ## Roadmap
 
