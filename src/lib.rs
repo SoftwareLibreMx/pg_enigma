@@ -107,7 +107,9 @@ impl InOutFuncs for Enigma {
 
         let mut value: String = self.value.clone();
 
-       if let Some(key) = PRV_KEY {
+       if let Some(key) = get_private_key()
+        // TODO: better error handling
+        .expect("Error getting private key") {
             value = match decrypt(value, key) {
                 Ok(v) => v,
                 Err(e) => format!("Decrypt error: {}", e)
@@ -147,6 +149,56 @@ pub fn encrypt(value: String, key: &str)
 }
 
 
+/// TODO: add docs
+#[pg_extern]
+//fn set_private_key(id i32, key: &str) -> Result<Option<String>, spi::Error> {
+fn set_private_key(key: &str) -> Result<Option<String>, spi::Error> {
+	let id = 1; // TODO: accept as parameter
+	create_key_table()?;
+    Spi::get_one_with_args(
+        r#"INSERT INTO temp_keys(id, private_key) VALUES ($1, $2) ON CONFLICT(id)
+		   DO UPDATE SET private_key=$2 RETURNING 'Private key set'"#,
+        vec![
+			(PgBuiltInOids::INT4OID.oid(), id.into_datum()),
+			(PgBuiltInOids::TEXTOID.oid(), key.into_datum())
+		],
+    )
+}
+
+
+/// TODO: add docs
+#[pg_extern]
+//fn set_public_key(id i32, key: &str) -> Result<Option<String>, spi::Error> {
+fn set_public_key(key: &str) -> Result<Option<String>, spi::Error> {
+	let id = 1; // TODO: accept as parameter
+	create_key_table()?;
+    Spi::get_one_with_args(
+        r#"INSERT INTO temp_keys(id, public_key) VALUES ($1, $2) ON CONFLICT(id)
+		   DO UPDATE SET public_key=$2 RETURNING 'Public key set'"#,
+        vec![
+			(PgBuiltInOids::INT4OID.oid(), id.into_datum()),
+			(PgBuiltInOids::TEXTOID.oid(), key.into_datum())
+		],
+    )
+}
+
+#[pg_extern(immutable, parallel_safe)]
+fn get_private_key() -> Result<Option<String>, pgrx::spi::Error> {
+    Spi::get_one("SELECT private_key FROM temp_keys WHERE id = 1")
+}
+
+#[pg_extern(immutable, parallel_safe)]
+fn get_public_key() -> Result<Option<String>, pgrx::spi::Error> {
+    Spi::get_one("SELECT public_key FROM temp_keys WHERE id = 1")
+}
+
+
+#[pg_extern]
+fn create_key_table() -> Result<(), spi::Error> {
+    Spi::run(
+        "CREATE TEMPORARY TABLE IF NOT EXISTS temp_keys (id INT PRIMARY KEY, private_key TEXT, public_key TEXT)"
+    )
+}
 
 #[cfg(any(test, feature = "pg_test"))]
 #[pg_schema]
