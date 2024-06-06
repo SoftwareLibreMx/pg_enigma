@@ -27,7 +27,7 @@ $ cargo pgrx run
 SQL example:
 
 ```sql
-CREATE EXTENSION Enigma;
+CREATE EXTENSION pg_enigma;
 CREATE TABLE testab (
     a SERIAL, 
     b Enigma
