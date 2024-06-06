@@ -16,6 +16,7 @@ use std::io::Cursor;
 
 //TODO: temporal key for testing
 
+/* Esta ya se puede borrar
 static PRV_KEY: Option<&str> =Some("-----BEGIN PGP PRIVATE KEY BLOCK-----
 
 lQIGBGZXG+YBBACpVTBmm+44K5G0g5qtc53jdIckb4FS8N0kiDp4iiC4iST0Ck2D
@@ -51,6 +52,7 @@ dt/epY/+oiyprjgbfygBFet02xyKnCdAtStno8aUCu4hVNmdYcUCezr1AgXnYk2R
 DdGpjenMdNnT6b0bjWcwT6cwfdmXKjzaUJs=
 =DYQs
 -----END PGP PRIVATE KEY BLOCK-----"); 
+*/
 
 static PUB_KEY: Option<&str> = Some("-----BEGIN PGP PUBLIC KEY BLOCK-----
 
@@ -110,7 +112,7 @@ impl InOutFuncs for Enigma {
        if let Some(key) = get_private_key()
         // TODO: better error handling
         .expect("Error getting private key") {
-            value = match decrypt(value, key) {
+            value = match decrypt(value, key.as_str()) {
                 Ok(v) => v,
                 Err(e) => format!("Decrypt error: {}", e)
             };
