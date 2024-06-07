@@ -1,6 +1,5 @@
 use pgrx::prelude::*;
 use serde::{Serialize, Deserialize};
-use std::fmt::{Display, Formatter};
 use pgrx::{StringInfo};
 use core::ffi::CStr;
 use pgp::{SignedSecretKey, Deserializable};
@@ -8,8 +7,6 @@ use pgp::SignedPublicKey;
 use pgp::composed::message::Message;
 use pgp::crypto::sym::SymmetricKeyAlgorithm;
 use rand::prelude::*;
-use pgp::types::Version;
-use pgp::armor::Dearmor;
 use std::io::Cursor;
 
 ::pgrx::pg_module_magic!();
@@ -73,6 +70,8 @@ LCnPAAG+dk7y+i1wdt/epY/+oiyprjgbfygBFet02xyKnCdAtStno8aUCu4hVNmd
 YcUCezr1AgXnYk2RDdGpjenMdNnT6b0bjWcwT6cwfdmXKjzaUJs=
 =jOmZ
 -----END PGP PUBLIC KEY BLOCK-----");
+
+
 
 /// Value stores entcrypted information
 #[derive(Serialize, Deserialize, PostgresType)]
@@ -186,11 +185,13 @@ fn set_public_key(key: &str) -> Result<Option<String>, spi::Error> {
 
 #[pg_extern(immutable, parallel_safe)]
 fn get_private_key() -> Result<Option<String>, pgrx::spi::Error> {
+    if ! exists_key_table()? { return Ok(None); }
     Spi::get_one("SELECT private_key FROM temp_keys WHERE id = 1")
 }
 
 #[pg_extern(immutable, parallel_safe)]
 fn get_public_key() -> Result<Option<String>, pgrx::spi::Error> {
+    if ! exists_key_table()? { return Ok(None); }
     Spi::get_one("SELECT public_key FROM temp_keys WHERE id = 1")
 }
 
@@ -200,6 +201,18 @@ fn create_key_table() -> Result<(), spi::Error> {
     Spi::run(
         "CREATE TEMPORARY TABLE IF NOT EXISTS temp_keys (id INT PRIMARY KEY, private_key TEXT, public_key TEXT)"
     )
+}
+
+#[pg_extern]
+// TODO: return bool
+fn exists_key_table() -> Result<bool, spi::Error> {
+    if let Some(e) = Spi::get_one("SELECT EXISTS (
+        SELECT tablename 
+        FROM pg_catalog.pg_tables WHERE tablename = 'temp_keys'
+        )")? {
+        return Ok(e);
+    }
+    Ok(false)
 }
 
 #[cfg(any(test, feature = "pg_test"))]
