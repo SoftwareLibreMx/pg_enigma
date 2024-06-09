@@ -107,19 +107,19 @@ impl InOutFuncs for Enigma {
 
     // Send to postgres
     fn output(&self, buffer: &mut StringInfo) {
+      let mut value: String = self.value.clone();
 
-        let mut value: String = self.value.clone();
+        match get_private_key() {
+            Ok(ret_key) => match ret_key {
+                Some(key) => match decrypt(value, key.as_str()) {
+                    Ok(v) => buffer.push_str(&v),
+                    Err(e) => buffer.push_str(&format!("Decrypt error: {}", e)),
+                },
+                None =>  buffer.push_str(&format!("Missing private key"))
+            },
 
-       if let Some(key) = get_private_key()
-        // TODO: better error handling
-        .expect("Error getting private key") {
-            value = match decrypt(value, key.as_str()) {
-                Ok(v) => v,
-                Err(e) => format!("Decrypt error: {}", e)
-            };
-        }
-
-        buffer.push_str(&value);
+            Err(e) => buffer.push_str(&format!("Error getting private key: {}\nvalue: {}", e, value))
+        };
     }
 }
 
