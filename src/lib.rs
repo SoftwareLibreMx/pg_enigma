@@ -8,6 +8,7 @@ use pgp::composed::message::Message;
 use pgp::crypto::sym::SymmetricKeyAlgorithm;
 use rand::prelude::*;
 use std::io::Cursor;
+use std::fs;
 
 ::pgrx::pg_module_magic!();
 
@@ -155,32 +156,31 @@ pub fn encrypt(value: String, key: &str)
 #[pg_extern]
 //fn set_private_key(id i32, key: &str) -> Result<Option<String>, spi::Error> {
 fn set_private_key(key: &str) -> Result<Option<String>, spi::Error> {
-	let id = 1; // TODO: accept as parameter
-	create_key_table()?;
+    let id = 1; // TODO: accept as parameter
+    create_key_table()?;
     Spi::get_one_with_args(
         r#"INSERT INTO temp_keys(id, private_key) VALUES ($1, $2) ON CONFLICT(id)
-		   DO UPDATE SET private_key=$2 RETURNING 'Private key set'"#,
+        DO UPDATE SET private_key=$2 RETURNING 'Private key set'"#,
         vec![
-			(PgBuiltInOids::INT4OID.oid(), id.into_datum()),
-			(PgBuiltInOids::TEXTOID.oid(), key.into_datum())
-		],
+            (PgBuiltInOids::INT4OID.oid(), id.into_datum()),
+            (PgBuiltInOids::TEXTOID.oid(), key.into_datum())
+        ],
     )
 }
 
 
 /// TODO: add docs
 #[pg_extern]
-//fn set_public_key(id i32, key: &str) -> Result<Option<String>, spi::Error> {
 fn set_public_key(key: &str) -> Result<Option<String>, spi::Error> {
-	let id = 1; // TODO: accept as parameter
-	create_key_table()?;
+    let id = 1; // TODO: accept as parameter
+    create_key_table()?;
     Spi::get_one_with_args(
         r#"INSERT INTO temp_keys(id, public_key) VALUES ($1, $2) ON CONFLICT(id)
-		   DO UPDATE SET public_key=$2 RETURNING 'Public key set'"#,
+        DO UPDATE SET public_key=$2 RETURNING 'Public key set'"#,
         vec![
-			(PgBuiltInOids::INT4OID.oid(), id.into_datum()),
-			(PgBuiltInOids::TEXTOID.oid(), key.into_datum())
-		],
+            (PgBuiltInOids::INT4OID.oid(), id.into_datum()),
+            (PgBuiltInOids::TEXTOID.oid(), key.into_datum())
+        ],
     )
 }
 
@@ -208,13 +208,34 @@ fn create_key_table() -> Result<(), spi::Error> {
 // TODO: return bool
 fn exists_key_table() -> Result<bool, spi::Error> {
     if let Some(e) = Spi::get_one("SELECT EXISTS (
-        SELECT tablename 
+        SELECT tablename
         FROM pg_catalog.pg_tables WHERE tablename = 'temp_keys'
         )")? {
         return Ok(e);
     }
     Ok(false)
 }
+
+
+/// Sets the private key from a file
+#[pg_extern]
+fn set_private_key_from_file(file_path: &str) -> Result<String, spi::Error> {
+    let contents = fs::read_to_string(file_path)
+    .expect("Error reading private key file");
+    set_private_key(&contents)?;
+    Ok(format!("{}\nPrivate key succesfully added", contents))
+}
+
+/// Sets the public key from a file
+#[pg_extern]
+fn set_public_key_from_file(file_path: &str) -> Result<String, spi::Error> {
+    let contents = fs::read_to_string(file_path)
+        .expect("Error reading public file");
+    set_public_key(&contents)?;
+    Ok(format!("{}\nPublic key succesfully added", contents))
+}
+
+
 
 #[cfg(any(test, feature = "pg_test"))]
 #[pg_schema]
