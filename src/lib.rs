@@ -51,7 +51,7 @@ Vn77XUctBRm0FuLM/S/io8IsNlAivX2vrC7QSZoPbbVqhBPELCnPAAG+dk7y+i1w
 dt/epY/+oiyprjgbfygBFet02xyKnCdAtStno8aUCu4hVNmdYcUCezr1AgXnYk2R
 DdGpjenMdNnT6b0bjWcwT6cwfdmXKjzaUJs=
 =DYQs
------END PGP PRIVATE KEY BLOCK-----"); 
+-----END PGP PRIVATE KEY BLOCK-----");
 */
 
 static PUB_KEY: Option<&str> = Some("-----BEGIN PGP PUBLIC KEY BLOCK-----
@@ -90,15 +90,16 @@ impl InOutFuncs for Enigma {
                 .expect("Enigma::input can't convert to str")
                 .to_string();
 
-       if let Some(key) = PUB_KEY {
-            value = match encrypt(value, key) {
+       let pub_key = get_public_key().expect("Error getting public key");
+       if let Some(key) = pub_key {
+            value = match encrypt(value, &key) {
                 Ok(v) => v,
                 Err(e) => format!("Encrypt error: {}", e)
             };
         } else {
             value = format!("NO KEY DEFINED");
         }
-        
+
         Enigma {
             value: value.clone(),
         }
@@ -123,7 +124,7 @@ impl InOutFuncs for Enigma {
 }
 
 /// Encrypts the value
-pub fn decrypt(value: String, key: &str) 
+pub fn decrypt(value: String, key: &str)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
     let (sec_key, _) = SignedSecretKey::from_string(key)?;
     let buf = Cursor::new(value);
@@ -139,7 +140,7 @@ pub fn decrypt(value: String, key: &str)
 }
 
 /// Decrypts the value
-pub fn encrypt(value: String, key: &str) 
+pub fn encrypt(value: String, key: &str)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
     let (pub_key, _) = SignedPublicKey::from_string(key)?;
     let msg = Message::new_literal("none", value.as_str());
