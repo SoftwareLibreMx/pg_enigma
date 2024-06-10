@@ -6,7 +6,7 @@ Encrypted postgres data type for fun and profit
 
 ### Quick start:
 
-Install the Rust toolchain version 1.74.
+Install the Rust toolchain version 1.74 or nwer.
 
 Initialize pgrx. It only works with version 0.12.0-alpha.1 and newer
 but cargo will default to non-alpha versions so we need to specify it
