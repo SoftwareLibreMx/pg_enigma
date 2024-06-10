@@ -8,6 +8,7 @@ use pgp::composed::message::Message;
 use pgp::crypto::sym::SymmetricKeyAlgorithm;
 use rand::prelude::*;
 use std::io::Cursor;
+use std::fs;
 
 ::pgrx::pg_module_magic!();
 
@@ -48,7 +49,7 @@ Vn77XUctBRm0FuLM/S/io8IsNlAivX2vrC7QSZoPbbVqhBPELCnPAAG+dk7y+i1w
 dt/epY/+oiyprjgbfygBFet02xyKnCdAtStno8aUCu4hVNmdYcUCezr1AgXnYk2R
 DdGpjenMdNnT6b0bjWcwT6cwfdmXKjzaUJs=
 =DYQs
------END PGP PRIVATE KEY BLOCK-----"); 
+-----END PGP PRIVATE KEY BLOCK-----");
 */
 
 static PUB_KEY: Option<&str> = Some("-----BEGIN PGP PUBLIC KEY BLOCK-----
@@ -89,15 +90,16 @@ impl InOutFuncs for Enigma {
                 .expect("Enigma::input can't convert to str")
                 .to_string();
 
-       if let Some(key) = PUB_KEY {
-            value = match encrypt(value, key) {
+       let pub_key = get_public_key().expect("Error getting public key");
+       if let Some(key) = pub_key {
+            value = match encrypt(value, &key) {
                 Ok(v) => v,
                 Err(e) => format!("Encrypt error: {}", e)
             };
         } else {
             value = format!("NO KEY DEFINED");
         }
-        
+
         Enigma {
             value: value.clone(),
         }
@@ -105,24 +107,24 @@ impl InOutFuncs for Enigma {
 
     // Send to postgres
     fn output(&self, buffer: &mut StringInfo) {
+      let mut value: String = self.value.clone();
 
-        let mut value: String = self.value.clone();
+        match get_private_key() {
+            Ok(ret_key) => match ret_key {
+                Some(key) => match decrypt(value, key.as_str()) {
+                    Ok(v) => buffer.push_str(&v),
+                    Err(e) => buffer.push_str(&format!("Decrypt error: {}", e)),
+                },
+                None =>  buffer.push_str(&format!("Missing private key"))
+            },
 
-       if let Some(key) = get_private_key()
-        // TODO: better error handling
-        .expect("Error getting private key") {
-            value = match decrypt(value, key.as_str()) {
-                Ok(v) => v,
-                Err(e) => format!("Decrypt error: {}", e)
-            };
-        }
-
-        buffer.push_str(&value);
+            Err(e) => buffer.push_str(&format!("Error getting private key: {}\nvalue: {}", e, value))
+        };
     }
 }
 
 /// Encrypts the value
-pub fn decrypt(value: String, key: &str) 
+pub fn decrypt(value: String, key: &str)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
     let (sec_key, _) = SignedSecretKey::from_string(key)?;
     let buf = Cursor::new(value);
@@ -138,7 +140,7 @@ pub fn decrypt(value: String, key: &str)
 }
 
 /// Decrypts the value
-pub fn encrypt(value: String, key: &str) 
+pub fn encrypt(value: String, key: &str)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
     let (pub_key, _) = SignedPublicKey::from_string(key)?;
     let msg = Message::new_literal("none", value.as_str());
@@ -154,32 +156,31 @@ pub fn encrypt(value: String, key: &str)
 #[pg_extern]
 //fn set_private_key(id i32, key: &str) -> Result<Option<String>, spi::Error> {
 fn set_private_key(key: &str) -> Result<Option<String>, spi::Error> {
-	let id = 1; // TODO: accept as parameter
-	create_key_table()?;
+    let id = 1; // TODO: accept as parameter
+    create_key_table()?;
     Spi::get_one_with_args(
         r#"INSERT INTO temp_keys(id, private_key) VALUES ($1, $2) ON CONFLICT(id)
-		   DO UPDATE SET private_key=$2 RETURNING 'Private key set'"#,
+        DO UPDATE SET private_key=$2 RETURNING 'Private key set'"#,
         vec![
-			(PgBuiltInOids::INT4OID.oid(), id.into_datum()),
-			(PgBuiltInOids::TEXTOID.oid(), key.into_datum())
-		],
+            (PgBuiltInOids::INT4OID.oid(), id.into_datum()),
+            (PgBuiltInOids::TEXTOID.oid(), key.into_datum())
+        ],
     )
 }
 
 
 /// TODO: add docs
 #[pg_extern]
-//fn set_public_key(id i32, key: &str) -> Result<Option<String>, spi::Error> {
 fn set_public_key(key: &str) -> Result<Option<String>, spi::Error> {
-	let id = 1; // TODO: accept as parameter
-	create_key_table()?;
+    let id = 1; // TODO: accept as parameter
+    create_key_table()?;
     Spi::get_one_with_args(
         r#"INSERT INTO temp_keys(id, public_key) VALUES ($1, $2) ON CONFLICT(id)
-		   DO UPDATE SET public_key=$2 RETURNING 'Public key set'"#,
+        DO UPDATE SET public_key=$2 RETURNING 'Public key set'"#,
         vec![
-			(PgBuiltInOids::INT4OID.oid(), id.into_datum()),
-			(PgBuiltInOids::TEXTOID.oid(), key.into_datum())
-		],
+            (PgBuiltInOids::INT4OID.oid(), id.into_datum()),
+            (PgBuiltInOids::TEXTOID.oid(), key.into_datum())
+        ],
     )
 }
 
@@ -207,13 +208,34 @@ fn create_key_table() -> Result<(), spi::Error> {
 // TODO: return bool
 fn exists_key_table() -> Result<bool, spi::Error> {
     if let Some(e) = Spi::get_one("SELECT EXISTS (
-        SELECT tablename 
+        SELECT tablename
         FROM pg_catalog.pg_tables WHERE tablename = 'temp_keys'
         )")? {
         return Ok(e);
     }
     Ok(false)
 }
+
+
+/// Sets the private key from a file
+#[pg_extern]
+fn set_private_key_from_file(file_path: &str) -> Result<String, spi::Error> {
+    let contents = fs::read_to_string(file_path)
+    .expect("Error reading private key file");
+    set_private_key(&contents)?;
+    Ok(format!("{}\nPrivate key succesfully added", contents))
+}
+
+/// Sets the public key from a file
+#[pg_extern]
+fn set_public_key_from_file(file_path: &str) -> Result<String, spi::Error> {
+    let contents = fs::read_to_string(file_path)
+        .expect("Error reading public file");
+    set_public_key(&contents)?;
+    Ok(format!("{}\nPublic key succesfully added", contents))
+}
+
+
 
 #[cfg(any(test, feature = "pg_test"))]
 #[pg_schema]
