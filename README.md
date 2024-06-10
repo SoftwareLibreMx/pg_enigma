@@ -27,7 +27,7 @@ $ cargo pgrx run
 SQL example:
 
 ```sql
-CREATE EXTENSION Enigma;
+CREATE EXTENSION pg_enigma;
 CREATE TABLE testab (
     a SERIAL, 
     b Enigma
@@ -35,6 +35,51 @@ CREATE TABLE testab (
 INSERT INTO testab (b) VALUES ('my first record');
 SELECT * FROM testab;
 ```
+
+Expected result: Postgres shows the encrypted text field
+
+```sql
+pg_enigma=# SELECT * FROM testab limit 1;
+;
+ a |                                b                                 
+---+------------------------------------------------------------------
+ 1 | -----BEGIN PGP MESSAGE-----                                     +
+   |                                                                 +
+   | wYwDy31dohr4uGABA/0Vl3yMRYwkl0hZ+FkENW5RXJ0PjExcl1xlPVDZXEeFrZEy+
+   | 9WwsYuoLnF/UC6fK7tJZvMcgPw5zM3dlJ5Tf4XOGw3eXMJxTvmrRP41KRiyLVU7L+
+   | WXvfujaFTdA37CT0mJAr+x5OuUZK30vlP5+ChJUd96PWD9YWuv4WuDNNnEVkO9JE+
+   | AXk1/J1kLusQLf0hAPgazCJ6ZnArh9WStZYkHqlgbXZ9YVRjq4+iyLohm/2/OdL9+
+   | 1mhsyJ+xn90l2CbKEsFda2Yesbg=                                    +
+   | =veYc                                                           +
+   | -----END PGP MESSAGE-----                                       +
+   | 
+(1 row)
+```
+
+Now provide the private key using `set_public_key()` function:
+
+```sql
+pg_enigma=# select set_private_key('
+-----BEGIN PGP PRIVATE KEY BLOCK-----
+... ommited key for brevity  ...
+-----END PGP PRIVATE KEY BLOCK-----"); 
+');
+ set_private_key 
+-----------------
+ Private key set
+(1 row)
+
+pg_enigma=# SELECT * FROM testab limit 1;
+;
+ a |        b        
+---+-----------------
+ 1 | my first record
+(1 row)
+
+```
+
+Expected result: Postgres shows the decrypted text field
+
 
 ## Roadmap
 
