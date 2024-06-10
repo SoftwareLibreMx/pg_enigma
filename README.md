@@ -38,7 +38,7 @@ SELECT * FROM testab;
 
 Expected result: Postgres shows the encrypted text field
 
-```
+```sql
 pg_enigma=# SELECT * FROM testab limit 1;
 ;
  a |                                b                                 
@@ -58,7 +58,7 @@ pg_enigma=# SELECT * FROM testab limit 1;
 
 Now provide the private key using `set_public_key()` function:
 
-```
+```sql
 pg_enigma=# select set_private_key('
 -----BEGIN PGP PRIVATE KEY BLOCK-----
 ... ommited key for brevity  ...
