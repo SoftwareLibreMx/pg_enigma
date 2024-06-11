@@ -59,10 +59,10 @@ pg_enigma=# SELECT * FROM testab limit 1;
 Now provide the private key using `set_public_key()` function:
 
 ```sql
-pg_enigma=# select set_private_key('
+pg_enigma=# select set_private_key(1,'
 -----BEGIN PGP PRIVATE KEY BLOCK-----
 ... ommited key for brevity  ...
------END PGP PRIVATE KEY BLOCK-----"); 
+-----END PGP PRIVATE KEY BLOCK-----','the key passphrase'); 
 ');
  set_private_key 
 -----------------
