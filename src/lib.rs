@@ -152,16 +152,18 @@ pub fn encrypt(value: String, key: &str)
 
 /// TODO: add docs
 #[pg_extern]
-//fn set_private_key(id i32, key: &str) -> Result<Option<String>, spi::Error> {
-fn set_private_key(key: &str) -> Result<Option<String>, spi::Error> {
-	let id = 1; // TODO: accept as parameter
+fn set_private_key(id: i32, key: &str, pass: &str) -> Result<Option<String>, spi::Error> {
+    //let (sec_key, _) = SignedSecretKey::from_string(key)?;
+    //sec_key.verify()?;
 	create_key_table()?;
     Spi::get_one_with_args(
-        r#"INSERT INTO temp_keys(id, private_key) VALUES ($1, $2) ON CONFLICT(id)
-		   DO UPDATE SET private_key=$2 RETURNING 'Private key set'"#,
+        r#"INSERT INTO temp_keys(id, private_key, pass) VALUES ($1, $2, $3) ON CONFLICT(id)
+		   DO UPDATE SET private_key=$2, pass=$3 
+           RETURNING 'Private key set'"#,
         vec![
 			(PgBuiltInOids::INT4OID.oid(), id.into_datum()),
-			(PgBuiltInOids::TEXTOID.oid(), key.into_datum())
+			(PgBuiltInOids::TEXTOID.oid(), key.into_datum()),
+			(PgBuiltInOids::TEXTOID.oid(), pass.into_datum())
 		],
     )
 }
@@ -199,7 +201,7 @@ fn get_public_key() -> Result<Option<String>, pgrx::spi::Error> {
 #[pg_extern]
 fn create_key_table() -> Result<(), spi::Error> {
     Spi::run(
-        "CREATE TEMPORARY TABLE IF NOT EXISTS temp_keys (id INT PRIMARY KEY, private_key TEXT, public_key TEXT)"
+        "CREATE TEMPORARY TABLE IF NOT EXISTS temp_keys (id INT PRIMARY KEY, private_key TEXT, public_key TEXT, pass TEXT)"
     )
 }
 
