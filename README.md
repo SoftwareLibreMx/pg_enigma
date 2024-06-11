@@ -32,6 +32,13 @@ CREATE TABLE testab (
     a SERIAL, 
     b Enigma
 );
+
+select set_public_key(1,'
+-----BEGIN PGP PUBLIC KEY BLOCK-----
+... ommited key for brevity  ...
+-----END PGP PUBLIC KEY BLOCK-----
+'); 
+
 INSERT INTO testab (b) VALUES ('my first record');
 SELECT * FROM testab;
 ```

@@ -113,7 +113,6 @@ impl InOutFuncs for Enigma {
        let KEY_ID=1; // TODO: Deshardcodear este hardcodeado
 
        if let (Some(key), Some(pass)) = get_private_key(KEY_ID)
-        // TODO: better error handling
         .expect("Error getting private key") {
             value = match decrypt(value, key, pass) {
                 Ok(v) => v,
@@ -122,19 +121,6 @@ impl InOutFuncs for Enigma {
         }
 
         buffer.push_str(&value);
-/* ¿Qué pedo con este anidadero?
-        match get_private_key() {
-            Ok(ret_key) => match ret_key {
-                Some(key) => match decrypt(value, key.as_str()) {
-                    Ok(v) => buffer.push_str(&v),
-                    Err(e) => buffer.push_str(&format!("Decrypt error: {}", e)),
-                },
-                None =>  buffer.push_str(&format!("Missing private key"))
-            },
-
-            Err(e) => buffer.push_str(&format!("Error getting private key: {}\nvalue: {}", e, value))
-        };
-*/
     }
 }
 
