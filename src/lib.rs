@@ -8,6 +8,7 @@ use pgp::composed::message::Message;
 use pgp::crypto::sym::SymmetricKeyAlgorithm;
 use rand::prelude::*;
 use std::io::Cursor;
+use std::fs;
 
 ::pgrx::pg_module_magic!();
 
@@ -48,8 +49,7 @@ Vn77XUctBRm0FuLM/S/io8IsNlAivX2vrC7QSZoPbbVqhBPELCnPAAG+dk7y+i1w
 dt/epY/+oiyprjgbfygBFet02xyKnCdAtStno8aUCu4hVNmdYcUCezr1AgXnYk2R
 DdGpjenMdNnT6b0bjWcwT6cwfdmXKjzaUJs=
 =DYQs
------END PGP PRIVATE KEY BLOCK-----"); 
-*/
+-----END PGP PRIVATE KEY BLOCK-----");
 
 static PUB_KEY: Option<&str> = Some("-----BEGIN PGP PUBLIC KEY BLOCK-----
 
@@ -70,6 +70,7 @@ LCnPAAG+dk7y+i1wdt/epY/+oiyprjgbfygBFet02xyKnCdAtStno8aUCu4hVNmd
 YcUCezr1AgXnYk2RDdGpjenMdNnT6b0bjWcwT6cwfdmXKjzaUJs=
 =jOmZ
 -----END PGP PUBLIC KEY BLOCK-----");
+*/
 
 
 
@@ -84,28 +85,30 @@ struct Enigma {
 impl InOutFuncs for Enigma {
     // Get from postgres
     fn input(input: &CStr) -> Self {
-        let mut value: String = input
+        let value: String = input
                 .to_str()
                 .expect("Enigma::input can't convert to str")
                 .to_string();
+        let HARDCODED_KEY_ID = 1; // TODO: Obtener el ID del modificador
+        let pub_key = get_public_key(HARDCODED_KEY_ID)
+                     .expect("Error getting public key");
+        let encrypted = match pub_key {
+            Some(key) => {
+                match encrypt(value, &key) {
+                    Ok(v) => v,
+                    Err(e) => panic!("Encrypt error: {}", e)
+                }
+            },
+            None => panic!("NO KEY DEFINED")
+        };
 
-       if let Some(key) = PUB_KEY { // TODO: Deshardcodear este hardcodeado
-            value = match encrypt(value, key) {
-                Ok(v) => v,
-                Err(e) => format!("Encrypt error: {}", e)
-            };
-        } else {
-            value = format!("NO KEY DEFINED");
-        }
-        
         Enigma {
-            value: value.clone(),
+            value: encrypted,
         }
     }
 
     // Send to postgres
     fn output(&self, buffer: &mut StringInfo) {
-
        let mut value: String = self.value.clone();
        let KEY_ID=1; // TODO: Deshardcodear este hardcodeado
 
@@ -114,11 +117,24 @@ impl InOutFuncs for Enigma {
         .expect("Error getting private key") {
             value = match decrypt(value, key, pass) {
                 Ok(v) => v,
-                Err(e) => format!("Decrypt error: {}", e)
+                Err(e) => panic!("Decrypt error: {}", e)
             };
         }
 
         buffer.push_str(&value);
+/* ¿Qué pedo con este anidadero?
+        match get_private_key() {
+            Ok(ret_key) => match ret_key {
+                Some(key) => match decrypt(value, key.as_str()) {
+                    Ok(v) => buffer.push_str(&v),
+                    Err(e) => buffer.push_str(&format!("Decrypt error: {}", e)),
+                },
+                None =>  buffer.push_str(&format!("Missing private key"))
+            },
+
+            Err(e) => buffer.push_str(&format!("Error getting private key: {}\nvalue: {}", e, value))
+        };
+*/
     }
 }
 
@@ -185,9 +201,9 @@ fn set_public_key(id: i32, key: &str)
 		   DO UPDATE SET public_key=$2 
            RETURNING 'Public key set'"#,
         vec![
-			(PgBuiltInOids::INT4OID.oid(), id.into_datum()),
-			(PgBuiltInOids::TEXTOID.oid(), key.into_datum())
-		],
+            (PgBuiltInOids::INT4OID.oid(), id.into_datum()),
+            (PgBuiltInOids::TEXTOID.oid(), key.into_datum())
+        ],
     )
 }
 
@@ -225,13 +241,36 @@ fn create_key_table() -> Result<(), spi::Error> {
 // TODO: return bool
 fn exists_key_table() -> Result<bool, spi::Error> {
     if let Some(e) = Spi::get_one("SELECT EXISTS (
-        SELECT tablename 
+        SELECT tablename
         FROM pg_catalog.pg_tables WHERE tablename = 'temp_keys'
         )")? {
         return Ok(e);
     }
     Ok(false)
 }
+
+
+/// Sets the private key from a file
+#[pg_extern]
+fn set_private_key_from_file(id: i32, file_path: &str, pass: &str) 
+-> Result<String, spi::Error> {
+    let contents = fs::read_to_string(file_path)
+    .expect("Error reading private key file");
+    set_private_key(id, &contents, pass)?;
+    Ok(format!("{}\nPrivate key succesfully added", contents))
+}
+
+/// Sets the public key from a file
+#[pg_extern]
+fn set_public_key_from_file(id: i32, file_path: &str) 
+-> Result<String, spi::Error> {
+    let contents = fs::read_to_string(file_path)
+        .expect("Error reading public file");
+    set_public_key(id, &contents)?;
+    Ok(format!("{}\nPublic key succesfully added", contents))
+}
+
+
 
 #[cfg(any(test, feature = "pg_test"))]
 #[pg_schema]
