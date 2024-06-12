@@ -81,6 +81,7 @@ struct Enigma {
     value: String,
 }
 
+
 /// Functions for extracting and inserting data
 impl InOutFuncs for Enigma {
     // Get from postgres
@@ -109,23 +110,23 @@ impl InOutFuncs for Enigma {
 
     // Send to postgres
     fn output(&self, buffer: &mut StringInfo) {
-       let mut value: String = self.value.clone();
-       let KEY_ID=1; // TODO: Deshardcodear este hardcodeado
+        let mut value: String = self.value.clone();
+        let KEY_ID=1; // TODO: Deshardcodear este hardcodeado
 
-       if let (Some(key), Some(pass)) = get_private_key(KEY_ID)
-        .expect("Error getting private key") {
-            value = match decrypt(value, key, pass) {
-                Ok(v) => v,
+        match get_private_key(KEY_ID) {
+            Ok((Some(key), Some(pass))) => match decrypt(value, key, pass) {
+                Ok(v) => buffer.push_str(&v),
                 Err(e) => panic!("Decrypt error: {}", e)
-            };
+            },
+            // TODO: check if we need more granular errors
+            Err(e) => panic!("GET PRIVATE KEY ERROR {}", e),
+            _ => buffer.push_str(&value),
         }
-
-        buffer.push_str(&value);
     }
 }
 
 /// Encrypts the value
-fn decrypt(value: String, key: String, pass: String) 
+fn decrypt(value: String, key: String, pass: String)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
     let (sec_key, _) = SignedSecretKey::from_string(key.as_str())?;
     let buf = Cursor::new(value);
@@ -141,7 +142,7 @@ fn decrypt(value: String, key: String, pass: String)
 }
 
 /// Decrypts the value
-fn encrypt(value: String, key: &str) 
+fn encrypt(value: String, key: &str)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
     let (pub_key, _) = SignedPublicKey::from_string(key)?;
     let msg = Message::new_literal("none", value.as_str());
@@ -155,36 +156,36 @@ fn encrypt(value: String, key: &str)
 
 /// TODO: add docs
 #[pg_extern]
-fn set_private_key(id: i32, key: &str, pass: &str) 
+fn set_private_key(id: i32, key: &str, pass: &str)
 -> Result<Option<String>, spi::Error> {
     //let (sec_key, _) = SignedSecretKey::from_string(key)?;
     //sec_key.verify()?;
-	create_key_table()?;
+    create_key_table()?;
     Spi::get_one_with_args(
-        r#"INSERT INTO temp_keys(id, private_key, pass) 
-           VALUES ($1, $2, $3) 
+        r#"INSERT INTO temp_keys(id, private_key, pass)
+           VALUES ($1, $2, $3)
            ON CONFLICT(id)
-		   DO UPDATE SET private_key=$2, pass=$3 
+           DO UPDATE SET private_key=$2, pass=$3
            RETURNING 'Private key set'"#,
         vec![
-			(PgBuiltInOids::INT4OID.oid(), id.into_datum()),
-			(PgBuiltInOids::TEXTOID.oid(), key.into_datum()),
-			(PgBuiltInOids::TEXTOID.oid(), pass.into_datum())
-		],
+            (PgBuiltInOids::INT4OID.oid(), id.into_datum()),
+            (PgBuiltInOids::TEXTOID.oid(), key.into_datum()),
+            (PgBuiltInOids::TEXTOID.oid(), pass.into_datum())
+        ],
     )
 }
 
 
 /// TODO: add docs
 #[pg_extern]
-fn set_public_key(id: i32, key: &str) 
+fn set_public_key(id: i32, key: &str)
 -> Result<Option<String>, spi::Error> {
-	create_key_table()?;
+    create_key_table()?;
     Spi::get_one_with_args(
-        r#"INSERT INTO temp_keys(id, public_key) 
-           VALUES ($1, $2) 
+        r#"INSERT INTO temp_keys(id, public_key)
+           VALUES ($1, $2)
            ON CONFLICT(id)
-		   DO UPDATE SET public_key=$2 
+           DO UPDATE SET public_key=$2
            RETURNING 'Public key set'"#,
         vec![
             (PgBuiltInOids::INT4OID.oid(), id.into_datum()),
@@ -193,31 +194,45 @@ fn set_public_key(id: i32, key: &str)
     )
 }
 
-fn get_private_key(id: i32) 
+/// Get the private key from the keys table
+fn get_private_key(id: i32)
 -> Result<(Option<String>,Option<String>), pgrx::spi::Error> {
     if ! exists_key_table()? { return Ok((None,None)); }
-    Spi::get_two_with_args(
-        "SELECT private_key, pass FROM temp_keys WHERE id = $1",
-        vec![ (PgBuiltInOids::INT4OID.oid(), id.into_datum()) ],
-    )
+    let query = "SELECT private_key, pass FROM temp_keys WHERE id = $1";
+    let args = vec![ (PgBuiltInOids::INT4OID.oid(), id.into_datum()) ];
+    Spi::connect(|mut client| {
+        let tuple_table = client.update(query, Some(1), Some(args))?;
+        if tuple_table.len() == 0 {
+            Ok((None, None))
+        } else {
+            tuple_table.first().get_two::<String, String>()
+        }
+    })
 }
 
+/// Get the public key from the keys table
 fn get_public_key(id: i32) -> Result<Option<String>, pgrx::spi::Error> {
     if ! exists_key_table()? { return Ok(None); }
-    Spi::get_one_with_args(
-        "SELECT public_key FROM temp_keys WHERE id = $1",
-        vec![ (PgBuiltInOids::INT4OID.oid(), id.into_datum()) ],
-    )
-}
+    let query = "SELECT public_key FROM temp_keys WHERE id = $1";
+    let args = vec![ (PgBuiltInOids::INT4OID.oid(), id.into_datum()) ];
+    Spi::connect(|mut client| {
+        let tuple_table = client.update(query, Some(1), Some(args))?;
+        if tuple_table.len() == 0 {
+            Ok(None)
+        } else {
+            tuple_table.first().get_one::<String>()
+        }
+    })
 
+}
 
 #[pg_extern]
 fn create_key_table() -> Result<(), spi::Error> {
     Spi::run(
         "CREATE TEMPORARY TABLE IF NOT EXISTS temp_keys (
-            id INT PRIMARY KEY, 
-            private_key TEXT, 
-            public_key TEXT, 
+            id INT PRIMARY KEY,
+            private_key TEXT,
+            public_key TEXT,
             pass TEXT
          )"
     )
@@ -238,7 +253,7 @@ fn exists_key_table() -> Result<bool, spi::Error> {
 
 /// Sets the private key from a file
 #[pg_extern]
-fn set_private_key_from_file(id: i32, file_path: &str, pass: &str) 
+fn set_private_key_from_file(id: i32, file_path: &str, pass: &str)
 -> Result<String, spi::Error> {
     let contents = fs::read_to_string(file_path)
     .expect("Error reading private key file");
@@ -248,7 +263,7 @@ fn set_private_key_from_file(id: i32, file_path: &str, pass: &str)
 
 /// Sets the public key from a file
 #[pg_extern]
-fn set_public_key_from_file(id: i32, file_path: &str) 
+fn set_public_key_from_file(id: i32, file_path: &str)
 -> Result<String, spi::Error> {
     let contents = fs::read_to_string(file_path)
         .expect("Error reading public file");
