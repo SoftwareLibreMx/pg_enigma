@@ -33,11 +33,7 @@ CREATE TABLE testab (
     b Enigma
 );
 
-select set_public_key(1,'
------BEGIN PGP PUBLIC KEY BLOCK-----
-... ommited key for brevity  ...
------END PGP PUBLIC KEY BLOCK-----
-'); 
+SELECT set_public_key_from_file(1, '/path/to/pg_enigma/test/public-key.asc'); 
 
 INSERT INTO testab (b) VALUES ('my first record');
 SELECT * FROM testab;
@@ -63,14 +59,12 @@ pg_enigma=# SELECT * FROM testab limit 1;
 (1 row)
 ```
 
-Now provide the private key using `set_public_key()` function:
+Now provide the private key using `set_private_key_from_file()` function:
 
 ```sql
-pg_enigma=# select set_private_key(1,'
------BEGIN PGP PRIVATE KEY BLOCK-----
-... ommited key for brevity  ...
------END PGP PRIVATE KEY BLOCK-----','the key passphrase'); 
-');
+pg_enigma=# SELECT set_private_key_from_file(1, 
+	'../../pg_enigma/test/private-key.asc', 'Key Passphrase');
+
  set_private_key 
 -----------------
  Private key set

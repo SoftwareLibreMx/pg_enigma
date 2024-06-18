@@ -49,7 +49,7 @@ impl InOutFuncs for Enigma {
 
     // Send to postgres
     fn output(&self, buffer: &mut StringInfo) {
-        let mut value: String = self.value.clone();
+        let value: String = self.value.clone();
         let KEY_ID=1; // TODO: Deshardcodear este hardcodeado
 
         match get_private_key(KEY_ID) {
