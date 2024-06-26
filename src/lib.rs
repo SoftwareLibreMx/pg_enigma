@@ -7,6 +7,7 @@ use pgp::SignedPublicKey;
 use pgp::composed::message::Message;
 use pgp::crypto::sym::SymmetricKeyAlgorithm;
 use rand::prelude::*;
+use std::collections::BTreeMap;
 use std::io::Cursor;
 use std::fs;
 
@@ -72,6 +73,7 @@ YcUCezr1AgXnYk2RDdGpjenMdNnT6b0bjWcwT6cwfdmXKjzaUJs=
 -----END PGP PUBLIC KEY BLOCK-----");
 */
 
+static PRIV_KEYS: BTreeMap<i32,SignedSecretKey> = BTreeMap::new();
 
 
 /// Value stores entcrypted information
@@ -114,7 +116,7 @@ impl InOutFuncs for Enigma {
         let KEY_ID=1; // TODO: Deshardcodear este hardcodeado
 
         match get_private_key(KEY_ID) {
-            Ok((Some(key), Some(pass))) => match decrypt(value, key, pass) {
+            Ok(Some((key, pass))) => match decrypt(value, key, pass) {
                 Ok(v) => buffer.push_str(&v),
                 Err(e) => panic!("Decrypt error: {}", e)
             },
@@ -126,9 +128,10 @@ impl InOutFuncs for Enigma {
 }
 
 /// Encrypts the value
-fn decrypt(value: String, key: String, pass: String)
+fn decrypt(value: String, sec_key: SignedSecretKey, pass: String)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
-    let (sec_key, _) = SignedSecretKey::from_string(key.as_str())?;
+    
+    //let (sec_key, _) = SignedSecretKey::from_string(key.as_str())?;
     let buf = Cursor::new(value);
     let (msg, _) = Message::from_armor_single(buf)?;
     let (decryptor, _) = msg
@@ -194,8 +197,40 @@ fn set_public_key(id: i32, key: &str)
     )
 }
 
-/// Get the private key from the keys table
+/// Get the private key from memory
 fn get_private_key(id: i32)
+-> Result<Option<(SignedSecretKey,String)>, Box<(dyn std::error::Error + 'static)>> {
+    match PRIV_KEYS.get(&id) {
+        Some(k) => {
+            let pass = match get_private_key_pass(id)? {
+                Some(p) => p,
+                None => String::from("")
+            };
+            Ok(Some((k.clone(),pass)))
+        },
+        None => {
+            let (armored, pass) = get_armored_private_key(id)?;
+            match armored {
+                Some(a) => {
+                    let (key, _) = 
+                        SignedSecretKey::from_string(a.as_str())?;
+                    match pass {
+                        Some(p) => {
+                            Ok(Some((key,p)))
+                        },
+                        None => {
+                            Ok(Some((key,String::from(""))))
+                        }
+                    }
+                },
+                None => Ok(None)
+            }   
+        }
+    }
+}
+
+/// Get the armored private key and password from the keys table
+fn get_armored_private_key(id: i32)
 -> Result<(Option<String>,Option<String>), pgrx::spi::Error> {
     if ! exists_key_table()? { return Ok((None,None)); }
     let query = "SELECT private_key, pass FROM temp_keys WHERE id = $1";
@@ -206,6 +241,22 @@ fn get_private_key(id: i32)
             Ok((None, None))
         } else {
             tuple_table.first().get_two::<String, String>()
+        }
+    })
+}
+
+/// Get the private key password from the keys table
+fn get_private_key_pass(id: i32)
+-> Result<Option<String>, pgrx::spi::Error> {
+    if ! exists_key_table()? { return Ok(None); }
+    let query = "SELECT pass FROM temp_keys WHERE id = $1";
+    let args = vec![ (PgBuiltInOids::INT4OID.oid(), id.into_datum()) ];
+    Spi::connect(|mut client| {
+        let tuple_table = client.update(query, Some(1), Some(args))?;
+        if tuple_table.len() == 0 {
+            Ok(None)
+        } else {
+            tuple_table.first().get_one::<String>()
         }
     })
 }
