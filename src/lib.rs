@@ -6,15 +6,46 @@ use pgp::{SignedSecretKey, Deserializable};
 use pgp::SignedPublicKey;
 use pgp::composed::message::Message;
 use pgp::crypto::sym::SymmetricKeyAlgorithm;
+use once_cell::sync::Lazy;
 use rand::prelude::*;
 use std::collections::BTreeMap;
 use std::io::Cursor;
 use std::fs;
+use std::sync::{RwLock};
 
 ::pgrx::pg_module_magic!();
 
-static PRIV_KEYS: BTreeMap<i32,SignedSecretKey> = BTreeMap::new();
+static mut PRIV_KEYS: Lazy<PrivKeys> = Lazy::new(|| PrivKeys::new());
 
+pub struct PrivKeys{
+    keys: BTreeMap<i32,SignedSecretKey>,
+    pass: BTreeMap<i32,String>
+}
+
+impl PrivKeys {
+    pub fn new() -> Self {
+        let mut keys = BTreeMap::new();
+        let mut pass = BTreeMap::new();
+        PrivKeys {
+            keys: keys,
+            pass: pass
+        }
+    }
+
+    pub fn set(&mut self, id: i32, key: SignedSecretKey, pw: String) {
+        self.keys.insert(id, key);
+        self.pass.insert(id, pw);
+    }
+
+    pub fn get(&'static self, id: i32) 
+    -> Option<(&'static SignedSecretKey, &'static String)> {
+        let key = self.keys.get(&id);
+        let pas = self.pass.get(&id);
+        if key.is_none() { return None; }
+        if pas.is_none() { return None; }
+        Some((key.unwrap(), pas.unwrap()))
+    }
+}
 
 /// Value stores entcrypted information
 #[derive(Serialize, Deserialize, PostgresType)]
@@ -68,14 +99,14 @@ impl InOutFuncs for Enigma {
 }
 
 /// Encrypts the value
-fn decrypt(value: String, sec_key: SignedSecretKey, pass: String)
+fn decrypt(value: String, sec_key: &SignedSecretKey, pass: &String)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
     
     //let (sec_key, _) = SignedSecretKey::from_string(key.as_str())?;
     let buf = Cursor::new(value);
     let (msg, _) = Message::from_armor_single(buf)?;
     let (decryptor, _) = msg
-    .decrypt(|| pass, &[&sec_key])?;
+    .decrypt(|| pass.to_string(), &[sec_key])?;
     let mut clear_text = String::from("NOT DECRYPTED");
     for msg in decryptor {
         let bytes = msg?.get_content()?.unwrap();
@@ -100,10 +131,12 @@ fn encrypt(value: String, key: &str)
 /// TODO: add docs
 #[pg_extern]
 fn set_private_key(id: i32, key: &str, pass: &str)
--> Result<Option<String>, spi::Error> {
-    //let (sec_key, _) = SignedSecretKey::from_string(key)?;
-    //sec_key.verify()?;
-    create_key_table()?;
+-> Result<Option<String>, Box<(dyn std::error::Error + 'static)>> {
+    let (sec_key, _) = SignedSecretKey::from_string(key)?;
+    sec_key.verify()?;
+    unsafe { PRIV_KEYS.set(id, sec_key, pass.into()); }
+    /*create_key_table()?;
+    Ok(
     Spi::get_one_with_args(
         r#"INSERT INTO temp_keys(id, private_key, pass)
            VALUES ($1, $2, $3)
@@ -115,7 +148,9 @@ fn set_private_key(id: i32, key: &str, pass: &str)
             (PgBuiltInOids::TEXTOID.oid(), key.into_datum()),
             (PgBuiltInOids::TEXTOID.oid(), pass.into_datum())
         ],
-    )
+    )?
+    )*/
+    Ok(Some(key.into()))
 }
 
 
@@ -139,16 +174,14 @@ fn set_public_key(id: i32, key: &str)
 
 /// Get the private key from memory
 fn get_private_key(id: i32)
--> Result<Option<(SignedSecretKey,String)>, Box<(dyn std::error::Error + 'static)>> {
-    match PRIV_KEYS.get(&id) {
-        Some(k) => {
-            let pass = match get_private_key_pass(id)? {
-                Some(p) => p,
-                None => String::from("")
-            };
-            Ok(Some((k.clone(),pass)))
+-> Result<Option<(&'static SignedSecretKey,&'static String)>, 
+Box<(dyn std::error::Error + 'static)>> {
+    match unsafe { PRIV_KEYS.get(id) } {
+        Some((k, p)) => {
+            Ok(Some((k,p)))
         },
-        None => {
+        None => Ok(None)
+        /*None => {
             let (armored, pass) = get_armored_private_key(id)?;
             match armored {
                 Some(a) => {
@@ -156,16 +189,16 @@ fn get_private_key(id: i32)
                         SignedSecretKey::from_string(a.as_str())?;
                     match pass {
                         Some(p) => {
-                            Ok(Some((key,p)))
+                            Ok(Some((&key,&p)))
                         },
                         None => {
-                            Ok(Some((key,String::from(""))))
+                            Ok(Some((&key,&String::from(""))))
                         }
                     }
                 },
                 None => Ok(None)
             }   
-        }
+        }*/
     }
 }
 
@@ -245,7 +278,7 @@ fn exists_key_table() -> Result<bool, spi::Error> {
 /// Sets the private key from a file
 #[pg_extern]
 fn set_private_key_from_file(id: i32, file_path: &str, pass: &str)
--> Result<String, spi::Error> {
+-> Result<String, Box<(dyn std::error::Error + 'static)>> {
     let contents = fs::read_to_string(file_path)
     .expect("Error reading private key file");
     set_private_key(id, &contents, pass)?;
