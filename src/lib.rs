@@ -40,6 +40,13 @@ impl PrivKeys {
         Ok(())
     }
 
+    pub fn del(&'static self, id: i32) 
+    -> Result<(), Box<(dyn std::error::Error + 'static)>> {
+        self.keys.write()?.remove(&id);
+        self.pass.write()?.remove(&id);
+        Ok(())
+    }
+
     pub fn get(&'static self, id: i32) 
     -> Result<Option<(&'static SignedSecretKey, &'static String)>, 
     Box<(dyn std::error::Error + 'static)>> {
@@ -150,6 +157,7 @@ fn set_private_key(id: i32, key: &str, pass: &str)
     let boxed_pass = Box::new(string_pass);
     let static_pass: &'static String = Box::leak(boxed_pass);
     PRIV_KEYS.set(id, static_key, &static_pass)?; 
+    // TODO: Ok(Key: FI:NG:ER:PR:IN:T)
     Ok(Some(key.into()))
 }
 
@@ -170,6 +178,7 @@ fn set_public_key(id: i32, key: &str)
             (PgBuiltInOids::TEXTOID.oid(), key.into_datum())
         ],
     )
+    // TODO: Ok(Key: FI:NG:ER:PR:IN:T)
 }
 
 /// Get the private key from memory
@@ -199,6 +208,15 @@ fn get_public_key(id: i32) -> Result<Option<String>, pgrx::spi::Error> {
     })
 
 }
+/// Delete the private key from memory
+#[pg_extern]
+fn forget_private_key(id: i32)
+-> Result<Option<String>, Box<(dyn std::error::Error + 'static)>> {
+    PRIV_KEYS.del(id)?;
+    // TODO: Ok(removed: FI:NG:ER:PR:IN:T)
+    Ok(Some(String::from("Removed provate key")))
+}
+
 
 #[pg_extern]
 fn create_key_table() -> Result<(), spi::Error> {
