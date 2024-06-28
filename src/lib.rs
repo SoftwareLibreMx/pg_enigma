@@ -15,35 +15,45 @@ use std::sync::{RwLock};
 
 ::pgrx::pg_module_magic!();
 
-static mut PRIV_KEYS: Lazy<PrivKeys> = Lazy::new(|| PrivKeys::new());
+static PRIV_KEYS: Lazy<PrivKeys> = Lazy::new(|| PrivKeys::new());
 
 pub struct PrivKeys{
-    keys: BTreeMap<i32,SignedSecretKey>,
-    pass: BTreeMap<i32,String>
+    keys: RwLock<BTreeMap<i32,&'static SignedSecretKey>>,
+    pass: RwLock<BTreeMap<i32,&'static String>>
 }
 
 impl PrivKeys {
     pub fn new() -> Self {
-        let mut keys = BTreeMap::new();
-        let mut pass = BTreeMap::new();
+        let keys = RwLock::new(BTreeMap::new());
+        let pass = RwLock::new(BTreeMap::new());
         PrivKeys {
             keys: keys,
             pass: pass
         }
     }
 
-    pub fn set(&mut self, id: i32, key: SignedSecretKey, pw: String) {
-        self.keys.insert(id, key);
-        self.pass.insert(id, pw);
+    pub fn set(&'static self, id: i32, 
+        key: &'static SignedSecretKey, pw: &'static String) 
+    -> Result<(), Box<(dyn std::error::Error + 'static)>> {
+        self.keys.write()?.insert(id, &key);
+        self.pass.write()?.insert(id, &pw);
+        Ok(())
     }
 
     pub fn get(&'static self, id: i32) 
-    -> Option<(&'static SignedSecretKey, &'static String)> {
-        let key = self.keys.get(&id);
-        let pas = self.pass.get(&id);
-        if key.is_none() { return None; }
-        if pas.is_none() { return None; }
-        Some((key.unwrap(), pas.unwrap()))
+    -> Result<Option<(&'static SignedSecretKey, &'static String)>, 
+    Box<(dyn std::error::Error + 'static)>> {
+        let binding = self.keys.read()?;
+        let key = match binding.get(&id) {
+            Some(k) => k,
+            None => return Ok(None)
+        };
+        let binding = self.pass.read()?;
+        let pas = match binding.get(&id) {
+            Some(p) => p,
+            None => return Ok(None)
+        };
+        Ok(Some((key, pas)))
     }
 }
 
@@ -99,7 +109,7 @@ impl InOutFuncs for Enigma {
 }
 
 /// Encrypts the value
-fn decrypt(value: String, sec_key: &SignedSecretKey, pass: &String)
+fn decrypt(value: String, sec_key: &SignedSecretKey, pass: &str)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
     
     //let (sec_key, _) = SignedSecretKey::from_string(key.as_str())?;
@@ -134,22 +144,12 @@ fn set_private_key(id: i32, key: &str, pass: &str)
 -> Result<Option<String>, Box<(dyn std::error::Error + 'static)>> {
     let (sec_key, _) = SignedSecretKey::from_string(key)?;
     sec_key.verify()?;
-    unsafe { PRIV_KEYS.set(id, sec_key, pass.into()); }
-    /*create_key_table()?;
-    Ok(
-    Spi::get_one_with_args(
-        r#"INSERT INTO temp_keys(id, private_key, pass)
-           VALUES ($1, $2, $3)
-           ON CONFLICT(id)
-           DO UPDATE SET private_key=$2, pass=$3
-           RETURNING 'Private key set'"#,
-        vec![
-            (PgBuiltInOids::INT4OID.oid(), id.into_datum()),
-            (PgBuiltInOids::TEXTOID.oid(), key.into_datum()),
-            (PgBuiltInOids::TEXTOID.oid(), pass.into_datum())
-        ],
-    )?
-    )*/
+    let boxed_key = Box::new(sec_key);
+    let static_key: &'static SignedSecretKey = Box::leak(boxed_key);
+    let string_pass = String::from(pass);
+    let boxed_pass = Box::new(string_pass);
+    let static_pass: &'static String = Box::leak(boxed_pass);
+    PRIV_KEYS.set(id, static_key, &static_pass)?; 
     Ok(Some(key.into()))
 }
 
@@ -174,64 +174,14 @@ fn set_public_key(id: i32, key: &str)
 
 /// Get the private key from memory
 fn get_private_key(id: i32)
--> Result<Option<(&'static SignedSecretKey,&'static String)>, 
+-> Result<Option<(&'static SignedSecretKey,&'static str)>, 
 Box<(dyn std::error::Error + 'static)>> {
-    match unsafe { PRIV_KEYS.get(id) } {
+    match PRIV_KEYS.get(id)? {
         Some((k, p)) => {
             Ok(Some((k,p)))
         },
         None => Ok(None)
-        /*None => {
-            let (armored, pass) = get_armored_private_key(id)?;
-            match armored {
-                Some(a) => {
-                    let (key, _) = 
-                        SignedSecretKey::from_string(a.as_str())?;
-                    match pass {
-                        Some(p) => {
-                            Ok(Some((&key,&p)))
-                        },
-                        None => {
-                            Ok(Some((&key,&String::from(""))))
-                        }
-                    }
-                },
-                None => Ok(None)
-            }   
-        }*/
     }
-}
-
-/// Get the armored private key and password from the keys table
-fn get_armored_private_key(id: i32)
--> Result<(Option<String>,Option<String>), pgrx::spi::Error> {
-    if ! exists_key_table()? { return Ok((None,None)); }
-    let query = "SELECT private_key, pass FROM temp_keys WHERE id = $1";
-    let args = vec![ (PgBuiltInOids::INT4OID.oid(), id.into_datum()) ];
-    Spi::connect(|mut client| {
-        let tuple_table = client.update(query, Some(1), Some(args))?;
-        if tuple_table.len() == 0 {
-            Ok((None, None))
-        } else {
-            tuple_table.first().get_two::<String, String>()
-        }
-    })
-}
-
-/// Get the private key password from the keys table
-fn get_private_key_pass(id: i32)
--> Result<Option<String>, pgrx::spi::Error> {
-    if ! exists_key_table()? { return Ok(None); }
-    let query = "SELECT pass FROM temp_keys WHERE id = $1";
-    let args = vec![ (PgBuiltInOids::INT4OID.oid(), id.into_datum()) ];
-    Spi::connect(|mut client| {
-        let tuple_table = client.update(query, Some(1), Some(args))?;
-        if tuple_table.len() == 0 {
-            Ok(None)
-        } else {
-            tuple_table.first().get_one::<String>()
-        }
-    })
 }
 
 /// Get the public key from the keys table
@@ -303,10 +253,11 @@ mod tests {
     use pgrx::prelude::*;
 
     #[pg_test]
-    fn test_hello_pg_enigma() {
-        assert_eq!("Hello, pg_enigma", crate::hello_pg_enigma());
+    fn dummy_test() {
+        assert_eq!("Hello, pg_enigma", "Hello, pg_enigma");
     }
 
+    // TODO: (set|get)_(private|public)_key()
 }
 
 /// This module is required by `cargo pgrx test` invocations.
