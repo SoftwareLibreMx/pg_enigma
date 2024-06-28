@@ -62,19 +62,25 @@ Now provide the private key using `set_private_key_from_file()` function:
 
 ```sql
 SELECT set_private_key_from_file(1, 
-	'../../pg_enigma/test/private-key.asc', 'Prueba123!');
+	'/path/to/private-key.asc', 'Private key passphrase');
 SELECT * FROM testab limit 1;
 ```
 
 Expected result:
 
 ```sql
-pg_enigma=# SELECT * FROM testab;
+pg_enigma=# SELECT set_private_key_from_file(1, 
+        '../../pg_enigma/test/private-key.asc', 'Prueba123!');
+          set_private_key_from_file          
+---------------------------------------------
+ key 1: secret key CB7D5DA21AF8B860 imported
+(1 row)
+
+pg_enigma=# SELECT * FROM testab limit 1;
  a |        b        
 ---+-----------------
  1 | my first record
 (1 row)
-
 ```
 
 
@@ -87,7 +93,13 @@ SELECT * FROM testab limit 1;
 Expected result: 
 
 ```sql
-pg_enigma=# SELECT * FROM testab;
+pg_enigma=# SELECT forget_private_key(1);
+              forget_private_key              
+----------------------------------------------
+ key 1: secret key CB7D5DA21AF8B860 forgotten
+(1 row)
+
+pg_enigma=# SELECT * FROM testab limit 1;
  a |                                b                                 
 ---+------------------------------------------------------------------
  1 | -----BEGIN PGP MESSAGE-----                                     +

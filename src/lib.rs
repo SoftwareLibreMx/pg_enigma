@@ -2,10 +2,10 @@ use pgrx::prelude::*;
 use serde::{Serialize, Deserialize};
 use pgrx::{StringInfo};
 use core::ffi::CStr;
-use pgp::{SignedSecretKey, Deserializable};
-use pgp::SignedPublicKey;
+use pgp::{SignedSecretKey, SignedPublicKey, Deserializable};
 use pgp::composed::message::Message;
 use pgp::crypto::sym::SymmetricKeyAlgorithm;
+use pgp::types::KeyTrait;
 use once_cell::sync::Lazy;
 use rand::prelude::*;
 use std::collections::BTreeMap;
@@ -34,10 +34,9 @@ impl PrivKeys {
 
     pub fn set(&'static self, id: i32, 
         key: &'static SignedSecretKey, pw: &'static String) 
-    -> Result<(), Box<(dyn std::error::Error + 'static)>> {
-        self.keys.write()?.insert(id, &key);
+    -> Result<Option<&SignedSecretKey>, Box<(dyn std::error::Error + 'static)>> {
         self.pass.write()?.insert(id, &pw);
-        Ok(())
+        Ok(self.keys.write()?.insert(id, &key))
     }
 
     pub fn del(&'static self, id: i32) 
@@ -145,20 +144,35 @@ fn encrypt(value: String, key: &str)
 }
 
 
-/// TODO: add docs
+/// Set the private key with ID `id` to the `SignedSecretKey` obtained
+/// from the armored private key given on parameter `key` 
+/// with password `pass`
+/// If the key with the same ID is already set, it is replaced with
+/// the provided one.
+/// Returns a success message with the `key` fingerprint.
+/// This function uses `pgp::SignedSecretKey`
+/// https://docs.rs/pgp/latest/pgp/composed/signed_key/struct.SignedSecretKey.html
 #[pg_extern]
 fn set_private_key(id: i32, key: &str, pass: &str)
--> Result<Option<String>, Box<(dyn std::error::Error + 'static)>> {
+-> Result<String, Box<(dyn std::error::Error + 'static)>> {
+    // https://docs.rs/pgp/latest/pgp/composed/trait.Deserializable.html#method.from_string
     let (sec_key, _) = SignedSecretKey::from_string(key)?;
     sec_key.verify()?;
+    let key_id = sec_key.key_id();
     let boxed_key = Box::new(sec_key);
     let static_key: &'static SignedSecretKey = Box::leak(boxed_key);
     let string_pass = String::from(pass);
     let boxed_pass = Box::new(string_pass);
     let static_pass: &'static String = Box::leak(boxed_pass);
-    PRIV_KEYS.set(id, static_key, &static_pass)?; 
-    // TODO: Ok(Key: FI:NG:ER:PR:IN:T)
-    Ok(Some(key.into()))
+    match PRIV_KEYS.set(id, static_key, &static_pass)? { 
+        Some(old_key) => {
+            let old_id = old_key.key_id();
+            Ok(format!("key {}: secret key {:X} replaced with {:X}"
+            , id, old_id, key_id))
+        },
+        None => 
+            Ok(format!("key {}: secret key {:X} imported", id, key_id))
+    }
 }
 
 
@@ -212,9 +226,15 @@ fn get_public_key(id: i32) -> Result<Option<String>, pgrx::spi::Error> {
 #[pg_extern]
 fn forget_private_key(id: i32)
 -> Result<Option<String>, Box<(dyn std::error::Error + 'static)>> {
-    PRIV_KEYS.del(id)?;
-    // TODO: Ok(removed: FI:NG:ER:PR:IN:T)
-    Ok(Some(String::from("Removed provate key")))
+    match get_private_key(id)? {
+        Some((sec_key, _)) => {
+            let key_id = sec_key.key_id();
+            PRIV_KEYS.del(id)?;
+            Ok(Some(
+                format!("key {}: secret key {:X} forgotten", id, key_id)))
+        },
+        None => Ok(None)
+    }
 }
 
 
@@ -231,7 +251,6 @@ fn create_key_table() -> Result<(), spi::Error> {
 }
 
 #[pg_extern]
-// TODO: return bool
 fn exists_key_table() -> Result<bool, spi::Error> {
     if let Some(e) = Spi::get_one("SELECT EXISTS (
         SELECT tablename
@@ -249,8 +268,8 @@ fn set_private_key_from_file(id: i32, file_path: &str, pass: &str)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
     let contents = fs::read_to_string(file_path)
     .expect("Error reading private key file");
-    set_private_key(id, &contents, pass)?;
-    Ok(format!("{}\nPrivate key succesfully added", contents))
+    set_private_key(id, &contents, pass)
+    //Ok(format!("{}\nPrivate key succesfully added", contents))
 }
 
 /// Sets the public key from a file
