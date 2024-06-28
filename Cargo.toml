@@ -20,10 +20,11 @@ pg16 = ["pgrx/pg16", "pgrx-tests/pg16" ]
 pg_test = []
 
 [dependencies]
-pgrx = "=0.12.0-alpha.1"
-serde = "1.0.202"
+once_cell = "*"
 pgp = "*"
+pgrx = "=0.12.0-alpha.1"
 rand = "*"
+serde = "1.0.202"
 
 [dev-dependencies]
 pgrx-tests = "=0.12.0-alpha.1"

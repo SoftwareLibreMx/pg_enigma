@@ -33,27 +33,26 @@ CREATE TABLE testab (
     b Enigma
 );
 
-SELECT set_public_key_from_file(1, '/path/to/pg_enigma/test/public-key.asc'); 
+SELECT set_public_key_from_file(1, '../../pg_enigma/test/public-key.asc'); 
 
 INSERT INTO testab (b) VALUES ('my first record');
 SELECT * FROM testab;
 ```
 
-Expected result: Postgres shows the encrypted text field
+Expected result: 
 
 ```sql
-pg_enigma=# SELECT * FROM testab limit 1;
-;
+pg_enigma=# SELECT * FROM testab;
  a |                                b                                 
 ---+------------------------------------------------------------------
  1 | -----BEGIN PGP MESSAGE-----                                     +
    |                                                                 +
-   | wYwDy31dohr4uGABA/0Vl3yMRYwkl0hZ+FkENW5RXJ0PjExcl1xlPVDZXEeFrZEy+
-   | 9WwsYuoLnF/UC6fK7tJZvMcgPw5zM3dlJ5Tf4XOGw3eXMJxTvmrRP41KRiyLVU7L+
-   | WXvfujaFTdA37CT0mJAr+x5OuUZK30vlP5+ChJUd96PWD9YWuv4WuDNNnEVkO9JE+
-   | AXk1/J1kLusQLf0hAPgazCJ6ZnArh9WStZYkHqlgbXZ9YVRjq4+iyLohm/2/OdL9+
-   | 1mhsyJ+xn90l2CbKEsFda2Yesbg=                                    +
-   | =veYc                                                           +
+   | wYwDy31dohr4uGABA/45KaIlv1ZJXZR95+G3pJ4VWap30O5INnS9JS/BFhGXqi1d+
+   | nvFTh6OTLMLdLGtFOMieUM6pxig8I0QtniGmsPjnvP4m71xaMLH4H5S0JeiAgbTL+
+   | pIijvCiz3kzu+2lmrk6zRF7+Wlvy1lsFsUZFa/PbxaSzy/uR16z20VgThvlHkdJE+
+   | AUgLHhr4lfLn220vbcXsWbZy/3iGikogqbC9d1yuMHr5pMrE6/BVtp6YCuntMEXQ+
+   | Fva1L7XrceyNGkci9VgMU8CK3rg=                                    +
+   | =COGv                                                           +
    | -----END PGP MESSAGE-----                                       +
    | 
 (1 row)
@@ -62,25 +61,65 @@ pg_enigma=# SELECT * FROM testab limit 1;
 Now provide the private key using `set_private_key_from_file()` function:
 
 ```sql
-pg_enigma=# SELECT set_private_key_from_file(1, 
-	'../../pg_enigma/test/private-key.asc', 'Key Passphrase');
+SELECT set_private_key_from_file(1, 
+	'/path/to/private-key.asc', 'Private key passphrase');
+SELECT * FROM testab limit 1;
+```
 
- set_private_key 
------------------
- Private key set
+Expected result:
+
+```sql
+pg_enigma=# SELECT set_private_key_from_file(1, 
+        '../../pg_enigma/test/private-key.asc', 'Prueba123!');
+          set_private_key_from_file          
+---------------------------------------------
+ key 1: secret key CB7D5DA21AF8B860 imported
 (1 row)
 
 pg_enigma=# SELECT * FROM testab limit 1;
-;
  a |        b        
 ---+-----------------
  1 | my first record
 (1 row)
-
 ```
 
-Expected result: Postgres shows the decrypted text field
 
+Now delete the private key using `forget_private_key()` function:
+
+```sql
+SELECT forget_private_key(1);
+SELECT * FROM testab limit 1;
+```
+Expected result: 
+
+```sql
+pg_enigma=# SELECT forget_private_key(1);
+              forget_private_key              
+----------------------------------------------
+ key 1: secret key CB7D5DA21AF8B860 forgotten
+(1 row)
+
+pg_enigma=# SELECT * FROM testab limit 1;
+ a |                                b                                 
+---+------------------------------------------------------------------
+ 1 | -----BEGIN PGP MESSAGE-----                                     +
+   |                                                                 +
+   | wYwDy31dohr4uGABA/45KaIlv1ZJXZR95+G3pJ4VWap30O5INnS9JS/BFhGXqi1d+
+   | nvFTh6OTLMLdLGtFOMieUM6pxig8I0QtniGmsPjnvP4m71xaMLH4H5S0JeiAgbTL+
+   | pIijvCiz3kzu+2lmrk6zRF7+Wlvy1lsFsUZFa/PbxaSzy/uR16z20VgThvlHkdJE+
+   | AUgLHhr4lfLn220vbcXsWbZy/3iGikogqbC9d1yuMHr5pMrE6/BVtp6YCuntMEXQ+
+   | Fva1L7XrceyNGkci9VgMU8CK3rg=                                    +
+   | =COGv                                                           +
+   | -----END PGP MESSAGE-----                                       +
+   | 
+(1 row)
+```
+
+Cleanup:
+```sql
+DROP TABLE testab;
+DROP EXTENSION pg_enigma;
+```
 
 ## Roadmap
 
