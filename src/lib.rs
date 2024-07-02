@@ -18,11 +18,13 @@ use std::sync::{RwLock};
 static PRIV_KEYS: Lazy<PrivKeys> = Lazy::new(|| PrivKeys::new());
 
 pub struct PrivKeys{
-    keys: RwLock<BTreeMap<i32,&'static SignedSecretKey>>,
-    pass: RwLock<BTreeMap<i32,&'static String>>
+    keys: RwLock<BTreeMap<i32, SignedSecretKey>>,
+    pass: RwLock<BTreeMap<i32, String>>
 }
 
+/// Functions for managing private keys
 impl PrivKeys {
+    /// Creates new PrivKeys struct
     pub fn new() -> Self {
         let keys = RwLock::new(BTreeMap::new());
         let pass = RwLock::new(BTreeMap::new());
@@ -32,34 +34,74 @@ impl PrivKeys {
         }
     }
 
-    pub fn set(&'static self, id: i32, 
-        key: &'static SignedSecretKey, pw: &'static String) 
-    -> Result<Option<&SignedSecretKey>, Box<(dyn std::error::Error + 'static)>> {
-        self.pass.write()?.insert(id, &pw);
-        Ok(self.keys.write()?.insert(id, &key))
+    /// Set a private key and its password
+    pub fn set(&self, id: i32, key: SignedSecretKey, pw: String)
+    -> Result<Option<String>, Box<(dyn std::error::Error + 'static)>> {
+        match self.pass.write() {
+            Ok(mut p) => p.insert(id, pw.clone()),
+            Err(e) => return Err(
+                    format!("Error locking while inserting private key password {}",
+                             e.to_string()
+                    ).into()),
+        };
+        match self.keys.write() {
+            Ok(mut k) => {
+                // This means a new key has been added
+                if k.insert(id, key.clone()).is_none() {
+                    return Ok(None);
+                }
+            },
+            Err(e) => return Err(
+                    format!("Error locking while inserting private key {}",
+                             e.to_string()
+                    ).into()),
+        };
+        // This means a key has been updated
+        let key_id = key.key_id().to_vec();
+        Ok(Some(String::from_utf8(key_id).expect("Can't decode key ID")))
     }
 
-    pub fn del(&'static self, id: i32) 
-    -> Result<(), Box<(dyn std::error::Error + 'static)>> {
-        self.keys.write()?.remove(&id);
-        self.pass.write()?.remove(&id);
+    pub fn del(&self, id: i32)
+    -> Result<(), Box<(dyn std::error::Error)>> {
+        match self.keys.write() {
+            Ok(mut p) => {
+                if p.remove(&id).is_none() {
+                    return Err("Can't delete key password!".into());
+                }
+            },
+            Err(e) => return Err(
+                    format!("Error locking while deleting private key password {}",
+                             e.to_string()
+                    ).into()),
+        };
+        match self.pass.write() {
+            Ok(mut p) => {
+                if p.remove(&id).is_none() {
+                    return Err("Can't delete private key!".into());
+                }
+            },
+            Err(e) => return Err(
+                    format!("Error locking while deleting private key password {}",
+                             e.to_string()
+                    ).into()),
+        };
         Ok(())
     }
 
-    pub fn get(&'static self, id: i32) 
-    -> Result<Option<(&'static SignedSecretKey, &'static String)>, 
-    Box<(dyn std::error::Error + 'static)>> {
+    pub fn get(&'static self, id: i32)
+    -> Result<Option<(SignedSecretKey, String)>,
+    Box<(dyn std::error::Error)>> {
         let binding = self.keys.read()?;
         let key = match binding.get(&id) {
             Some(k) => k,
             None => return Ok(None)
         };
         let binding = self.pass.read()?;
-        let pas = match binding.get(&id) {
+        let pass = match binding.get(&id) {
             Some(p) => p,
             None => return Ok(None)
         };
-        Ok(Some((key, pas)))
+        Ok(Some((key.clone(), pass.clone())))
     }
 }
 
@@ -103,7 +145,7 @@ impl InOutFuncs for Enigma {
         let KEY_ID=1; // TODO: Deshardcodear este hardcodeado
 
         match get_private_key(KEY_ID) {
-            Ok(Some((key, pass))) => match decrypt(value, key, pass) {
+            Ok(Some((key, pass))) => match decrypt(value, &key, &pass) {
                 Ok(v) => buffer.push_str(&v),
                 Err(e) => panic!("Decrypt error: {}", e)
             },
@@ -117,7 +159,7 @@ impl InOutFuncs for Enigma {
 /// Encrypts the value
 fn decrypt(value: String, sec_key: &SignedSecretKey, pass: &str)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
-    
+
     //let (sec_key, _) = SignedSecretKey::from_string(key.as_str())?;
     let buf = Cursor::new(value);
     let (msg, _) = Message::from_armor_single(buf)?;
@@ -145,7 +187,7 @@ fn encrypt(value: String, key: &str)
 
 
 /// Set the private key with ID `id` to the `SignedSecretKey` obtained
-/// from the armored private key given on parameter `key` 
+/// from the armored private key given on parameter `key`
 /// with password `pass`
 /// If the key with the same ID is already set, it is replaced with
 /// the provided one.
@@ -153,25 +195,20 @@ fn encrypt(value: String, key: &str)
 /// This function uses `pgp::SignedSecretKey`
 /// https://docs.rs/pgp/latest/pgp/composed/signed_key/struct.SignedSecretKey.html
 #[pg_extern]
-fn set_private_key(id: i32, key: &str, pass: &str)
--> Result<String, Box<(dyn std::error::Error + 'static)>> {
+fn set_private_key(id: i32, key: String, pass: String)
+-> Result<String, Box<(dyn std::error::Error)>> {
     // https://docs.rs/pgp/latest/pgp/composed/trait.Deserializable.html#method.from_string
-    let (sec_key, _) = SignedSecretKey::from_string(key)?;
+    let (sec_key, _) = SignedSecretKey::from_string(&key)?;
     sec_key.verify()?;
     let key_id = sec_key.key_id();
-    let boxed_key = Box::new(sec_key);
-    let static_key: &'static SignedSecretKey = Box::leak(boxed_key);
-    let string_pass = String::from(pass);
-    let boxed_pass = Box::new(string_pass);
-    let static_pass: &'static String = Box::leak(boxed_pass);
-    match PRIV_KEYS.set(id, static_key, &static_pass)? { 
-        Some(old_key) => {
-            let old_id = old_key.key_id();
-            Ok(format!("key {}: secret key {:X} replaced with {:X}"
-            , id, old_id, key_id))
+    //match PRIV_KEYS.set(id, static_key.clone(), static_pass)? {
+    match PRIV_KEYS.set(id, sec_key.clone(), pass)? {
+        Some(old_id) => {
+            Ok(format!("key {}: secret key {} replaced with {:X}"
+            , id, old_id, key_id.clone()))
         },
-        None => 
-            Ok(format!("key {}: secret key {:X} imported", id, key_id))
+        None =>
+            Ok(format!("key {}: secret key {:X} imported", id, key_id.clone()))
     }
 }
 
@@ -197,11 +234,11 @@ fn set_public_key(id: i32, key: &str)
 
 /// Get the private key from memory
 fn get_private_key(id: i32)
--> Result<Option<(&'static SignedSecretKey,&'static str)>, 
-Box<(dyn std::error::Error + 'static)>> {
+-> Result<Option<(SignedSecretKey, String)>,
+   Box<(dyn std::error::Error + 'static)>> {
     match PRIV_KEYS.get(id)? {
         Some((k, p)) => {
-            Ok(Some((k,p)))
+            Ok(Some((k, p)))
         },
         None => Ok(None)
     }
@@ -268,7 +305,7 @@ fn set_private_key_from_file(id: i32, file_path: &str, pass: &str)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
     let contents = fs::read_to_string(file_path)
     .expect("Error reading private key file");
-    set_private_key(id, &contents, pass)
+    set_private_key(id, contents, pass.to_string())
     //Ok(format!("{}\nPrivate key succesfully added", contents))
 }
 
