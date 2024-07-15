@@ -2,16 +2,58 @@ use pgrx::prelude::*;
 use serde::{Serialize, Deserialize};
 use pgrx::{StringInfo};
 use core::ffi::CStr;
+use once_cell::sync::Lazy;
 use pgp::{SignedSecretKey, Deserializable};
 use pgp::SignedPublicKey;
 use pgp::composed::message::Message;
 use pgp::crypto::sym::SymmetricKeyAlgorithm;
+use pgp::types::KeyTrait;
 use rand::prelude::*;
-use std::io::Cursor;
+use std::collections::BTreeMap;
 use std::fs;
+use std::io::Cursor;
+use std::sync::RwLock;
 
 pgrx::pg_module_magic!();
 
+
+static PRIV_KEYS: Lazy<PrivKeysMap> = Lazy::new(|| PrivKeysMap::new());
+
+
+pub struct PrivKeysMap {
+    keys: RwLock<BTreeMap<i32,PrivKey>>,
+}
+
+/// Functions for private keys map
+impl PrivKeysMap {
+    /// Creates new (empty) PrivKeys struct
+    pub fn new() -> Self {
+        let keys = RwLock::new(BTreeMap::new());
+        PrivKeysMap {
+            keys: keys
+        }
+    }
+}
+
+
+pub struct PrivKey {
+    key: SignedSecretKey,
+    pass: String
+}
+
+impl PrivKey {
+        pub fn new(armored_key: &str, pass: &str) 
+        -> Result<Self, Box<(dyn std::error::Error + 'static)>> {
+        // https://docs.rs/pgp/latest/pgp/composed/trait.Deserializable.html#method.from_string
+        let (sec_key, _) = SignedSecretKey::from_string(armored_key)?;
+        sec_key.verify()?;
+        let key_id = sec_key.key_id();
+        Ok(PrivKey {
+            key: sec_key,
+            pass: pass.to_string()
+        })
+    }
+}
 
 /// Value stores entcrypted information
 #[derive(Serialize, Deserialize, PostgresType)]
@@ -218,10 +260,11 @@ mod tests {
     use pgrx::prelude::*;
 
     #[pg_test]
-    fn test_hello_pg_enigma() {
-        assert_eq!("Hello, pg_enigma", crate::hello_pg_enigma());
+    fn dummy_test() {
+        assert_eq!("Hello, pg_enigma", "Hello, pg_enigma");
     }
 
+    // TODO: (set|get)_(private|public)_key()
 }
 
 /// This module is required by `cargo pgrx test` invocations.
