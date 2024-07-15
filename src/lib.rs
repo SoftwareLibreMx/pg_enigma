@@ -52,7 +52,7 @@ impl PrivKeysMap {
             // RwLock::insert() returns Some(old_value) if replaced
             Ok(mut m) => m.insert(id, &static_key),
             Err(e) => return Err(
-                format!("PrivKeysMap: could not get write lock: {}", e)
+                format!("PrivKeysMap: set: could not get write lock: {}", e)
                 .into()),
         };
         
@@ -66,6 +66,28 @@ impl PrivKeysMap {
             None => { // No previous key was replaced
                 format!("key {}: private key {:X} imported", id, key_id)
             }
+        };
+        Ok(msg)
+    }
+
+    pub fn del(&'static self, id: i32) 
+    -> Result<String, Box<(dyn std::error::Error + 'static)>> {
+        let old = match self.keys.write() {
+            Ok(mut m) => {
+                m.remove(&id)
+            },
+            Err(e) => return Err(
+                format!("PrivKeysMap: del: could not get write lock: {}", e)
+                .into()),
+        };
+
+        let msg = match old {
+            Some(o) => {
+                let key_id = o.key_id();
+                format!("key {}: private key {:X} forgotten", id, key_id)
+                // TODO: drop(o)
+            },
+            None => format!("key {}: not set", id)
         };
         Ok(msg)
     }
@@ -196,9 +218,8 @@ fn encrypt(value: String, key: &str)
 /// TODO: add docs
 #[pg_extern]
 fn set_private_key(id: i32, key: &str, pass: &str)
--> Result<Option<String>, Box<(dyn std::error::Error + 'static)>> {
-    let msg = PRIV_KEYS.set(id, key, pass)?;
-    Ok(Some(msg))
+-> Result<String, Box<(dyn std::error::Error + 'static)>> {
+    PRIV_KEYS.set(id, key, pass)
 }   
 
 
@@ -241,6 +262,13 @@ fn get_public_key(id: i32) -> Result<Option<String>, pgrx::spi::Error> {
         }
     })
 
+}
+
+/// Delete the private key from memory
+#[pg_extern]
+fn forget_private_key(id: i32)
+-> Result<String, Box<(dyn std::error::Error + 'static)>> {
+    PRIV_KEYS.del(id)
 }
 
 #[pg_extern]
