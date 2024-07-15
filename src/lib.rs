@@ -21,36 +21,81 @@ static PRIV_KEYS: Lazy<PrivKeysMap> = Lazy::new(|| PrivKeysMap::new());
 
 
 pub struct PrivKeysMap {
-    keys: RwLock<BTreeMap<i32,PrivKey>>,
+    /// each `BTreeMap` entry is a reference to a `PrivKey` structure
+    keys: RwLock<BTreeMap<i32,&'static PrivKey>>,
 }
 
 /// Functions for private keys map
+/// Lifetimes are handled here, so these functions can be called safely
+/// from elsewhere.
 impl PrivKeysMap {
     /// Creates new (empty) PrivKeys struct
     pub fn new() -> Self {
         let keys = RwLock::new(BTreeMap::new());
         PrivKeysMap {
-            keys: keys
+            keys: keys // new empty BTreeMap
         }
+    }
+
+    /// Sets the `PrivKeysMap` `id` to the `PrivKey` obtained from the
+    /// provides armored key and plain text password
+    pub fn set(&self, id: i32, armored_key: &str, pw: &str)
+    -> Result<Option<String>, Box<(dyn std::error::Error + 'static)>> {
+        let key = PrivKey::new(armored_key, pw)?; // key with '1 lifetime
+        // put the key into the box to allow change it's lifetime
+        let boxed_key = Box::new(key);
+        // leaked key is the same address, but now with 'static lifetime
+        let static_key: &'static PrivKey = Box::leak(boxed_key);
+        // need write lock to insert the key on the BTreeMap
+        let old = match self.keys.write() {
+            // RwLock::insert() returns Some(old_value) if replaced
+            Ok(mut m) => m.insert(id, &static_key),
+            Err(e) => return Err(
+                format!("PrivKeysMap: could not get write lock: {}", e)
+                .into()),
+        };
+        
+        match old {
+            Some(o) => { // the old key was replaced
+                let key_id = format!("{:X}",o.key.key_id()); // Hex string
+                Ok(Some(key_id))
+            }
+            None => Ok(None) // No previous key was replaced
+        }
+    }
+
+    /// Gets reference to `PrivKey` from `PrivKeysMap` entry with `id` 
+    pub fn get(self: &'static PrivKeysMap, id: &i32) 
+    -> Result<Option<&'static PrivKey>, 
+    Box<(dyn std::error::Error + 'static)>> {
+        let binding = self.keys.read()?;
+        let key = match binding.get(id) {
+            Some(k) => k,
+            None => return Ok(None)
+        };
+        Ok(Some(key))
     }
 }
 
 
 pub struct PrivKey {
+    /// PGP secret key
     key: SignedSecretKey,
+    /// Secret key password, used for decryption
     pass: String
 }
 
 impl PrivKey {
-        pub fn new(armored_key: &str, pass: &str) 
+        /// Creates a `PrivKey` struct with the `SignedSecretKey` obtained
+        /// from the `armored key` and the provided plain text password
+        pub fn new(armored_key: &str, pw: &str) 
         -> Result<Self, Box<(dyn std::error::Error + 'static)>> {
         // https://docs.rs/pgp/latest/pgp/composed/trait.Deserializable.html#method.from_string
         let (sec_key, _) = SignedSecretKey::from_string(armored_key)?;
         sec_key.verify()?;
-        let key_id = sec_key.key_id();
         Ok(PrivKey {
             key: sec_key,
-            pass: pass.to_string()
+            pass: pw.to_string()
         })
     }
 }
