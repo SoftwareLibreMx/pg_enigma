@@ -58,10 +58,10 @@ impl PrivKeysMap {
         
         let msg = match old {
             Some(o) => { // the old key was replaced
-                let old_id = o.key_id(); 
-                format!("key {}: private key {:X} replaced with {:X}", 
+                let old_id = format!("{:X}", o.key_id()); 
+                drop(o); // free old key (explicitly)
+                format!("key {}: private key {} replaced with {:X}", 
                     id, old_id, key_id)
-                // TODO: drop(o)
             },
             None => { // No previous key was replaced
                 format!("key {}: private key {:X} imported", id, key_id)
@@ -83,9 +83,9 @@ impl PrivKeysMap {
 
         let msg = match old {
             Some(o) => {
-                let key_id = o.key_id();
-                format!("key {}: private key {:X} forgotten", id, key_id)
-                // TODO: drop(o)
+                let key_id = format!("{:X}", o.key_id());
+                drop(o); // free old key (explicitly)
+                format!("key {}: private key {} forgotten", id, key_id)
             },
             None => format!("key {}: not set", id)
         };
