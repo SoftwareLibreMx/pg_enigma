@@ -3,8 +3,7 @@ use serde::{Serialize, Deserialize};
 use pgrx::{StringInfo};
 use core::ffi::CStr;
 use once_cell::sync::Lazy;
-use pgp::{SignedSecretKey, Deserializable};
-use pgp::SignedPublicKey;
+use pgp::{ArmorOptions, SignedPublicKey, SignedSecretKey, Deserializable};
 use pgp::composed::message::Message;
 use pgp::crypto::sym::SymmetricKeyAlgorithm;
 use pgp::types::{KeyId, KeyTrait};
@@ -13,6 +12,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::io::Cursor;
 use std::sync::RwLock;
+use std::time::{Instant};
 
 pgrx::pg_module_magic!();
 
@@ -153,6 +153,7 @@ impl InOutFuncs for Enigma {
                 .expect("Enigma::input can't convert to str")
                 .to_string();
         let HARDCODED_KEY_ID = 1; // TODO: Obtener el ID del modificador
+        info!("Using key id: {}", HARDCODED_KEY_ID);
         let pub_key = get_public_key(HARDCODED_KEY_ID)
                      .expect("Error getting public key");
         let encrypted = match pub_key {
@@ -174,7 +175,7 @@ impl InOutFuncs for Enigma {
     fn output(&self, buffer: &mut StringInfo) {
         let value: String = self.value.clone();
         let KEY_ID=1; // TODO: Deshardcodear este hardcodeado
-
+        info!("Using key id: {}", KEY_ID);
         match get_private_key(KEY_ID) {
             Ok(Some(sec_key)) => match decrypt(value, sec_key) {
                 Ok(v) => buffer.push_str(&v),
@@ -190,27 +191,40 @@ impl InOutFuncs for Enigma {
 /// Encrypts the value
 fn decrypt(value: String, sec_key: &PrivKey)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
+    let begin = Instant::now();
     let buf = Cursor::new(value);
     let (msg, _) = Message::from_armor_single(buf)?;
-    let (decryptor, _) = msg
+    debug2!("Message time: {}", begin.elapsed().as_secs_f64());
+    let (decrypted, _) = msg
     .decrypt(|| sec_key.pass(), &[&sec_key.key])?;
-    let mut clear_text = String::from("NOT DECRYPTED");
-    for msg in decryptor {
-        let bytes = msg?.get_content()?.unwrap();
-        clear_text = String::from_utf8(bytes).unwrap();
-    }
+    debug2!("Decrypt time: {}", begin.elapsed().as_secs_f64());
+    let bytes = match decrypted.get_content()? {
+        Some(b) => b,
+        None => return Err("Value is still encrypted".into())
+    };
+    let clear_text = String::from_utf8(bytes)?;
+    debug1!("Clear text: {}", clear_text);
+    debug2!("Clear t time: {}", begin.elapsed().as_secs_f64());
     Ok(clear_text)
 }
 
 /// Decrypts the value
 fn encrypt(value: String, key: &str)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
+    let begin = Instant::now();
     let (pub_key, _) = SignedPublicKey::from_string(key)?;
+    debug2!("Pub key time: {}", begin.elapsed().as_secs_f64());
     let msg = Message::new_literal("none", value.as_str());
+    debug2!("Message time: {}", begin.elapsed().as_secs_f64());
     let mut rng = StdRng::from_entropy();
+    debug2!("RNG time: {}", begin.elapsed().as_secs_f64());
+    info!("Using SymmetricKeyAlgorithm::AES256");
     let new_msg = msg.encrypt_to_keys(
-        &mut rng, SymmetricKeyAlgorithm::AES128, &[&pub_key])?;
-    let ret = new_msg.to_armored_string(None)?;
+        &mut rng, SymmetricKeyAlgorithm::AES256, &[&pub_key])?;
+    debug2!("Encrypt time: {}", begin.elapsed().as_secs_f64());
+    let options = ArmorOptions { headers: None, include_checksum: true };
+    let ret = new_msg.to_armored_string(options)?;
+    debug2!("Armor time: {}", begin.elapsed().as_secs_f64());
     Ok(ret)
 }
 
@@ -274,7 +288,7 @@ fn forget_private_key(id: i32)
 #[pg_extern]
 fn create_key_table() -> Result<(), spi::Error> {
     Spi::run(
-        "CREATE TEMPORARY TABLE IF NOT EXISTS temp_keys (
+        "CREATE TABLE IF NOT EXISTS temp_keys (
             id INT PRIMARY KEY,
             private_key TEXT,
             public_key TEXT,
