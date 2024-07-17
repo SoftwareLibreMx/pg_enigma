@@ -20,6 +20,7 @@ pg16 = ["pgrx/pg16", "pgrx-tests/pg16" ]
 pg_test = []
 
 [dependencies]
+once_cell = "*"
 pgrx = "=0.12.0-beta.3"
 serde = "1.0.202"
 pgp = "*"

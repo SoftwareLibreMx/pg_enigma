@@ -1441,6 +1441,7 @@ dependencies = [
 name = "pg_enigma"
 version = "0.0.0"
 dependencies = [
+ "once_cell",
  "pgp",
  "pgrx",
  "pgrx-tests",
