@@ -288,7 +288,7 @@ fn forget_private_key(id: i32)
 #[pg_extern]
 fn create_key_table() -> Result<(), spi::Error> {
     Spi::run(
-        "CREATE TABLE IF NOT EXISTS temp_keys (
+        "CREATE TEMPORARY TABLE IF NOT EXISTS temp_keys (
             id INT PRIMARY KEY,
             private_key TEXT,
             public_key TEXT,
