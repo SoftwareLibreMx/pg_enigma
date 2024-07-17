@@ -13,8 +13,9 @@ use std::fs;
 pgrx::pg_module_magic!();
 
 
+
 /// Value stores entcrypted information
-#[derive(Serialize, Deserialize, PostgresType)]
+#[derive(Serialize, Deserialize, Debug, PostgresType)]
 #[inoutfuncs]
 struct Enigma {
     value: String,
