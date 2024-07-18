@@ -229,7 +229,7 @@ fn set_public_key(id: i32, key: &str)
 -> Result<Option<String>, spi::Error> {
     create_key_table()?;
     Spi::get_one_with_args(
-        r#"INSERT INTO temp_keys(id, public_key)
+        r#"INSERT INTO _enigma_public_keys(id, public_key)
            VALUES ($1, $2)
            ON CONFLICT(id)
            DO UPDATE SET public_key=$2
@@ -251,7 +251,7 @@ Box<(dyn std::error::Error + 'static)>> {
 /// Get the public key from the keys table
 fn get_public_key(id: i32) -> Result<Option<String>, pgrx::spi::Error> {
     if ! exists_key_table()? { return Ok(None); }
-    let query = "SELECT public_key FROM temp_keys WHERE id = $1";
+    let query = "SELECT public_key FROM _enigma_public_keys WHERE id = $1";
     let args = vec![ (PgBuiltInOids::INT4OID.oid(), id.into_datum()) ];
     Spi::connect(|mut client| {
         let tuple_table = client.update(query, Some(1), Some(args))?;
@@ -274,11 +274,9 @@ fn forget_private_key(id: i32)
 #[pg_extern]
 fn create_key_table() -> Result<(), spi::Error> {
     Spi::run(
-        "CREATE TEMPORARY TABLE IF NOT EXISTS temp_keys (
+        "CREATE TABLE IF NOT EXISTS _enigma_public_keys (
             id INT PRIMARY KEY,
-            private_key TEXT,
-            public_key TEXT,
-            pass TEXT
+            public_key TEXT
          )"
     )
 }
@@ -288,7 +286,7 @@ fn create_key_table() -> Result<(), spi::Error> {
 fn exists_key_table() -> Result<bool, spi::Error> {
     if let Some(e) = Spi::get_one("SELECT EXISTS (
         SELECT tablename
-        FROM pg_catalog.pg_tables WHERE tablename = 'temp_keys'
+        FROM pg_catalog.pg_tables WHERE tablename = '_enigma_public_keys'
         )")? {
         return Ok(e);
     }
