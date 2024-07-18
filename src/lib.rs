@@ -1,15 +1,20 @@
+use lazy_static::lazy_static;
 use pgrx::prelude::*;
 use serde::{Serialize, Deserialize};
 use pgrx::{StringInfo};
 use core::ffi::CStr;
 use once_cell::sync::Lazy;
-use openssl::pkey::{PKey, Private};
+use openssl::base64::encode_block;
+use openssl::encrypt::Encrypter;
+use openssl::pkey::{PKey, Private, Public};
+use openssl::rsa::Padding;
 use pgp::{SignedSecretKey, Deserializable};
 use pgp::SignedPublicKey;
 use pgp::composed::message::Message;
 use pgp::crypto::sym::SymmetricKeyAlgorithm;
 use pgp::types::{KeyId, KeyTrait};
 use rand::prelude::*;
+use regex::Regex;
 use std::collections::BTreeMap;
 use std::fs;
 use std::io::Cursor;
@@ -227,12 +232,36 @@ fn decrypt(value: String, sec_key: &PrivKey)
 /// Decrypts the value
 fn encrypt(value: String, key: &str)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
-    let (pub_key, _) = SignedPublicKey::from_string(key)?;
-    let msg = Message::new_literal("none", value.as_str());
-    let mut rng = StdRng::from_entropy();
-    let new_msg = msg.encrypt_to_keys(
-        &mut rng, SymmetricKeyAlgorithm::AES128, &[&pub_key])?;
-    let ret = new_msg.to_armored_string(None)?;
+    lazy_static! {
+        static ref RE_pgp: Regex = Regex::new(r"BEGIN PGP PUBLIC KEY BLOCK")
+            .expect("failed to compile PGP key regex");
+        static ref RE_rsa: Regex = Regex::new(r"BEGIN PUBLIC KEY")
+            .expect("failed to compile OpenSSL RSA key regex");
+    }
+    let ret;
+    if RE_pgp.captures(&key).is_some() {
+        let (pub_key, _) = SignedPublicKey::from_string(key)?;
+        let msg = Message::new_literal("none", value.as_str());
+        let mut rng = StdRng::from_entropy();
+        let new_msg = msg.encrypt_to_keys(
+            &mut rng, SymmetricKeyAlgorithm::AES128, &[&pub_key])?;
+        ret = new_msg.to_armored_string(None)?;
+    } else if RE_rsa.captures(&key).is_some() {
+        let pub_key = PKey::<Public>::public_key_from_pem(key.as_bytes())?;
+        let mut encrypter = Encrypter::new(&pub_key)?;
+        encrypter.set_rsa_padding(Padding::PKCS1)?;
+        // Get the length of the output buffer
+        let buffer_len = encrypter.encrypt_len(&value.as_bytes())?;
+        let mut encoded = vec![0u8; buffer_len];
+        // Encode the data and get its length
+        let encoded_len = encrypter.encrypt(&value.as_bytes(), 
+            &mut encoded)?;
+        // Use only the part of the buffer with the encoded data
+        let encoded = &encoded[..encoded_len];
+        ret = encode_block(encoded);
+    } else {
+        return Err("key type not supported".into());
+    }
     Ok(ret)
 }
 
