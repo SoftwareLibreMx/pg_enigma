@@ -25,6 +25,7 @@ pgrx = "=0.12.0-beta.3"
 serde = "1.0.202"
 pgp = "*"
 rand = "*"
+openssl = "*"
 
 [dev-dependencies]
 pgrx-tests = "=0.12.0-beta.3"

@@ -3,6 +3,7 @@ use serde::{Serialize, Deserialize};
 use pgrx::{StringInfo};
 use core::ffi::CStr;
 use once_cell::sync::Lazy;
+use openssl::pkey::{PKey, Private};
 use pgp::{SignedSecretKey, Deserializable};
 use pgp::SignedPublicKey;
 use pgp::composed::message::Message;
@@ -106,8 +107,8 @@ impl PrivKeysMap {
 
 
 pub struct PrivKey {
-    /// PGP secret key
-    key: SignedSecretKey,
+    /// Enigma private key
+    key: EnigmaPrivKey,
     /// Secret key password, used for decryption
     pass: String
 }
@@ -121,7 +122,7 @@ impl PrivKey {
         let (sec_key, _) = SignedSecretKey::from_string(armored_key)?;
         sec_key.verify()?;
         Ok(PrivKey {
-            key: sec_key,
+            key: EnigmaPrivKey::PGP(sec_key),
             pass: pw.to_string()
         })
     }
@@ -133,6 +134,23 @@ impl PrivKey {
     pub fn pass(&self)  -> String {
         self.pass.clone()
     }
+}
+
+pub enum EnigmaPrivKey {
+    /// PGP secret key
+    PGP(SignedSecretKey),
+    /// OpenSSL RSA
+    RSA(PKey<Private>)
+}
+
+impl EnigmaPrivKey {
+    pub fn key_id(&self) -> KeyId {
+        match self {
+            EnigmaPrivKey::PGP(k) => k.key_id(),
+            _ => todo!()
+        }
+    }
+
 }
 
 /// Value stores entcrypted information
@@ -189,16 +207,21 @@ impl InOutFuncs for Enigma {
 /// Encrypts the value
 fn decrypt(value: String, sec_key: &PrivKey)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
-    let buf = Cursor::new(value);
-    let (msg, _) = Message::from_armor_single(buf)?;
-    let (decryptor, _) = msg
-    .decrypt(|| sec_key.pass(), &[&sec_key.key])?;
-    let mut clear_text = String::from("NOT DECRYPTED");
-    for msg in decryptor {
-        let bytes = msg?.get_content()?.unwrap();
-        clear_text = String::from_utf8(bytes).unwrap();
+    match &sec_key.key {
+        EnigmaPrivKey::PGP(key) => {
+            let buf = Cursor::new(value);
+            let (msg, _) = Message::from_armor_single(buf)?;
+            let (decryptor, _) = msg
+            .decrypt(|| sec_key.pass(), &[&key])?;
+            let mut clear_text = String::from("NOT DECRYPTED");
+            for msg in decryptor {
+                let bytes = msg?.get_content()?.unwrap();
+                clear_text = String::from_utf8(bytes).unwrap();
+            }
+            Ok(clear_text)
+        },
+        _ => Err("Llave no soportada".into())
     }
-    Ok(clear_text)
 }
 
 /// Decrypts the value
