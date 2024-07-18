@@ -8,12 +8,12 @@ Encrypted postgres data type for fun and profit
 
 Install the Rust toolchain version 1.74 or nwer.
 
-Initialize pgrx. It only works with version 0.12.0-alpha.1 and newer
+Initialize pgrx. It only works with version 0.12.0-beta.3 and newer
 but cargo will default to non-alpha versions so we need to specify it
 explicitly.
 
 ```bash
-$ cargo install --locked cargo-pgrx@0.12.0-alpha.1
+$ cargo install --locked cargo-pgrx@0.12.0-beta.3
 $ cargo pgrx init
 ```
 
@@ -24,7 +24,7 @@ Run the extension:
 $ cargo pgrx run
 ```
 
-SQL example:
+### SQL example with PGP key:
 
 ```sql
 CREATE EXTENSION pg_enigma;
@@ -114,8 +114,89 @@ pg_enigma=# SELECT * FROM testab limit 1;
    | 
 (1 row)
 ```
+### SQL example with OpenSSL RSA key:
 
-Cleanup:
+```sql
+CREATE EXTENSION pg_enigma;
+CREATE TABLE testab (
+    a SERIAL, 
+    b Enigma
+);
+
+SELECT set_public_key_from_file(1, 
+    '../../pg_enigma/test/alice_public.pem'); 
+
+INSERT INTO testab (b) VALUES ('my first record');
+SELECT * FROM testab;
+```
+
+Expected result: 
+
+```sql
+pg_enigma=# SELECT * FROM testab;
+ a |                                                                                      b                                            
+                                           
+---+-----------------------------------------------------------------------------------------------------------------------------------
+-------------------------------------------
+ 1 | TpLdFYmTDx1ZHPlTrGMAZAkYD/vsN92SpjsEQUUp6HNgPSpb430yd4/odMbWCmqInWnyE7po5uUEp5O6h2/+uqne8OZPChUt7erb8MshnkhKdUa50yIDrcy0KcJ8tglrND
+N2E+xKX1xkxgji7vIKx0XXAXC9pQEC1gMtQYHyOBA=
+(1 row)
+```
+
+Now provide the private key using `set_private_key_from_file()` function:
+
+```sql
+SELECT set_private_key_from_file(1, 
+	'/path/to/private-key.asc', 'Private key passphrase');
+SELECT * FROM testab limit 1;
+```
+
+Expected result:
+
+```sql
+pg_enigma=# SELECT set_private_key_from_file(1, 
+    '../../pg_enigma/test/alice_private.pem', 'Prueba123!');
+   set_private_key_from_file   
+-------------------------------
+ key 1: private key 6 imported
+(1 row)
+
+pg_enigma=# SELECT * FROM testab limit 1;
+ a |        b        
+---+-----------------
+ 1 | my first record
+(1 row)
+```
+
+
+Now delete the private key using `forget_private_key()` function:
+
+```sql
+SELECT forget_private_key(1);
+SELECT * FROM testab limit 1;
+```
+Expected result: 
+
+```sql
+pg_enigma=# SELECT forget_private_key(1);
+       forget_private_key       
+--------------------------------
+ key 1: private key 6 forgotten
+(1 row)
+
+pg_enigma=# SELECT * FROM testab limit 1;
+ a |                                                                                      b                                            
+                                           
+---+-----------------------------------------------------------------------------------------------------------------------------------
+-------------------------------------------
+ 1 | TpLdFYmTDx1ZHPlTrGMAZAkYD/vsN92SpjsEQUUp6HNgPSpb430yd4/odMbWCmqInWnyE7po5uUEp5O6h2/+uqne8OZPChUt7erb8MshnkhKdUa50yIDrcy0KcJ8tglrND
+N2E+xKX1xkxgji7vIKx0XXAXC9pQEC1gMtQYHyOBA=
+(1 row)
+
+```
+
+
+### Cleanup:
 ```sql
 DROP TABLE testab;
 DROP EXTENSION pg_enigma;
