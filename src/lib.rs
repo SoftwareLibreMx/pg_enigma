@@ -4,8 +4,8 @@ use serde::{Serialize, Deserialize};
 use pgrx::{StringInfo};
 use core::ffi::CStr;
 use once_cell::sync::Lazy;
-use openssl::base64::encode_block;
-use openssl::encrypt::Encrypter;
+use openssl::base64::{encode_block,decode_block};
+use openssl::encrypt::{Encrypter,Decrypter};
 use openssl::pkey::{PKey, Private, Public};
 use openssl::rsa::Padding;
 use pgp::{SignedSecretKey, Deserializable};
@@ -63,13 +63,13 @@ impl PrivKeysMap {
         
         let msg = match old {
             Some(o) => { // the old key was replaced
-                let old_id = format!("{:X}", o.key_id()); 
-                drop(o); // free old key (explicitly)
-                format!("key {}: private key {} replaced with {:X}", 
+                let old_id = o.key_id(); 
+                // TODO: drop(o); // free old key (explicitly)
+                format!("key {}: private key {} replaced with {}", 
                     id, old_id, key_id)
             },
             None => { // No previous key was replaced
-                format!("key {}: private key {:X} imported", id, key_id)
+                format!("key {}: private key {} imported", id, key_id)
             }
         };
         Ok(msg)
@@ -88,8 +88,8 @@ impl PrivKeysMap {
 
         let msg = match old {
             Some(o) => {
-                let key_id = format!("{:X}", o.key_id());
-                drop(o); // free old key (explicitly)
+                let key_id = o.key_id();
+                // TODO: drop(o); // free old key (explicitly)
                 format!("key {}: private key {} forgotten", id, key_id)
             },
             None => format!("key {}: not set", id)
@@ -122,18 +122,45 @@ impl PrivKey {
     /// Creates a `PrivKey` struct with the `SignedSecretKey` obtained
     /// from the `armored key` and the provided plain text password
     pub fn new(armored_key: &str, pw: &str) 
-        -> Result<Self, Box<(dyn std::error::Error + 'static)>> {
-        // https://docs.rs/pgp/latest/pgp/composed/trait.Deserializable.html#method.from_string
-        let (sec_key, _) = SignedSecretKey::from_string(armored_key)?;
-        sec_key.verify()?;
-        Ok(PrivKey {
-            key: EnigmaPrivKey::PGP(sec_key),
-            pass: pw.to_string()
-        })
+    -> Result<Self, Box<(dyn std::error::Error + 'static)>> {
+        lazy_static! {
+            static ref RE_pgp: Regex = 
+                Regex::new(r"BEGIN PGP PRIVATE KEY BLOCK")
+                .expect("failed to compile PGP key regex");
+            static ref RE_rsa: Regex = 
+                Regex::new(r"BEGIN ENCRYPTED PRIVATE KEY")
+                .expect("failed to compile OpenSSL RSA key regex");
+        }
+        if RE_pgp.captures(&armored_key).is_some() {
+            // https://docs.rs/pgp/latest/pgp/composed/trait.Deserializable.html#method.from_string
+            let (sec_key, _) = SignedSecretKey::from_string(armored_key)?;
+            sec_key.verify()?;
+            Ok(PrivKey {
+                key: EnigmaPrivKey::PGP(sec_key),
+                pass: pw.to_string()
+            })
+        } else if RE_rsa.captures(&armored_key).is_some() {
+            let priv_key = 
+                PKey::<Private>::private_key_from_pem_passphrase(
+                    armored_key.as_bytes(), pw.as_bytes())?;
+           Ok(PrivKey {
+                key: EnigmaPrivKey::RSA(priv_key),
+                pass: pw.to_string()
+            })
+        } else {
+            Err("key type not supported".into())
+        }
     }
 
-    pub fn key_id(&self) -> KeyId {
-        self.key.key_id()
+    pub fn key_id(&self) -> String {
+        match &self.key {
+            EnigmaPrivKey::PGP(p) => {
+                String::from(format!("{:X}", p.key_id()))
+            },
+            EnigmaPrivKey::RSA(r) => {
+                 String::from(format!("{:X}", r.id().as_raw()))
+            }
+        }
     }
 
     pub fn pass(&self)  -> String {
@@ -223,6 +250,20 @@ fn decrypt(value: String, sec_key: &PrivKey)
                 let bytes = msg?.get_content()?.unwrap();
                 clear_text = String::from_utf8(bytes).unwrap();
             }
+            Ok(clear_text)
+        },
+        EnigmaPrivKey::RSA(pkey) => {
+            let input = decode_block(value.as_str())?;
+            let mut decrypter = Decrypter::new(&pkey)?;
+            decrypter.set_rsa_padding(Padding::PKCS1)?;
+            // Get the length of the output buffer
+            let buffer_len = decrypter.decrypt_len(&input)?;
+            let mut decoded = vec![0u8; buffer_len];
+            // Decrypt the data and get its length
+            let decoded_len = decrypter.decrypt(&input, &mut decoded)?;
+            // Use only the part of the buffer with the decrypted data
+            let decoded = &decoded[..decoded_len];
+            let clear_text = String::from_utf8(decoded.to_vec())?;
             Ok(clear_text)
         },
         _ => Err("Llave no soportada".into())
