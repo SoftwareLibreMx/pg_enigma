@@ -23,7 +23,7 @@ pg_test = []
 once_cell = "*"
 pgrx = "=0.12.0-alpha.1"
 serde = "1.0.202"
-pgp = "*"
+pgp = { version = "~0.13.1", features = ["asm","profile"] }
 rand = "*"
 
 [dev-dependencies]
