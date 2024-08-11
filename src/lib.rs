@@ -1,189 +1,33 @@
-use lazy_static::lazy_static;
-use pgrx::prelude::*;
-use serde::{Serialize, Deserialize};
-use pgrx::{StringInfo};
+mod functions;
+mod key_map;
+mod priv_key;
+mod pub_key;
+
 use core::ffi::CStr;
+use crate::key_map::{PrivKeysMap};
+use crate::priv_key::{EnigmaPrivKey,PrivKey};
+use lazy_static::lazy_static;
 use once_cell::sync::Lazy;
 use openssl::base64::{encode_block,decode_block};
 use openssl::encrypt::{Encrypter,Decrypter};
-use openssl::pkey::{PKey, Private, Public};
+use openssl::pkey::{PKey, Public};
 use openssl::rsa::Padding;
-use pgp::{SignedSecretKey, Deserializable};
-use pgp::SignedPublicKey;
 use pgp::composed::message::Message;
 use pgp::crypto::sym::SymmetricKeyAlgorithm;
-use pgp::types::{KeyId, KeyTrait};
+use pgp::{SignedPublicKey,  Deserializable};
+use pgrx::prelude::*;
+use pgrx::{StringInfo};
 use rand::prelude::*;
 use regex::Regex;
-use std::collections::BTreeMap;
+use serde::{Serialize, Deserialize};
 use std::fs;
 use std::io::Cursor;
-use std::sync::RwLock;
 
 pgrx::pg_module_magic!();
 
 static PRIV_KEYS: Lazy<PrivKeysMap> = Lazy::new(|| PrivKeysMap::new());
 
 
-pub struct PrivKeysMap {
-    /// each `BTreeMap` entry is a reference to a `PrivKey` structure
-    keys: RwLock<BTreeMap<i32,&'static PrivKey>>,
-}
-
-/// Functions for private keys map
-/// Lifetimes are handled here, so these functions can be called safely
-/// from elsewhere.
-impl PrivKeysMap {
-    /// Creates new (empty) PrivKeys struct
-    pub fn new() -> Self {
-        let keys = RwLock::new(BTreeMap::new());
-        PrivKeysMap {
-            keys: keys // new empty BTreeMap
-        }
-    }
-
-    /// Sets the `PrivKeysMap` `id` to the `PrivKey` obtained from the
-    /// provides armored key and plain text password
-    pub fn set(&self, id: i32, armored_key: &str, pw: &str)
-    -> Result<String, Box<(dyn std::error::Error + 'static)>> {
-        let key = PrivKey::new(armored_key, pw)?; // key with '1 lifetime
-        let key_id = key.key_id();
-        // put the key into the box to allow change it's lifetime
-        let boxed_key = Box::new(key);
-        // leaked key is the same address, but now with 'static lifetime
-        let static_key: &'static PrivKey = Box::leak(boxed_key);
-        // need write lock to insert the key on the BTreeMap
-        let old = match self.keys.write() {
-            // RwLock::insert() returns Some(old_value) if replaced
-            Ok(mut m) => m.insert(id, &static_key),
-            Err(e) => return Err(
-                format!("PrivKeysMap: set: could not get write lock: {}", e)
-                .into()),
-        };
-        
-        let msg = match old {
-            Some(o) => { // the old key was replaced
-                let old_id = o.key_id(); 
-                // TODO: drop(o); // free old key (explicitly)
-                format!("key {}: private key {} replaced with {}", 
-                    id, old_id, key_id)
-            },
-            None => { // No previous key was replaced
-                format!("key {}: private key {} imported", id, key_id)
-            }
-        };
-        Ok(msg)
-    }
-
-    pub fn del(&'static self, id: i32) 
-    -> Result<String, Box<(dyn std::error::Error + 'static)>> {
-        let old = match self.keys.write() {
-            Ok(mut m) => {
-                m.remove(&id)
-            },
-            Err(e) => return Err(
-                format!("PrivKeysMap: del: could not get write lock: {}", e)
-                .into()),
-        };
-
-        let msg = match old {
-            Some(o) => {
-                let key_id = o.key_id();
-                // TODO: drop(o); // free old key (explicitly)
-                format!("key {}: private key {} forgotten", id, key_id)
-            },
-            None => format!("key {}: not set", id)
-        };
-        Ok(msg)
-    }
-
-    /// Gets reference to `PrivKey` from `PrivKeysMap` entry with `id` 
-    pub fn get(self: &'static PrivKeysMap, id: &i32) 
-    -> Result<Option<&'static PrivKey>, 
-    Box<(dyn std::error::Error + 'static)>> {
-        let binding = self.keys.read()?;
-        let key = match binding.get(id) {
-            Some(k) => k,
-            None => return Ok(None)
-        };
-        Ok(Some(key))
-    }
-}
-
-
-pub struct PrivKey {
-    /// Enigma private key
-    key: EnigmaPrivKey,
-    /// Secret key password, used for decryption
-    pass: String
-}
-
-impl PrivKey {
-    /// Creates a `PrivKey` struct with the `SignedSecretKey` obtained
-    /// from the `armored key` and the provided plain text password
-    pub fn new(armored_key: &str, pw: &str) 
-    -> Result<Self, Box<(dyn std::error::Error + 'static)>> {
-        lazy_static! {
-            static ref RE_pgp: Regex = 
-                Regex::new(r"BEGIN PGP PRIVATE KEY BLOCK")
-                .expect("failed to compile PGP key regex");
-            static ref RE_rsa: Regex = 
-                Regex::new(r"BEGIN ENCRYPTED PRIVATE KEY")
-                .expect("failed to compile OpenSSL RSA key regex");
-        }
-        if RE_pgp.captures(&armored_key).is_some() {
-            // https://docs.rs/pgp/latest/pgp/composed/trait.Deserializable.html#method.from_string
-            let (sec_key, _) = SignedSecretKey::from_string(armored_key)?;
-            sec_key.verify()?;
-            Ok(PrivKey {
-                key: EnigmaPrivKey::PGP(sec_key),
-                pass: pw.to_string()
-            })
-        } else if RE_rsa.captures(&armored_key).is_some() {
-            let priv_key = 
-                PKey::<Private>::private_key_from_pem_passphrase(
-                    armored_key.as_bytes(), pw.as_bytes())?;
-           Ok(PrivKey {
-                key: EnigmaPrivKey::RSA(priv_key),
-                pass: pw.to_string()
-            })
-        } else {
-            Err("key type not supported".into())
-        }
-    }
-
-    pub fn key_id(&self) -> String {
-        match &self.key {
-            EnigmaPrivKey::PGP(p) => {
-                String::from(format!("{:X}", p.key_id()))
-            },
-            EnigmaPrivKey::RSA(r) => {
-                 String::from(format!("{:X}", r.id().as_raw()))
-            }
-        }
-    }
-
-    pub fn pass(&self)  -> String {
-        self.pass.clone()
-    }
-}
-
-pub enum EnigmaPrivKey {
-    /// PGP secret key
-    PGP(SignedSecretKey),
-    /// OpenSSL RSA
-    RSA(PKey<Private>)
-}
-
-impl EnigmaPrivKey {
-    pub fn key_id(&self) -> KeyId {
-        match self {
-            EnigmaPrivKey::PGP(k) => k.key_id(),
-            _ => todo!()
-        }
-    }
-
-}
 
 /// Value stores entcrypted information
 #[derive(Serialize, Deserialize, Debug, PostgresType)]
@@ -239,7 +83,7 @@ impl InOutFuncs for Enigma {
 /// Encrypts the value
 fn decrypt(value: String, sec_key: &PrivKey)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
-    match &sec_key.key {
+    match sec_key.get_key() {
         EnigmaPrivKey::PGP(key) => {
             let buf = Cursor::new(value);
             let (msg, _) = Message::from_armor_single(buf)?;
@@ -266,7 +110,7 @@ fn decrypt(value: String, sec_key: &PrivKey)
             let clear_text = String::from_utf8(decoded.to_vec())?;
             Ok(clear_text)
         },
-        _ => Err("Llave no soportada".into())
+        //_ => Err("Llave no soportada".into())
     }
 }
 
@@ -274,20 +118,20 @@ fn decrypt(value: String, sec_key: &PrivKey)
 fn encrypt(value: String, key: &str)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
     lazy_static! {
-        static ref RE_pgp: Regex = Regex::new(r"BEGIN PGP PUBLIC KEY BLOCK")
+        static ref RE_PGP: Regex = Regex::new(r"BEGIN PGP PUBLIC KEY BLOCK")
             .expect("failed to compile PGP key regex");
-        static ref RE_rsa: Regex = Regex::new(r"BEGIN PUBLIC KEY")
+        static ref RE_RSA: Regex = Regex::new(r"BEGIN PUBLIC KEY")
             .expect("failed to compile OpenSSL RSA key regex");
     }
     let ret;
-    if RE_pgp.captures(&key).is_some() {
+    if RE_PGP.captures(&key).is_some() {
         let (pub_key, _) = SignedPublicKey::from_string(key)?;
         let msg = Message::new_literal("none", value.as_str());
         let mut rng = StdRng::from_entropy();
         let new_msg = msg.encrypt_to_keys(
             &mut rng, SymmetricKeyAlgorithm::AES128, &[&pub_key])?;
         ret = new_msg.to_armored_string(None)?;
-    } else if RE_rsa.captures(&key).is_some() {
+    } else if RE_RSA.captures(&key).is_some() {
         let pub_key = PKey::<Public>::public_key_from_pem(key.as_bytes())?;
         let mut encrypter = Encrypter::new(&pub_key)?;
         encrypter.set_rsa_padding(Padding::PKCS1)?;
