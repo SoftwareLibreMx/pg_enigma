@@ -75,15 +75,26 @@ impl PrivKeysMap {
     }
 
     /// Gets reference to `PrivKey` from `PrivKeysMap` entry with `id` 
-    pub fn get(self: &'static PrivKeysMap, id: &i32) 
+    pub fn get(self: &'static PrivKeysMap, id: i32) 
     -> Result<Option<&'static PrivKey>, 
     Box<(dyn std::error::Error + 'static)>> {
         let binding = self.keys.read()?;
-        let key = match binding.get(id) {
+        let key = match binding.get(&id) {
             Some(k) => k,
             None => return Ok(None)
         };
         Ok(Some(key))
+    }
+
+    pub fn decrypt(self: &'static PrivKeysMap, id: i32, value: &String)
+    -> Result<Option<String>, Box<(dyn std::error::Error + 'static)>> {
+        match self.get(id)? {
+            Some(sec_key) => {
+                let decrypted = sec_key.decrypt(value)?;
+                Ok(Some(decrypted))
+            },
+            None => Ok(None)
+        }
     }
 }
 

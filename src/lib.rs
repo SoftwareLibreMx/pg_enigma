@@ -5,11 +5,10 @@ mod pub_key;
 
 use core::ffi::CStr;
 use crate::key_map::{PrivKeysMap};
-use crate::priv_key::{PrivKey};
 use lazy_static::lazy_static;
 use once_cell::sync::Lazy;
-use openssl::base64::{encode_block,decode_block};
-use openssl::encrypt::{Encrypter,Decrypter};
+use openssl::base64::{encode_block};
+use openssl::encrypt::{Encrypter};
 use openssl::pkey::{PKey, Public};
 use openssl::rsa::Padding;
 use pgp::composed::message::Message;
@@ -21,7 +20,6 @@ use rand::prelude::*;
 use regex::Regex;
 use serde::{Serialize, Deserialize};
 use std::fs;
-use std::io::Cursor;
 
 pgrx::pg_module_magic!();
 
@@ -68,51 +66,15 @@ impl InOutFuncs for Enigma {
         let value: String = self.value.clone();
         let KEY_ID=1; // TODO: Deshardcodear este hardcodeado
 
-        match get_private_key(KEY_ID) {
-            Ok(Some(sec_key)) => match decrypt(value, sec_key) {
-                Ok(v) => buffer.push_str(&v),
-                Err(e) => panic!("Decrypt error: {}", e)
-            },
+        match PRIV_KEYS.decrypt(KEY_ID, &value) {
+            Ok(Some(v)) => buffer.push_str(&v),
             // TODO: check if we need more granular errors
-            Err(e) => panic!("GET PRIVATE KEY ERROR {}", e),
+            Err(e) =>  panic!("Decrypt error: {}", e),
             _ => buffer.push_str(&value),
         }
     }
 }
 
-/// Encrypts the value
-fn decrypt(value: String, sec_key: &PrivKey)
--> Result<String, Box<(dyn std::error::Error + 'static)>> {
-    match sec_key {
-        PrivKey::PGP(key, pass) => {
-            let buf = Cursor::new(value);
-            let (msg, _) = Message::from_armor_single(buf)?;
-            let (decryptor, _) = msg
-            .decrypt(|| pass.to_string(), &[&key])?;
-            let mut clear_text = String::from("NOT DECRYPTED");
-            for msg in decryptor {
-                let bytes = msg?.get_content()?.unwrap();
-                clear_text = String::from_utf8(bytes).unwrap();
-            }
-            Ok(clear_text)
-        },
-        PrivKey::RSA(pkey) => {
-            let input = decode_block(value.as_str())?;
-            let mut decrypter = Decrypter::new(&pkey)?;
-            decrypter.set_rsa_padding(Padding::PKCS1)?;
-            // Get the length of the output buffer
-            let buffer_len = decrypter.decrypt_len(&input)?;
-            let mut decoded = vec![0u8; buffer_len];
-            // Decrypt the data and get its length
-            let decoded_len = decrypter.decrypt(&input, &mut decoded)?;
-            // Use only the part of the buffer with the decrypted data
-            let decoded = &decoded[..decoded_len];
-            let clear_text = String::from_utf8(decoded.to_vec())?;
-            Ok(clear_text)
-        },
-        //_ => Err("Llave no soportada".into())
-    }
-}
 
 /// Decrypts the value
 fn encrypt(value: String, key: &str)
@@ -175,13 +137,6 @@ fn set_public_key(id: i32, key: &str)
             (PgBuiltInOids::TEXTOID.oid(), key.into_datum())
         ],
     )
-}
-
-/// Get the private key from the keys table
-fn get_private_key(id: i32)
--> Result<Option<&'static PrivKey>, 
-Box<(dyn std::error::Error + 'static)>> {
-   PRIV_KEYS.get(&id)
 }
 
 /// Get the public key from the keys table

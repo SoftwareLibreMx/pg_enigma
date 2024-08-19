@@ -1,8 +1,12 @@
 use lazy_static::lazy_static;
+use openssl::base64::decode_block;
+use openssl::encrypt::Decrypter;
 use openssl::pkey::{PKey,Private};
-use pgp::{Deserializable,SignedSecretKey};
+use openssl::rsa::Padding;
+use pgp::{Deserializable,Message,SignedSecretKey};
 use pgp::types::{KeyTrait};
 use regex::bytes::Regex;
+use std::io::Cursor;
 
 pub enum PrivKey {
     /// PGP secret key
@@ -46,6 +50,37 @@ impl PrivKey {
         }
     }
 
+    pub fn decrypt(&self, message: &String) 
+    -> Result<String, Box<(dyn std::error::Error + 'static)>> {
+        match self {
+            PrivKey::PGP(key,pass) => {
+                let buf = Cursor::new(message);
+                let (msg, _) = Message::from_armor_single(buf)?;
+                let (decryptor, _) = msg
+                    .decrypt(|| pass.clone(), &[&key])?;
+                let mut clear_text = String::from("NOT DECRYPTED");
+                for msg in decryptor {
+                    let bytes = msg?.get_content()?.unwrap();
+                    clear_text = String::from_utf8(bytes).unwrap();
+                }
+                Ok(clear_text)
+            },
+            PrivKey::RSA(pkey) => {
+                let input = decode_block(message.as_str())?;
+                let mut decrypter = Decrypter::new(&pkey)?;
+                decrypter.set_rsa_padding(Padding::PKCS1)?;
+                // Get the length of the output buffer
+                let buffer_len = decrypter.decrypt_len(&input)?;
+                let mut decoded = vec![0u8; buffer_len];
+                // Decrypt the data and get its length
+                let decoded_len = decrypter.decrypt(&input, &mut decoded)?;
+                // Use only the part of the buffer with the decrypted data
+                let decoded = &decoded[..decoded_len];
+                let clear_text = String::from_utf8(decoded.to_vec())?;
+                Ok(clear_text)
+            }
+        }
+    }
 }
 
 
