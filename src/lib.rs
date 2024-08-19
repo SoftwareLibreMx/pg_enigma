@@ -5,7 +5,7 @@ mod pub_key;
 
 use core::ffi::CStr;
 use crate::key_map::{PrivKeysMap};
-use crate::priv_key::{EnigmaPrivKey,PrivKey};
+use crate::priv_key::{PrivKey};
 use lazy_static::lazy_static;
 use once_cell::sync::Lazy;
 use openssl::base64::{encode_block,decode_block};
@@ -83,12 +83,12 @@ impl InOutFuncs for Enigma {
 /// Encrypts the value
 fn decrypt(value: String, sec_key: &PrivKey)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
-    match sec_key.get_key() {
-        EnigmaPrivKey::PGP(key) => {
+    match sec_key {
+        PrivKey::PGP(key, pass) => {
             let buf = Cursor::new(value);
             let (msg, _) = Message::from_armor_single(buf)?;
             let (decryptor, _) = msg
-            .decrypt(|| sec_key.pass(), &[&key])?;
+            .decrypt(|| pass.to_string(), &[&key])?;
             let mut clear_text = String::from("NOT DECRYPTED");
             for msg in decryptor {
                 let bytes = msg?.get_content()?.unwrap();
@@ -96,7 +96,7 @@ fn decrypt(value: String, sec_key: &PrivKey)
             }
             Ok(clear_text)
         },
-        EnigmaPrivKey::RSA(pkey) => {
+        PrivKey::RSA(pkey) => {
             let input = decode_block(value.as_str())?;
             let mut decrypter = Decrypter::new(&pkey)?;
             decrypter.set_rsa_padding(Padding::PKCS1)?;
