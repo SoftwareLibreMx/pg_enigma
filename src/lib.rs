@@ -84,19 +84,11 @@ fn set_private_key(id: i32, key: &str, pass: &str)
 /// TODO: add docs
 #[pg_extern]
 fn set_public_key(id: i32, key: &str)
--> Result<Option<String>, spi::Error> {
-    create_key_table()?;
-    Spi::get_one_with_args(
-        r#"INSERT INTO temp_keys(id, public_key)
-           VALUES ($1, $2)
-           ON CONFLICT(id)
-           DO UPDATE SET public_key=$2
-           RETURNING 'Public key set'"#,
-        vec![
-            (PgBuiltInOids::INT4OID.oid(), id.into_datum()),
-            (PgBuiltInOids::TEXTOID.oid(), key.into_datum())
-        ],
-    )
+-> Result<String, Box<(dyn std::error::Error + 'static)>> {
+    match insert_public_key(id, key)? {
+        Some(_) => PUB_KEYS.set(id, key),
+        None => Err(format!("No key ({}) inserted", id).into())
+    }
 }
 
 /// Delete the private key from memory
@@ -125,11 +117,10 @@ fn set_private_key_from_file(id: i32, file_path: &str, pass: &str)
 /// Sets the public key from a file
 #[pg_extern]
 fn set_public_key_from_file(id: i32, file_path: &str)
--> Result<String, spi::Error> {
+-> Result<String, Box<(dyn std::error::Error + 'static)>> {
     let contents = fs::read_to_string(file_path)
         .expect("Error reading public file");
-    set_public_key(id, &contents)?;
-    Ok(format!("{}\nPublic key succesfully added", contents))
+    set_public_key(id, &contents)
 }
 
 
