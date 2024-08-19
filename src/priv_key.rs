@@ -62,6 +62,7 @@ impl PrivKey {
                 for msg in decryptor {
                     let bytes = msg?.get_content()?.unwrap();
                     clear_text = String::from_utf8(bytes).unwrap();
+                    break;
                 }
                 Ok(clear_text)
             },
