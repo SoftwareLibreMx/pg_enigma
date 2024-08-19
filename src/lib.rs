@@ -4,26 +4,18 @@ mod priv_key;
 mod pub_key;
 
 use core::ffi::CStr;
-use crate::key_map::{PrivKeysMap};
-use lazy_static::lazy_static;
+use crate::functions::*;
+use crate::key_map::{PrivKeysMap,PubKeysMap};
 use once_cell::sync::Lazy;
-use openssl::base64::{encode_block};
-use openssl::encrypt::{Encrypter};
-use openssl::pkey::{PKey, Public};
-use openssl::rsa::Padding;
-use pgp::composed::message::Message;
-use pgp::crypto::sym::SymmetricKeyAlgorithm;
-use pgp::{SignedPublicKey,  Deserializable};
 use pgrx::prelude::*;
 use pgrx::{StringInfo};
-use rand::prelude::*;
-use regex::Regex;
 use serde::{Serialize, Deserialize};
 use std::fs;
 
 pgrx::pg_module_magic!();
 
 static PRIV_KEYS: Lazy<PrivKeysMap> = Lazy::new(|| PrivKeysMap::new());
+static PUB_KEYS: Lazy<PubKeysMap> = Lazy::new(|| PubKeysMap::new());
 
 
 
@@ -44,20 +36,25 @@ impl InOutFuncs for Enigma {
                 .expect("Enigma::input can't convert to str")
                 .to_string();
         let HARDCODED_KEY_ID = 1; // TODO: Obtener el ID del modificador
-        let pub_key = get_public_key(HARDCODED_KEY_ID)
-                     .expect("Error getting public key");
-        let encrypted = match pub_key {
-            Some(key) => {
-                match encrypt(value, &key) {
-                    Ok(v) => v,
-                    Err(e) => panic!("Encrypt error: {}", e)
-                }
-            },
-            None => panic!("NO KEY DEFINED")
+        let pub_key = match PUB_KEYS.get(HARDCODED_KEY_ID)
+                .expect("Get from key map") {
+            Some(k) => k,
+            None => {
+                let key = match get_public_key(HARDCODED_KEY_ID)
+                    .expect("Get public key from SQL") {
+                    Some(k) => k,
+                    None => panic!("No public key with id: {}", 
+                        HARDCODED_KEY_ID)
+                };
+                PUB_KEYS.set(HARDCODED_KEY_ID, &key)
+                    .expect("Set into key map");
+                PUB_KEYS.get(HARDCODED_KEY_ID)
+                    .expect("Get (just set) from key map").unwrap()
+            }
         };
 
         Enigma {
-            value: encrypted,
+            value: pub_key.encrypt(&value).expect("Encrypt"),
         }
     }
 
@@ -73,43 +70,6 @@ impl InOutFuncs for Enigma {
             _ => buffer.push_str(&value),
         }
     }
-}
-
-
-/// Decrypts the value
-fn encrypt(value: String, key: &str)
--> Result<String, Box<(dyn std::error::Error + 'static)>> {
-    lazy_static! {
-        static ref RE_PGP: Regex = Regex::new(r"BEGIN PGP PUBLIC KEY BLOCK")
-            .expect("failed to compile PGP key regex");
-        static ref RE_RSA: Regex = Regex::new(r"BEGIN PUBLIC KEY")
-            .expect("failed to compile OpenSSL RSA key regex");
-    }
-    let ret;
-    if RE_PGP.captures(&key).is_some() {
-        let (pub_key, _) = SignedPublicKey::from_string(key)?;
-        let msg = Message::new_literal("none", value.as_str());
-        let mut rng = StdRng::from_entropy();
-        let new_msg = msg.encrypt_to_keys(
-            &mut rng, SymmetricKeyAlgorithm::AES128, &[&pub_key])?;
-        ret = new_msg.to_armored_string(None)?;
-    } else if RE_RSA.captures(&key).is_some() {
-        let pub_key = PKey::<Public>::public_key_from_pem(key.as_bytes())?;
-        let mut encrypter = Encrypter::new(&pub_key)?;
-        encrypter.set_rsa_padding(Padding::PKCS1)?;
-        // Get the length of the output buffer
-        let buffer_len = encrypter.encrypt_len(&value.as_bytes())?;
-        let mut encoded = vec![0u8; buffer_len];
-        // Encode the data and get its length
-        let encoded_len = encrypter.encrypt(&value.as_bytes(), 
-            &mut encoded)?;
-        // Use only the part of the buffer with the encoded data
-        let encoded = &encoded[..encoded_len];
-        ret = encode_block(encoded);
-    } else {
-        return Err("key type not supported".into());
-    }
-    Ok(ret)
 }
 
 
@@ -139,22 +99,6 @@ fn set_public_key(id: i32, key: &str)
     )
 }
 
-/// Get the public key from the keys table
-fn get_public_key(id: i32) -> Result<Option<String>, pgrx::spi::Error> {
-    if ! exists_key_table()? { return Ok(None); }
-    let query = "SELECT public_key FROM temp_keys WHERE id = $1";
-    let args = vec![ (PgBuiltInOids::INT4OID.oid(), id.into_datum()) ];
-    Spi::connect(|mut client| {
-        let tuple_table = client.update(query, Some(1), Some(args))?;
-        if tuple_table.len() == 0 {
-            Ok(None)
-        } else {
-            tuple_table.first().get_one::<String>()
-        }
-    })
-
-}
-
 /// Delete the private key from memory
 #[pg_extern]
 fn forget_private_key(id: i32)
@@ -162,30 +106,12 @@ fn forget_private_key(id: i32)
     PRIV_KEYS.del(id)
 }
 
+/// Delete the public key from memory
 #[pg_extern]
-fn create_key_table() -> Result<(), spi::Error> {
-    Spi::run(
-        "CREATE TEMPORARY TABLE IF NOT EXISTS temp_keys (
-            id INT PRIMARY KEY,
-            private_key TEXT,
-            public_key TEXT,
-            pass TEXT
-         )"
-    )
+fn forget_public_key(id: i32)
+-> Result<String, Box<(dyn std::error::Error + 'static)>> {
+    PUB_KEYS.del(id)
 }
-
-#[pg_extern]
-// TODO: return bool
-fn exists_key_table() -> Result<bool, spi::Error> {
-    if let Some(e) = Spi::get_one("SELECT EXISTS (
-        SELECT tablename
-        FROM pg_catalog.pg_tables WHERE tablename = 'temp_keys'
-        )")? {
-        return Ok(e);
-    }
-    Ok(false)
-}
-
 
 /// Sets the private key from a file
 #[pg_extern]

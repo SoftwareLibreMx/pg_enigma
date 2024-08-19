@@ -124,7 +124,7 @@ impl PubKeysMap {
 
     /// Sets the `PubKeysMap` `id` to the `PubKey` obtained from the
     /// provides armored key and plain text password
-    pub fn set(&self, id: i32, armored_key: &str, pw: &str)
+    pub fn set(&self, id: i32, armored_key: &str)
     -> Result<String, Box<(dyn std::error::Error + 'static)>> {
         let key = PubKey::new(armored_key)?; // key with '1 lifetime
         let key_id = key.key_id();
@@ -189,7 +189,7 @@ impl PubKeysMap {
         Ok(Some(key))
     }
 
-    pub fn encrypt(self: &'static PubKeysMap, id: i32, value: &String)
+    /*pub fn encrypt(self: &'static PubKeysMap, id: i32, value: &String)
     -> Result<Option<String>, Box<(dyn std::error::Error + 'static)>> {
         match self.get(id)? {
             Some(key) => {
@@ -198,7 +198,7 @@ impl PubKeysMap {
             },
             None => Ok(None)
         }
-    }
+    }*/
 }
 
 
