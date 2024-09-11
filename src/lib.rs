@@ -1,10 +1,10 @@
-mod functions;
 mod key_map;
 mod priv_key;
 mod pub_key;
+mod utils;
 
 use core::ffi::CStr;
-use crate::functions::*;
+use crate::utils::*;
 use crate::key_map::{PrivKeysMap,PubKeysMap};
 use once_cell::sync::Lazy;
 use pgrx::prelude::*;
