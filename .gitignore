@@ -6,6 +6,7 @@ target/
 *.o
 *.so
 *.a
+.*.swp
 cmake*/
 .direnv
 /bin
