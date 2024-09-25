@@ -24,7 +24,9 @@ lazy_static = "*"
 once_cell = "*"
 openssl = "~0.10.64"
 pgp = "*"
-pgrx = "=0.12.0-beta.3"
+#pgrx = "=0.12.0-beta.3"
+#LOCAL TESTS pgrx = { path = "../pgrx/pgrx" }
+pgrx = { git = "https://github.com/imcsk8/pgrx.git",  branch = "imcsk8/typmod-input-function-macro" }
 rand = "*"
 regex = "1"
 serde = "1.0.202"

@@ -1498,7 +1498,7 @@ dependencies = [
  "once_cell",
  "openssl",
  "pgp",
- "pgrx",
+ "pgrx 0.12.0-beta.3 (git+https://github.com/imcsk8/pgrx.git?branch=imcsk8/typmod-input-function-macro)",
  "pgrx-tests",
  "rand",
  "regex",
@@ -1570,9 +1570,32 @@ dependencies = [
  "heapless",
  "libc",
  "once_cell",
- "pgrx-macros",
- "pgrx-pg-sys",
- "pgrx-sql-entity-graph",
+ "pgrx-macros 0.12.0-beta.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pgrx-pg-sys 0.12.0-beta.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pgrx-sql-entity-graph 0.12.0-beta.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "seahash",
+ "serde",
+ "serde_cbor",
+ "serde_json",
+ "thiserror",
+ "uuid",
+]
+
+[[package]]
+name = "pgrx"
+version = "0.12.0-beta.3"
+source = "git+https://github.com/imcsk8/pgrx.git?branch=imcsk8/typmod-input-function-macro#a9ecf9c7a8f6be7c203df89a0b52bcec6b4fe4a5"
+dependencies = [
+ "atomic-traits",
+ "bitflags 2.5.0",
+ "bitvec",
+ "enum-map",
+ "heapless",
+ "libc",
+ "once_cell",
+ "pgrx-macros 0.12.0-beta.3 (git+https://github.com/imcsk8/pgrx.git?branch=imcsk8/typmod-input-function-macro)",
+ "pgrx-pg-sys 0.12.0-beta.3 (git+https://github.com/imcsk8/pgrx.git?branch=imcsk8/typmod-input-function-macro)",
+ "pgrx-sql-entity-graph 0.12.0-beta.3 (git+https://github.com/imcsk8/pgrx.git?branch=imcsk8/typmod-input-function-macro)",
  "seahash",
  "serde",
  "serde_cbor",
@@ -1587,7 +1610,18 @@ version = "0.12.0-beta.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f72b50d322ec3e3a3da1d8081803fb903b7a6e83570089872102461914dba52a"
 dependencies = [
- "pgrx-sql-entity-graph",
+ "pgrx-sql-entity-graph 0.12.0-beta.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.66",
+]
+
+[[package]]
+name = "pgrx-macros"
+version = "0.12.0-beta.3"
+source = "git+https://github.com/imcsk8/pgrx.git?branch=imcsk8/typmod-input-function-macro#a9ecf9c7a8f6be7c203df89a0b52bcec6b4fe4a5"
+dependencies = [
+ "pgrx-sql-entity-graph 0.12.0-beta.3 (git+https://github.com/imcsk8/pgrx.git?branch=imcsk8/typmod-input-function-macro)",
  "proc-macro2",
  "quote",
  "syn 2.0.66",
@@ -1612,6 +1646,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "pgrx-pg-config"
+version = "0.12.0-beta.3"
+source = "git+https://github.com/imcsk8/pgrx.git?branch=imcsk8/typmod-input-function-macro#a9ecf9c7a8f6be7c203df89a0b52bcec6b4fe4a5"
+dependencies = [
+ "cargo_toml",
+ "eyre",
+ "home",
+ "owo-colors",
+ "pathsearch",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "toml",
+ "url",
+]
+
+[[package]]
 name = "pgrx-pg-sys"
 version = "0.12.0-beta.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1622,9 +1673,31 @@ dependencies = [
  "clang-sys",
  "eyre",
  "libc",
- "pgrx-macros",
- "pgrx-pg-config",
- "pgrx-sql-entity-graph",
+ "pgrx-macros 0.12.0-beta.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pgrx-pg-config 0.12.0-beta.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pgrx-sql-entity-graph 0.12.0-beta.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "proc-macro2",
+ "quote",
+ "serde",
+ "shlex",
+ "sptr",
+ "syn 2.0.66",
+ "walkdir",
+]
+
+[[package]]
+name = "pgrx-pg-sys"
+version = "0.12.0-beta.3"
+source = "git+https://github.com/imcsk8/pgrx.git?branch=imcsk8/typmod-input-function-macro#a9ecf9c7a8f6be7c203df89a0b52bcec6b4fe4a5"
+dependencies = [
+ "bindgen",
+ "cee-scape",
+ "clang-sys",
+ "eyre",
+ "libc",
+ "pgrx-macros 0.12.0-beta.3 (git+https://github.com/imcsk8/pgrx.git?branch=imcsk8/typmod-input-function-macro)",
+ "pgrx-pg-config 0.12.0-beta.3 (git+https://github.com/imcsk8/pgrx.git?branch=imcsk8/typmod-input-function-macro)",
+ "pgrx-sql-entity-graph 0.12.0-beta.3 (git+https://github.com/imcsk8/pgrx.git?branch=imcsk8/typmod-input-function-macro)",
  "proc-macro2",
  "quote",
  "serde",
@@ -1651,6 +1724,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "pgrx-sql-entity-graph"
+version = "0.12.0-beta.3"
+source = "git+https://github.com/imcsk8/pgrx.git?branch=imcsk8/typmod-input-function-macro#a9ecf9c7a8f6be7c203df89a0b52bcec6b4fe4a5"
+dependencies = [
+ "convert_case",
+ "eyre",
+ "petgraph",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.66",
+ "thiserror",
+ "unescape",
+]
+
+[[package]]
 name = "pgrx-tests"
 version = "0.12.0-beta.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1661,9 +1749,9 @@ dependencies = [
  "libc",
  "owo-colors",
  "paste",
- "pgrx",
- "pgrx-macros",
- "pgrx-pg-config",
+ "pgrx 0.12.0-beta.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pgrx-macros 0.12.0-beta.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pgrx-pg-config 0.12.0-beta.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "postgres",
  "proptest",
  "rand",
