@@ -9,6 +9,7 @@ use crate::key_map::{PrivKeysMap,PubKeysMap};
 use once_cell::sync::Lazy;
 use pgrx::prelude::*;
 use pgrx::{StringInfo};
+use pgrx::pg_sys::Oid;
 use serde::{Serialize, Deserialize};
 use std::fs;
 
@@ -30,7 +31,7 @@ struct Enigma {
 /// Functions for extracting and inserting data
 impl TypmodInOutFuncs for Enigma {
     // Get from postgres
-    fn input(input: &CStr, oid: Option<i32>, typmod: Option<i32>) -> Self {
+    fn input(input: &CStr, oid: Oid, typmod: i32) -> Self {
         let value: String = input
                 .to_str()
                 .expect("Enigma::input can't convert to str")
