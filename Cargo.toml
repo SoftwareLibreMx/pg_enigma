@@ -24,11 +24,12 @@ lazy_static = "*"
 once_cell = "*"
 openssl = "~0.10.64"
 pgp = "~0.15.0"
-pgrx = "~0.14.0"
-#pgrx = { path = "/usr/src/pgrx/pgrx/" }
+
+#pgrx = "~0.14.0"
+pgrx = { path = "/usr/src/pgrx/pgrx/" }
 #pgrx = { git = "https://github.com/SoftwareLibreMx/pgrx.git",  branch = "KBrown/TypmodInOutFuncs" }
-#pgrx-macros = { path = "/usr/src/pgrx/pgrx-macros/" }
-pgrx-macros = "0.14.0"
+#pgrx-macros = "0.14.0"
+pgrx-macros = { path = "/usr/src/pgrx/pgrx-macros/" }
 
 rand_chacha = "*"
 rand = "*"
@@ -37,8 +38,8 @@ serde = "1.0.202"
 
 
 [dev-dependencies]
-#pgrx-tests = { path = "/usr/src/pgrx/pgrx-tests/" }
-pgrx-tests = "~0.14.0"
+#pgrx-tests = "~0.14.0"
+pgrx-tests = { path = "/usr/src/pgrx/pgrx-tests/" }
 
 [profile.dev]
 panic = "unwind"

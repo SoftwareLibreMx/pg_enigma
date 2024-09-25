@@ -127,6 +127,7 @@ extension_sql!(
 );
 */
 
+
 /// TODO: add docs
 #[pg_extern]
 fn set_private_key(id: i32, key: &str, pass: &str)
