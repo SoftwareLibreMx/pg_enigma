@@ -21,16 +21,16 @@ static PUB_KEYS: Lazy<PubKeysMap> = Lazy::new(|| PubKeysMap::new());
 
 /// Value stores entcrypted information
 #[derive(Serialize, Deserialize, Debug, PostgresType)]
-#[inoutfuncs]
+#[typmod_inoutfuncs]
 struct Enigma {
     value: String,
 }
 
 
 /// Functions for extracting and inserting data
-impl InOutFuncs for Enigma {
+impl TypmodInOutFuncs for Enigma {
     // Get from postgres
-    fn input(input: &CStr) -> Self {
+    fn input(input: &CStr, oid: Option<i32>, typmod: Option<i32>) -> Self {
         let value: String = input
                 .to_str()
                 .expect("Enigma::input can't convert to str")
@@ -71,6 +71,7 @@ impl InOutFuncs for Enigma {
         }
     }
 }
+
 
 
 /// TODO: add docs

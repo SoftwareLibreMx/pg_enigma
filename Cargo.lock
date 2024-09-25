@@ -53,6 +53,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "annotate-snippets"
+version = "0.9.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ccaf7e9dfbb6ab22c82e473cd1a8a7bd313c19a5b7e40970f3d89ef5a5c9e81e"
+dependencies = [
+ "unicode-width",
+ "yansi-term",
+]
+
+[[package]]
 name = "anstyle"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -126,16 +136,15 @@ checksum = "8c3c1a368f70d6cf7302d78f8f7093da241fb8e8807c05cc9e51a125895a6d5b"
 
 [[package]]
 name = "bindgen"
-version = "0.69.4"
+version = "0.70.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a00dc851838a2120612785d195287475a3ac45514741da670b735818822129a0"
+checksum = "f49d8fed880d473ea71efb9bf597651e77201bdd4893efe54c9e5d65ae04ce6f"
 dependencies = [
+ "annotate-snippets",
  "bitflags 2.5.0",
  "cexpr",
  "clang-sys",
  "itertools",
- "lazy_static",
- "lazycell",
  "proc-macro2",
  "quote",
  "regex",
@@ -1160,12 +1169,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "lazycell"
-version = "1.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
-
-[[package]]
 name = "libc"
 version = "0.2.155"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1559,9 +1562,7 @@ dependencies = [
 
 [[package]]
 name = "pgrx"
-version = "0.12.0-beta.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2053dbcc1c88e0255ed847b07e3dbd9f665173d8c9216ed41acfb6e13ff8f1eb"
+version = "0.12.4"
 dependencies = [
  "atomic-traits",
  "bitflags 2.5.0",
@@ -1582,10 +1583,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "pgrx-bindgen"
+version = "0.12.4"
+dependencies = [
+ "bindgen",
+ "cc",
+ "clang-sys",
+ "eyre",
+ "pgrx-pg-config",
+ "proc-macro2",
+ "quote",
+ "shlex",
+ "syn 2.0.66",
+ "walkdir",
+]
+
+[[package]]
 name = "pgrx-macros"
-version = "0.12.0-beta.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f72b50d322ec3e3a3da1d8081803fb903b7a6e83570089872102461914dba52a"
+version = "0.12.4"
 dependencies = [
  "pgrx-sql-entity-graph",
  "proc-macro2",
@@ -1595,9 +1610,7 @@ dependencies = [
 
 [[package]]
 name = "pgrx-pg-config"
-version = "0.12.0-beta.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0f9e63e9d6a3030abb4d53a75407c53a6fbd6fac8e28dab4fe05e0b3a7002002"
+version = "0.12.4"
 dependencies = [
  "cargo_toml",
  "eyre",
@@ -1613,32 +1626,20 @@ dependencies = [
 
 [[package]]
 name = "pgrx-pg-sys"
-version = "0.12.0-beta.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "92d929279a64aaa7399a560c4bd0f0468d3198c0878820f7ec6892dec9fc7bfd"
+version = "0.12.4"
 dependencies = [
- "bindgen",
  "cee-scape",
- "clang-sys",
- "eyre",
  "libc",
+ "pgrx-bindgen",
  "pgrx-macros",
- "pgrx-pg-config",
  "pgrx-sql-entity-graph",
- "proc-macro2",
- "quote",
  "serde",
- "shlex",
  "sptr",
- "syn 2.0.66",
- "walkdir",
 ]
 
 [[package]]
 name = "pgrx-sql-entity-graph"
-version = "0.12.0-beta.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "03f70fe467d8f23cb073d36905352ef3143c7a4d04a6c8319c1b4c502580dd3f"
+version = "0.12.4"
 dependencies = [
  "convert_case",
  "eyre",
@@ -1652,9 +1653,7 @@ dependencies = [
 
 [[package]]
 name = "pgrx-tests"
-version = "0.12.0-beta.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c64f5eeb20fa68505c1c5bd64fc72f41c5e26f97621c7139bfa80f8a86252d9c"
+version = "0.12.4"
 dependencies = [
  "clap-cargo",
  "eyre",
@@ -2542,6 +2541,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d4c87d22b6e3f4a18d4d40ef354e97c90fcb14dd91d7dc0aa9d8a1172ebf7202"
 
 [[package]]
+name = "unicode-width"
+version = "0.1.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7dd6e30e90baa6f72411720665d41d89b9a3d039dc45b8faea1ddd07f617f6af"
+
+[[package]]
 name = "url"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2896,6 +2901,15 @@ dependencies = [
  "rand_core",
  "serde",
  "zeroize",
+]
+
+[[package]]
+name = "yansi-term"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fe5c30ade05e61656247b2e334a031dfd0cc466fadef865bdcdea8d537951bf1"
+dependencies = [
+ "winapi",
 ]
 
 [[package]]

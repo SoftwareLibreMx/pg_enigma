@@ -24,13 +24,14 @@ lazy_static = "*"
 once_cell = "*"
 openssl = "~0.10.64"
 pgp = "*"
-pgrx = "=0.12.0-beta.3"
+#pgrx = "0.12.4"
+pgrx = { path = "/usr/src/pgrx/pgrx/" }
 rand = "*"
 regex = "1"
 serde = "1.0.202"
 
 [dev-dependencies]
-pgrx-tests = "=0.12.0-beta.3"
+pgrx-tests = { path = "/usr/src/pgrx/pgrx-tests/" }
 
 [profile.dev]
 panic = "unwind"
