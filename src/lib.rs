@@ -19,6 +19,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::io::Cursor;
 use std::sync::RwLock;
+//use pgrx_macros::extension_sql;
 
 pgrx::pg_module_magic!();
 
@@ -60,12 +61,12 @@ impl PrivKeysMap {
                 format!("PrivKeysMap: set: could not get write lock: {}", e)
                 .into()),
         };
-        
+
         let msg = match old {
             Some(o) => { // the old key was replaced
-                let old_id = o.key_id(); 
+                let old_id = o.key_id();
                 // TODO: drop(o); // free old key (explicitly)
-                format!("key {}: private key {} replaced with {}", 
+                format!("key {}: private key {} replaced with {}",
                     id, old_id, key_id)
             },
             None => { // No previous key was replaced
@@ -75,7 +76,7 @@ impl PrivKeysMap {
         Ok(msg)
     }
 
-    pub fn del(&'static self, id: i32) 
+    pub fn del(&'static self, id: i32)
     -> Result<String, Box<(dyn std::error::Error + 'static)>> {
         let old = match self.keys.write() {
             Ok(mut m) => {
@@ -97,9 +98,9 @@ impl PrivKeysMap {
         Ok(msg)
     }
 
-    /// Gets reference to `PrivKey` from `PrivKeysMap` entry with `id` 
-    pub fn get(self: &'static PrivKeysMap, id: &i32) 
-    -> Result<Option<&'static PrivKey>, 
+    /// Gets reference to `PrivKey` from `PrivKeysMap` entry with `id`
+    pub fn get(self: &'static PrivKeysMap, id: &i32)
+    -> Result<Option<&'static PrivKey>,
     Box<(dyn std::error::Error + 'static)>> {
         let binding = self.keys.read()?;
         let key = match binding.get(id) {
@@ -121,13 +122,13 @@ pub struct PrivKey {
 impl PrivKey {
     /// Creates a `PrivKey` struct with the `SignedSecretKey` obtained
     /// from the `armored key` and the provided plain text password
-    pub fn new(armored_key: &str, pw: &str) 
+    pub fn new(armored_key: &str, pw: &str)
     -> Result<Self, Box<(dyn std::error::Error + 'static)>> {
         lazy_static! {
-            static ref RE_pgp: Regex = 
+            static ref RE_pgp: Regex =
                 Regex::new(r"BEGIN PGP PRIVATE KEY BLOCK")
                 .expect("failed to compile PGP key regex");
-            static ref RE_rsa: Regex = 
+            static ref RE_rsa: Regex =
                 Regex::new(r"BEGIN ENCRYPTED PRIVATE KEY")
                 .expect("failed to compile OpenSSL RSA key regex");
         }
@@ -140,7 +141,7 @@ impl PrivKey {
                 pass: pw.to_string()
             })
         } else if RE_rsa.captures(&armored_key).is_some() {
-            let priv_key = 
+            let priv_key =
                 PKey::<Private>::private_key_from_pem_passphrase(
                     armored_key.as_bytes(), pw.as_bytes())?;
            Ok(PrivKey {
@@ -185,18 +186,36 @@ impl EnigmaPrivKey {
 
 }
 
+use pgrx::TypmodInOutFuncs;
+
 /// Value stores entcrypted information
-#[derive(Serialize, Deserialize, Debug, PostgresType)]
-#[inoutfuncs]
+//#[derive(Serialize, Deserialize, Debug, PostgresType)]
+#[derive(PostgresType, Serialize, Deserialize, Debug, Eq, PartialEq)]
+//#[inoutfuncs(type_enigma_in, type_enigma_out)]
+#[typmodinoutfuncs]
 struct Enigma {
     value: String,
 }
 
+#[::pgrx::pgrx_macros::pg_extern(immutable,parallel_safe)]
+pub fn type_enigma_in(input: Option<&::core::ffi::CStr>) -> Option<Enigma> {
+    Some(Enigma {
+        value: "Test value".to_string(),
+    })
+}
+
+
+#[::pgrx::pgrx_macros::pg_extern(immutable,parallel_safe)]
+fn type_enigma_out(input: Option<&::core::ffi::CStr>, oid: i32, typmod: i32) {
+    panic!("TYPMOD? {}", typmod);
+    todo!()
+}
 
 /// Functions for extracting and inserting data
-impl InOutFuncs for Enigma {
+impl TypmodInOutFuncs for Enigma {
     // Get from postgres
-    fn input(input: &CStr) -> Self {
+    fn input(input: &CStr, oid: pg_sys::Oid, typmod: i32) -> Self {
+        info!("ARGUMENTS: Input: {:?}, OID: {:?},  Typmod: {}", input, oid, typmod);
         let value: String = input
                 .to_str()
                 .expect("Enigma::input can't convert to str")
@@ -223,7 +242,6 @@ impl InOutFuncs for Enigma {
     fn output(&self, buffer: &mut StringInfo) {
         let value: String = self.value.clone();
         let KEY_ID=1; // TODO: Deshardcodear este hardcodeado
-
         match get_private_key(KEY_ID) {
             Ok(Some(sec_key)) => match decrypt(value, sec_key) {
                 Ok(v) => buffer.push_str(&v),
@@ -295,7 +313,7 @@ fn encrypt(value: String, key: &str)
         let buffer_len = encrypter.encrypt_len(&value.as_bytes())?;
         let mut encoded = vec![0u8; buffer_len];
         // Encode the data and get its length
-        let encoded_len = encrypter.encrypt(&value.as_bytes(), 
+        let encoded_len = encrypter.encrypt(&value.as_bytes(),
             &mut encoded)?;
         // Use only the part of the buffer with the encoded data
         let encoded = &encoded[..encoded_len];
@@ -312,7 +330,7 @@ fn encrypt(value: String, key: &str)
 fn set_private_key(id: i32, key: &str, pass: &str)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
     PRIV_KEYS.set(id, key, pass)
-}   
+}
 
 
 /// TODO: add docs
@@ -335,7 +353,7 @@ fn set_public_key(id: i32, key: &str)
 
 /// Get the private key from the keys table
 fn get_private_key(id: i32)
--> Result<Option<&'static PrivKey>, 
+-> Result<Option<&'static PrivKey>,
 Box<(dyn std::error::Error + 'static)>> {
    PRIV_KEYS.get(&id)
 }
