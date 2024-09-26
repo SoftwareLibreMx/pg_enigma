@@ -130,9 +130,9 @@ extension_sql!(
 /*
 extension_sql!(
     r#"
-    ALTER TYPE Enigma  SET (TYPMOD_IN = 'type_enigma_in');
+    ALTER TYPE Enigma  SET (TYPMOD_IN = 'type_enigma_in', TYPMOD_OUT='type_enigma_out');
     "#,
-    name = "type_enigma_in",
+    name = "type_enigma",
     finalize,
 );
 */
