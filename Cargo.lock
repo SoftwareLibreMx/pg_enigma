@@ -1502,6 +1502,7 @@ dependencies = [
  "openssl",
  "pgp",
  "pgrx",
+ "pgrx-macros",
  "pgrx-tests",
  "rand",
  "regex",

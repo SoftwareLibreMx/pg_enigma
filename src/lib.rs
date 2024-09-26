@@ -127,6 +127,13 @@ extension_sql!(
 );
 */
 
+extension_sql!(
+    r#"
+    ALTER TYPE Enigma  SET (TYPMOD_IN = 'type_enigma_in');
+    "#,
+    name = "type_enigma_in",
+    finalize,
+);
 
 /// TODO: add docs
 #[pg_extern]
