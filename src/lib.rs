@@ -12,6 +12,7 @@ use pgrx::{StringInfo};
 use pgrx::pg_sys::Oid;
 use serde::{Serialize, Deserialize};
 use std::fs;
+use pgrx::ffi::CString;
 
 pgrx::pg_module_magic!();
 
@@ -74,7 +75,7 @@ impl TypmodInOutFuncs for Enigma {
 }
 
 #[::pgrx::pgrx_macros::pg_extern(immutable,parallel_safe)]
-pub fn type_enigma_in(input: Option<&::core::ffi::CStr>) -> i32 {
+pub fn type_enigma_in(input: Array<&CStr>) -> i32 {
     1
 }
 
