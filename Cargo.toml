@@ -38,8 +38,13 @@ serde = "1.0.202"
 
 
 [dev-dependencies]
+<<<<<<< HEAD
 #pgrx-tests = "~0.14.0"
 pgrx-tests = { path = "/usr/src/pgrx/pgrx-tests/" }
+=======
+#pgrx-tests = { path = "/usr/src/pgrx/pgrx-tests/" }
+pgrx-tests = "0.12.4"
+>>>>>>> 98fa21c (Added remote repos for testing)
 
 [profile.dev]
 panic = "unwind"
