@@ -74,18 +74,15 @@ impl TypmodInOutFuncs for Enigma {
 }
 
 #[::pgrx::pgrx_macros::pg_extern(immutable,parallel_safe)]
-pub fn type_enigma_in(input: Option<&::core::ffi::CStr>) -> Option<Enigma> {
-    Some(Enigma {
-        value: "Test value".to_string(),
-    })
+pub fn type_enigma_in(input: Option<&::core::ffi::CStr>) -> i32 {
+    1
 }
 
 
-#[::pgrx::pgrx_macros::pg_extern(immutable,parallel_safe)]
+/*#[::pgrx::pgrx_macros::pg_extern(immutable,parallel_safe)]
 fn type_enigma_out(input: Option<&::core::ffi::CStr>, oid: i32, typmod: i32) {
-    panic!("TYPMOD? {}", typmod);
-    todo!()
-}
+    
+} */
 
 
 
