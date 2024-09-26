@@ -30,7 +30,7 @@ $ cargo pgrx run
 CREATE EXTENSION pg_enigma;
 CREATE TABLE testab (
     a SERIAL, 
-    b Enigma
+    b Enigma(2)
 );
 
 SELECT set_public_key_from_file(1, '../../pg_enigma/test/public-key.asc'); 
