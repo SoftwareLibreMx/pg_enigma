@@ -33,8 +33,8 @@ struct Enigma {
 /// Functions for extracting and inserting data
 impl TypmodInOutFuncs for Enigma {
     // Get from postgres
-    fn input(input: &CStr, _oid: Oid, typmod: i32) -> Self {
-    panic!("TYPMOD: {}", typmod);
+    fn input(input: &CStr, oid: Oid, typmod: i32) -> Self {
+    panic!("INPUT: {:#?} OID: {:#?} TYPMOD: {}", input, oid, typmod);
         let value: String = input
                 .to_str()
                 .expect("Enigma::input can't convert to str")
@@ -77,23 +77,26 @@ impl TypmodInOutFuncs for Enigma {
         }
     }
 
-    // convert typmod from cstring to i32
-    fn typmod_in(input: Array<&CStr>) -> i32 {
-        if input.len() != 1 {
-            panic!("Enigma type modifier must be a single integer value");
-        }
-        // TODO: handle unwrap errors ellegantly using expect()
-        input.iter() // iterator
-        .next() // Option<Item>
-        .unwrap() // Item
-        .unwrap() // &Cstr
-        .to_str() // Option<&Str>
-        .unwrap() // &$tr
-        .parse::<i32>() // Result<i32>
-        .unwrap() // i32
-    }
-    
+   
 }
+
+// convert typmod from cstring to i32
+#[::pgrx::pgrx_macros::pg_extern(immutable,parallel_safe)]
+pub fn type_enigma_in(input: Array<&CStr>) -> i32 {
+    if input.len() != 1 {
+        panic!("Enigma type modifier must be a single integer value");
+    }
+    // TODO: handle unwrap errors ellegantly using expect()
+    input.iter() // iterator
+    .next() // Option<Item>
+    .unwrap() // Item
+    .unwrap() // &Cstr
+    .to_str() // Option<&Str>
+    .unwrap() // &$tr
+    .parse::<i32>() // Result<i32>
+    .unwrap() // i32
+}
+
 
 #[::pgrx::pgrx_macros::pg_extern(immutable,parallel_safe)]
 fn type_enigma_out(typmod: i32) -> CString {
@@ -104,7 +107,6 @@ fn type_enigma_out(typmod: i32) -> CString {
 }
 
 
-/*
 extension_sql!(
     r#"
     ALTER TYPE Enigma  SET (TYPMOD_IN = 'type_enigma_in', TYPMOD_OUT='type_enigma_out');
@@ -112,7 +114,6 @@ extension_sql!(
     name = "type_enigma",
     finalize,
 );
-*/
 
 /*
 extension_sql!(
@@ -175,7 +176,25 @@ fn set_public_key_from_file(id: i32, file_path: &str)
 }
 
 
-
+/*******************************************************************************
+    P R I V A T E  F U N C T I O N S
+******************************************************************************/
+/*
+/// Hack for getting the typmod because for some unknown reason pgrx is not
+/// sending it to the input function
+fn get_typmod_from_pg_attribute() {
+    let query = "SELECT public_key FROM enigma_public_keys WHERE id = $1";
+    let args = vec![ (PgBuiltInOids::INT4OID.oid(), id.into_datum()) ];
+    Spi::connect(|mut client| {
+        let tuple_table = client.update(query, Some(1), Some(args))?;
+        if tuple_table.len() == 0 {
+            Ok(None)
+        } else {
+            tuple_table.first().get_one::<String>()
+        }
+    })
+}
+*/
 #[cfg(any(test, feature = "pg_test"))]
 #[pg_schema]
 mod tests {
