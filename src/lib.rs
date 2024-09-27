@@ -95,7 +95,14 @@ impl TypmodInOutFuncs for Enigma {
         .parse::<i32>() // Result<i32>
         .unwrap() // i32
     }
+}
     
+#[::pgrx::pgrx_macros::pg_extern(immutable,parallel_safe)]
+pub fn type_enigma_in(input: Array<&CStr>) -> i32 {
+    log!("TEST TEST type_enigma_in");
+    if input.len() != 1 {
+        panic!("Enigma type modifier must be a single integer value");
+    }
 }
 
 #[::pgrx::pgrx_macros::pg_extern(immutable,parallel_safe)]
@@ -121,16 +128,6 @@ extension_sql!(
 extension_sql!(
     r#"
     ALTER TYPE Enigma  SET (TYPMOD_IN = 'type_enigma_in');
-    "#,
-    name = "type_enigma",
-    finalize,
-);
-*/
-
-/*
-extension_sql!(
-    r#"
-    ALTER TYPE Enigma  SET (TYPMOD_IN = 'type_enigma_in', TYPMOD_OUT='type_enigma_out');
     "#,
     name = "type_enigma",
     finalize,
