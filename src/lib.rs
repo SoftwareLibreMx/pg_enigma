@@ -74,22 +74,22 @@ impl TypmodInOutFuncs for Enigma {
             _ => buffer.push_str(&value),
         }
     }
-}
 
-#[::pgrx::pgrx_macros::pg_extern(immutable,parallel_safe)]
-pub fn type_enigma_in(input: Array<&CStr>) -> i32 {
-    if input.len() != 1 {
-        panic!("Enigma type modifier must be a single integer value");
+    // convert typmod from cstring to i32
+    fn typmod_in(input: Array<&CStr>) -> i32 {
+        if input.len() != 1 {
+            panic!("Enigma type modifier must be a single integer value");
+        }
+        // TODO: handle unwrap errors ellegantly using expect()
+        input.iter() // iterator
+        .next() // Option<Item>
+        .unwrap() // Item
+        .unwrap() // &Cstr
+        .to_str() // Option<&Str>
+        .unwrap() // &$tr
+        .parse::<i32>() // Result<i32>
+        .unwrap() // i32
     }
-    // TODO: handle errors ellegantly
-    input.iter() // iterator
-    .next() // Option<Item>
-    .unwrap() // Item>
-    .unwrap() // &Cstr
-    .to_str() // Option<&Str>
-    .unwrap() // &$tr
-    .parse::<i32>() // Result<i32>
-    .unwrap() // i32
     
 }
 
@@ -100,6 +100,7 @@ fn type_enigma_out(input: Option<&::core::ffi::CStr>, oid: i32, typmod: i32) {
 } */
 
 
+/*
 extension_sql!(
     r#"
     ALTER TYPE Enigma  SET (TYPMOD_IN = 'type_enigma_in');
@@ -107,6 +108,7 @@ extension_sql!(
     name = "type_enigma_in",
     finalize,
 );
+*/
 
 /// TODO: add docs
 #[pg_extern]
