@@ -9,6 +9,7 @@ use crate::key_map::{PrivKeysMap,PubKeysMap};
 use once_cell::sync::Lazy;
 use pgrx::prelude::*;
 use pgrx::{StringInfo};
+use pgrx::ffi::CString;
 use pgrx::pg_sys::Oid;
 use serde::{Serialize, Deserialize};
 use std::fs;
@@ -33,6 +34,7 @@ struct Enigma {
 impl TypmodInOutFuncs for Enigma {
     // Get from postgres
     fn input(input: &CStr, _oid: Oid, typmod: i32) -> Self {
+    panic!("TYPMOD: {}", typmod);
         let value: String = input
                 .to_str()
                 .expect("Enigma::input can't convert to str")
@@ -78,6 +80,7 @@ impl TypmodInOutFuncs for Enigma {
 
 #[::pgrx::pgrx_macros::pg_extern(immutable,parallel_safe)]
 pub fn type_enigma_in(input: Array<&CStr>) -> i32 {
+    log!("TEST TEST type_enigma_in");
     if input.len() != 1 {
         panic!("Enigma type modifier must be a single integer value");
     }
@@ -93,10 +96,12 @@ pub fn type_enigma_in(input: Array<&CStr>) -> i32 {
     
 }
 
-
 #[::pgrx::pgrx_macros::pg_extern(immutable,parallel_safe)]
-fn type_enigma_out(input: Option<&::core::ffi::CStr>, oid: i32, typmod: i32) {
-    panic!("Typmodout: {}", typmod);
+fn type_enigma_out(typmod: i32) -> CString {
+    log!("Typmodout: {}", typmod);
+    let output = format!(" Key pair index: {}", typmod);
+    CString::new(output.as_bytes())
+        .expect("Can't convert typmod to CString!!")
 }
 
 
@@ -107,6 +112,16 @@ extension_sql!(
     name = "type_enigma",
     finalize,
 );
+
+/*
+extension_sql!(
+    r#"
+    ALTER TYPE Enigma  SET (TYPMOD_IN = 'type_enigma_in');
+    "#,
+    name = "type_enigma",
+    finalize,
+);
+*/
 
 /// TODO: add docs
 #[pg_extern]
