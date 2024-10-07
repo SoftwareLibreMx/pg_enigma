@@ -34,7 +34,9 @@ struct Enigma {
 impl TypmodInOutFuncs for Enigma {
     // Get from postgres
     fn input(input: &CStr, _oid: Oid, typmod: i32) -> Self {
-    panic!("TYPMOD: {}", typmod);
+        if typmod < 0 {
+            panic!("Unknown typmod: {}", typmod);
+        }
         let value: String = input
                 .to_str()
                 .expect("Enigma::input can't convert to str")
