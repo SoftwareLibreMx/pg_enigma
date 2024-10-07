@@ -9,8 +9,11 @@ use crate::key_map::{PrivKeysMap,PubKeysMap};
 use once_cell::sync::Lazy;
 use pgrx::prelude::*;
 use pgrx::{StringInfo};
+use pgrx::ffi::CString;
+use pgrx::pg_sys::Oid;
 use serde::{Serialize, Deserialize};
 use std::fs;
+use pgrx_macros::extension_sql;
 
 pgrx::pg_module_magic!();
 
@@ -21,34 +24,37 @@ static PUB_KEYS: Lazy<PubKeysMap> = Lazy::new(|| PubKeysMap::new());
 
 /// Value stores entcrypted information
 #[derive(Serialize, Deserialize, Debug, PostgresType)]
-#[inoutfuncs]
+#[typmod_inoutfuncs]
 struct Enigma {
     value: String,
 }
 
 
 /// Functions for extracting and inserting data
-impl InOutFuncs for Enigma {
+impl TypmodInOutFuncs for Enigma {
     // Get from postgres
-    fn input(input: &CStr) -> Self {
+    fn input(input: &CStr, _oid: Oid, typmod: i32) -> Self {
+    panic!("TYPMOD: {}", typmod);
         let value: String = input
                 .to_str()
                 .expect("Enigma::input can't convert to str")
                 .to_string();
-        let HARDCODED_KEY_ID = 1; // TODO: Obtener el ID del modificador
-        let pub_key = match PUB_KEYS.get(HARDCODED_KEY_ID)
+        // let HARDCODED_KEY_ID = 1; // TODO: Obtener el ID del modificador
+        let mut key_id = typmod;
+        //if key_id < 0 {key_id = 0}
+        let pub_key = match PUB_KEYS.get(key_id)
                 .expect("Get from key map") {
             Some(k) => k,
             None => {
-                let key = match get_public_key(HARDCODED_KEY_ID)
+                let key = match get_public_key(key_id)
                     .expect("Get public key from SQL") {
                     Some(k) => k,
                     None => panic!("No public key with id: {}", 
-                        HARDCODED_KEY_ID)
+                        key_id)
                 };
-                PUB_KEYS.set(HARDCODED_KEY_ID, &key)
+                PUB_KEYS.set(key_id, &key)
                     .expect("Set into key map");
-                PUB_KEYS.get(HARDCODED_KEY_ID)
+                PUB_KEYS.get(key_id)
                     .expect("Get (just set) from key map").unwrap()
             }
         };
@@ -70,8 +76,53 @@ impl InOutFuncs for Enigma {
             _ => buffer.push_str(&value),
         }
     }
+
+    // convert typmod from cstring to i32
+    fn typmod_in(input: Array<&CStr>) -> i32 {
+        if input.len() != 1 {
+            panic!("Enigma type modifier must be a single integer value");
+        }
+        // TODO: handle unwrap errors ellegantly using expect()
+        input.iter() // iterator
+        .next() // Option<Item>
+        .unwrap() // Item
+        .unwrap() // &Cstr
+        .to_str() // Option<&Str>
+        .unwrap() // &$tr
+        .parse::<i32>() // Result<i32>
+        .unwrap() // i32
+    }
+    
 }
 
+#[::pgrx::pgrx_macros::pg_extern(immutable,parallel_safe)]
+fn type_enigma_out(typmod: i32) -> CString {
+    log!("Typmodout: {}", typmod);
+    let output = format!(" Key pair index: {}", typmod);
+    CString::new(output.as_bytes())
+        .expect("Can't convert typmod to CString!!")
+}
+
+
+/*
+extension_sql!(
+    r#"
+    ALTER TYPE Enigma  SET (TYPMOD_IN = 'type_enigma_in', TYPMOD_OUT='type_enigma_out');
+    "#,
+    name = "type_enigma",
+    finalize,
+);
+*/
+
+/*
+extension_sql!(
+    r#"
+    ALTER TYPE Enigma  SET (TYPMOD_IN = 'type_enigma_in');
+    "#,
+    name = "type_enigma",
+    finalize,
+);
+*/
 
 /// TODO: add docs
 #[pg_extern]
