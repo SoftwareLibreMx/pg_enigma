@@ -35,7 +35,8 @@ impl TypmodInOutFuncs for Enigma {
     // Get from postgres
     fn input(input: &CStr, _oid: Oid, typmod: i32) -> Self {
         if typmod < 0 {
-            panic!("Unknown typmod: {}", typmod);
+            panic!("Unknown typmod: {}\ninput:{:?}\noid: {:?}", 
+                typmod, input, _oid);
         }
         let value: String = input
                 .to_str()
