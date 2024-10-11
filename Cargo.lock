@@ -1501,7 +1501,7 @@ dependencies = [
  "once_cell",
  "openssl",
  "pgp",
- "pgrx 0.12.4 (git+https://github.com/SoftwareLibreMx/pgrx.git?branch=KBrown/TypmodInOutFuncs)",
+ "pgrx 0.12.4",
  "pgrx-macros 0.12.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "pgrx-tests",
  "rand",
@@ -1564,6 +1564,28 @@ dependencies = [
 [[package]]
 name = "pgrx"
 version = "0.12.4"
+dependencies = [
+ "atomic-traits",
+ "bitflags 2.5.0",
+ "bitvec",
+ "enum-map",
+ "heapless",
+ "libc",
+ "once_cell",
+ "pgrx-macros 0.12.4",
+ "pgrx-pg-sys 0.12.4",
+ "pgrx-sql-entity-graph 0.12.4",
+ "seahash",
+ "serde",
+ "serde_cbor",
+ "serde_json",
+ "thiserror",
+ "uuid",
+]
+
+[[package]]
+name = "pgrx"
+version = "0.12.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c51534de8e03d0273449051f241deac924987567fc6ddd15e1bd2260ab56518"
 dependencies = [
@@ -1586,26 +1608,19 @@ dependencies = [
 ]
 
 [[package]]
-name = "pgrx"
+name = "pgrx-bindgen"
 version = "0.12.4"
-source = "git+https://github.com/SoftwareLibreMx/pgrx.git?branch=KBrown/TypmodInOutFuncs#07e483407bfb0e29c06382a49aed6de14df4172c"
 dependencies = [
- "atomic-traits",
- "bitflags 2.5.0",
- "bitvec",
- "enum-map",
- "heapless",
- "libc",
- "once_cell",
- "pgrx-macros 0.12.4 (git+https://github.com/SoftwareLibreMx/pgrx.git?branch=KBrown/TypmodInOutFuncs)",
- "pgrx-pg-sys 0.12.4 (git+https://github.com/SoftwareLibreMx/pgrx.git?branch=KBrown/TypmodInOutFuncs)",
- "pgrx-sql-entity-graph 0.12.4 (git+https://github.com/SoftwareLibreMx/pgrx.git?branch=KBrown/TypmodInOutFuncs)",
- "seahash",
- "serde",
- "serde_cbor",
- "serde_json",
- "thiserror",
- "uuid",
+ "bindgen",
+ "cc",
+ "clang-sys",
+ "eyre",
+ "pgrx-pg-config 0.12.4",
+ "proc-macro2",
+ "quote",
+ "shlex",
+ "syn 2.0.66",
+ "walkdir",
 ]
 
 [[package]]
@@ -1626,20 +1641,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "pgrx-bindgen"
+name = "pgrx-macros"
 version = "0.12.4"
-source = "git+https://github.com/SoftwareLibreMx/pgrx.git?branch=KBrown/TypmodInOutFuncs#07e483407bfb0e29c06382a49aed6de14df4172c"
 dependencies = [
- "bindgen",
- "cc",
- "clang-sys",
- "eyre",
- "pgrx-pg-config 0.12.4 (git+https://github.com/SoftwareLibreMx/pgrx.git?branch=KBrown/TypmodInOutFuncs)",
+ "pgrx-sql-entity-graph 0.12.4",
  "proc-macro2",
  "quote",
- "shlex",
  "syn 2.0.66",
- "walkdir",
 ]
 
 [[package]]
@@ -1655,14 +1663,19 @@ dependencies = [
 ]
 
 [[package]]
-name = "pgrx-macros"
+name = "pgrx-pg-config"
 version = "0.12.4"
-source = "git+https://github.com/SoftwareLibreMx/pgrx.git?branch=KBrown/TypmodInOutFuncs#07e483407bfb0e29c06382a49aed6de14df4172c"
 dependencies = [
- "pgrx-sql-entity-graph 0.12.4 (git+https://github.com/SoftwareLibreMx/pgrx.git?branch=KBrown/TypmodInOutFuncs)",
- "proc-macro2",
- "quote",
- "syn 2.0.66",
+ "cargo_toml",
+ "eyre",
+ "home",
+ "owo-colors",
+ "pathsearch",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "toml",
+ "url",
 ]
 
 [[package]]
@@ -1684,20 +1697,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "pgrx-pg-config"
+name = "pgrx-pg-sys"
 version = "0.12.4"
-source = "git+https://github.com/SoftwareLibreMx/pgrx.git?branch=KBrown/TypmodInOutFuncs#07e483407bfb0e29c06382a49aed6de14df4172c"
 dependencies = [
- "cargo_toml",
- "eyre",
- "home",
- "owo-colors",
- "pathsearch",
+ "cee-scape",
+ "libc",
+ "pgrx-bindgen 0.12.4",
+ "pgrx-macros 0.12.4",
+ "pgrx-sql-entity-graph 0.12.4",
  "serde",
- "serde_json",
- "thiserror",
- "toml",
- "url",
+ "sptr",
 ]
 
 [[package]]
@@ -1716,24 +1725,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "pgrx-pg-sys"
-version = "0.12.4"
-source = "git+https://github.com/SoftwareLibreMx/pgrx.git?branch=KBrown/TypmodInOutFuncs#07e483407bfb0e29c06382a49aed6de14df4172c"
-dependencies = [
- "cee-scape",
- "libc",
- "pgrx-bindgen 0.12.4 (git+https://github.com/SoftwareLibreMx/pgrx.git?branch=KBrown/TypmodInOutFuncs)",
- "pgrx-macros 0.12.4 (git+https://github.com/SoftwareLibreMx/pgrx.git?branch=KBrown/TypmodInOutFuncs)",
- "pgrx-sql-entity-graph 0.12.4 (git+https://github.com/SoftwareLibreMx/pgrx.git?branch=KBrown/TypmodInOutFuncs)",
- "serde",
- "sptr",
-]
-
-[[package]]
 name = "pgrx-sql-entity-graph"
 version = "0.12.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a8a4ed2d8aefe96ff1a5bd57b2c374a5e54db6f2fb5ed7813bdd6e5ad919216"
 dependencies = [
  "convert_case",
  "eyre",
@@ -1748,7 +1741,8 @@ dependencies = [
 [[package]]
 name = "pgrx-sql-entity-graph"
 version = "0.12.4"
-source = "git+https://github.com/SoftwareLibreMx/pgrx.git?branch=KBrown/TypmodInOutFuncs#07e483407bfb0e29c06382a49aed6de14df4172c"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7a8a4ed2d8aefe96ff1a5bd57b2c374a5e54db6f2fb5ed7813bdd6e5ad919216"
 dependencies = [
  "convert_case",
  "eyre",

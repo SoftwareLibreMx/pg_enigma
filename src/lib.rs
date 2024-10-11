@@ -34,7 +34,7 @@ struct Enigma {
 impl TypmodInOutFuncs for Enigma {
     // Get from postgres
     fn input(input: &CStr, oid: Oid, typmod: i32) -> Self {
-    panic!("INPUT: {:#?} OID: {:#?} TYPMOD: {}", input, oid, typmod);
+    panic!("DEBUG:\nINPUT: {:#?} \nOID: {:#?} \nTYPMOD: {}", input, oid, typmod);
         let value: String = input
                 .to_str()
                 .expect("Enigma::input can't convert to str")
@@ -49,7 +49,7 @@ impl TypmodInOutFuncs for Enigma {
                 let key = match get_public_key(key_id)
                     .expect("Get public key from SQL") {
                     Some(k) => k,
-                    None => panic!("No public key with id: {}", 
+                    None => panic!("No public key with id: {}",
                         key_id)
                 };
                 PUB_KEYS.set(key_id, &key)
@@ -77,9 +77,28 @@ impl TypmodInOutFuncs for Enigma {
         }
     }
 
-   
+
+    // convert typmod from cstring to i32
+    fn typmod_in(input: Array<&CStr>) -> i32 {
+        if input.len() != 1 {
+            panic!("Enigma type modifier must be a single integer value");
+        }
+        // TODO: handle unwrap errors ellegantly using expect()
+        input.iter() // iterator
+        .next() // Option<Item>
+        .unwrap() // Item
+        .unwrap() // &Cstr
+        .to_str() // Option<&Str>
+        .unwrap() // &$tr
+        .parse::<i32>() // Result<i32>
+        .unwrap() // i32
+    }
+
+
+
 }
 
+/*
 // convert typmod from cstring to i32
 #[::pgrx::pgrx_macros::pg_extern(immutable,parallel_safe)]
 pub fn type_enigma_in(input: Array<&CStr>) -> i32 {
@@ -96,7 +115,7 @@ pub fn type_enigma_in(input: Array<&CStr>) -> i32 {
     .parse::<i32>() // Result<i32>
     .unwrap() // i32
 }
-
+*/
 
 #[::pgrx::pgrx_macros::pg_extern(immutable,parallel_safe)]
 fn type_enigma_out(typmod: i32) -> CString {
@@ -106,7 +125,7 @@ fn type_enigma_out(typmod: i32) -> CString {
         .expect("Can't convert typmod to CString!!")
 }
 
-
+/*
 extension_sql!(
     r#"
     ALTER TYPE Enigma  SET (TYPMOD_IN = 'type_enigma_in', TYPMOD_OUT='type_enigma_out');
@@ -114,7 +133,7 @@ extension_sql!(
     name = "type_enigma",
     finalize,
 );
-
+*/
 /*
 extension_sql!(
     r#"
@@ -130,7 +149,7 @@ extension_sql!(
 fn set_private_key(id: i32, key: &str, pass: &str)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
     PRIV_KEYS.set(id, key, pass)
-}   
+}
 
 
 /// TODO: add docs

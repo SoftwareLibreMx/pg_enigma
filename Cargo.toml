@@ -25,8 +25,10 @@ once_cell = "*"
 openssl = "~0.10.64"
 pgp = "*"
 #pgrx = "0.12.4"
-#pgrx = { path = "/usr/src/pgrx/pgrx/" }
-pgrx = { git = "https://github.com/SoftwareLibreMx/pgrx.git",  branch = "KBrown/TypmodInOutFuncs" }
+#pgrx = { git = "https://github.com/SoftwareLibreMx/pgrx.git",  branch = "KBrown/TypmodInOutFuncs" }
+# Local clone of: https://github.com/SoftwareLibreMx/pgrx.git for development
+pgrx = { path = "../pgrx/pgrx/" }
+#pgrx = { git = "https://github.com/SoftwareLibreMx/pgrx.git",  branch = "KBrown/TypmodInOutFuncs" }
 #pgrx-macros = { path = "/usr/src/pgrx/pgrx-macros/" }
 pgrx-macros = "0.12.4"
 
