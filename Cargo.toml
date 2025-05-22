@@ -12,11 +12,11 @@ path = "./src/bin/pgrx_embed.rs"
 
 [features]
 default = ["pg13"]
-#pg12 = ["pgrx/pg12", "pgrx-tests/pg12" ]
 pg13 = ["pgrx/pg13", "pgrx-tests/pg13" ]
-#pg14 = ["pgrx/pg14", "pgrx-tests/pg14" ]
-#pg15 = ["pgrx/pg15", "pgrx-tests/pg15" ]
-#pg16 = ["pgrx/pg16", "pgrx-tests/pg16" ]
+pg14 = ["pgrx/pg14", "pgrx-tests/pg14" ]
+pg15 = ["pgrx/pg15", "pgrx-tests/pg15" ]
+pg16 = ["pgrx/pg16", "pgrx-tests/pg16" ]
+pg17 = ["pgrx/pg17", "pgrx-tests/pg17" ]
 pg_test = []
 
 [dependencies]
@@ -24,11 +24,11 @@ lazy_static = "*"
 once_cell = "*"
 openssl = "~0.10.64"
 pgp = "*"
-#pgrx = "0.12.4"
+pgrx = "~0.14.0"
 #pgrx = { path = "/usr/src/pgrx/pgrx/" }
-pgrx = { git = "https://github.com/SoftwareLibreMx/pgrx.git",  branch = "KBrown/TypmodInOutFuncs" }
+#pgrx = { git = "https://github.com/SoftwareLibreMx/pgrx.git",  branch = "KBrown/TypmodInOutFuncs" }
 #pgrx-macros = { path = "/usr/src/pgrx/pgrx-macros/" }
-pgrx-macros = "0.12.4"
+pgrx-macros = "0.14.0"
 
 rand = "*"
 regex = "1"
@@ -37,7 +37,7 @@ serde = "1.0.202"
 
 [dev-dependencies]
 #pgrx-tests = { path = "/usr/src/pgrx/pgrx-tests/" }
-pgrx-tests = "0.12.4"
+pgrx-tests = "~0.14.0"
 
 [profile.dev]
 panic = "unwind"
