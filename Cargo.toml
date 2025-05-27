@@ -23,13 +23,14 @@ pg_test = []
 lazy_static = "*"
 once_cell = "*"
 openssl = "~0.10.64"
-pgp = "*"
+pgp = "~0.15.0"
 pgrx = "~0.14.0"
 #pgrx = { path = "/usr/src/pgrx/pgrx/" }
 #pgrx = { git = "https://github.com/SoftwareLibreMx/pgrx.git",  branch = "KBrown/TypmodInOutFuncs" }
 #pgrx-macros = { path = "/usr/src/pgrx/pgrx-macros/" }
 pgrx-macros = "0.14.0"
 
+rand_chacha = "*"
 rand = "*"
 regex = "1"
 serde = "1.0.202"
