@@ -5,9 +5,9 @@ use openssl::pkey::{PKey,Public};
 use openssl::rsa::Padding;
 use pgp::{Deserializable,Message,SignedPublicKey};
 use pgp::crypto::sym::SymmetricKeyAlgorithm;
-use pgp::types::{KeyTrait};
-use rand::rngs::StdRng;
-use rand::SeedableRng;
+use pgp::types::PublicKeyTrait;
+use rand_chacha::ChaCha8Rng;
+use rand_chacha::rand_core::SeedableRng;
 use regex::bytes::Regex;
 
 pub enum PubKey {
@@ -56,10 +56,11 @@ impl PubKey {
         match self {
             PubKey::PGP(pub_key) => {
                 let msg = Message::new_literal("none", message.as_str());
-                let mut rng = StdRng::from_entropy();
-                let new_msg = msg.encrypt_to_keys(
+                // TODO: use some random seed (nanoseconds or something)
+                let mut rng = ChaCha8Rng::seed_from_u64(0); 
+                let new_msg = msg.encrypt_to_keys_seipdv1(
                     &mut rng, SymmetricKeyAlgorithm::AES128, &[&pub_key])?;
-                Ok(new_msg.to_armored_string(None)?)
+                Ok(new_msg.to_armored_string(None.into())?)
             },
             PubKey::RSA(pub_key) => {
                 let mut encrypter = Encrypter::new(&pub_key)?;

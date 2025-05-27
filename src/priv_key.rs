@@ -4,7 +4,8 @@ use openssl::encrypt::Decrypter;
 use openssl::pkey::{PKey,Private};
 use openssl::rsa::Padding;
 use pgp::{Deserializable,Message,SignedSecretKey};
-use pgp::types::{KeyTrait};
+//use pgp::types::{KeyTrait};
+use pgp::types::PublicKeyTrait;
 use regex::bytes::Regex;
 use std::io::Cursor;
 
@@ -56,7 +57,7 @@ impl PrivKey {
             PrivKey::PGP(key,pass) => {
                 let buf = Cursor::new(message);
                 let (msg, _) = Message::from_armor_single(buf)?;
-                let (decryptor, _) = msg
+                /*let (decryptor, _) = msg
                     .decrypt(|| pass.clone(), &[&key])?;
                 let mut clear_text = String::from("NOT DECRYPTED");
                 for msg in decryptor {
@@ -64,6 +65,10 @@ impl PrivKey {
                     clear_text = String::from_utf8(bytes).unwrap();
                     break;
                 }
+                */
+                let (decrypted, _) = msg.decrypt(|| pass.to_string(), &[&key])?;
+                let bytes = decrypted.get_content()?.unwrap();
+                let clear_text = String::from_utf8(bytes).unwrap();
                 Ok(clear_text)
             },
             PrivKey::RSA(pkey) => {
