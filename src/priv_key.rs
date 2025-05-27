@@ -58,6 +58,7 @@ impl PrivKey {
                 let (msg, _) = Message::from_armor_single(buf)?;
                 let (decrypted, _) = 
                     msg.decrypt(|| pass.to_string(), &[&key])?;
+                // TODO: Should `expect()` instead of `unwrap()`
                 let bytes = decrypted.get_content()?.unwrap();
                 let clear_text = String::from_utf8(bytes).unwrap();
                 Ok(clear_text)
