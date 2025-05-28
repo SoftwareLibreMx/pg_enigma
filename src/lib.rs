@@ -97,13 +97,6 @@ impl TypmodInOutFuncs for Enigma {
     }
 }
     
-#[::pgrx::pgrx_macros::pg_extern(immutable,parallel_safe)]
-pub fn type_enigma_in(input: Array<&CStr>) -> i32 {
-    log!("TEST TEST type_enigma_in");
-    if input.len() != 1 {
-        panic!("Enigma type modifier must be a single integer value");
-    }
-}
 
 #[::pgrx::pgrx_macros::pg_extern(immutable,parallel_safe)]
 fn type_enigma_out(typmod: i32) -> CString {
