@@ -12,6 +12,7 @@ use pgrx::{StringInfo};
 use pgrx::ffi::CString;
 use pgrx::pg_sys::Oid;
 use serde::{Serialize, Deserialize};
+use std::error::Error;
 use std::fs;
 use pgrx_macros::extension_sql;
 
@@ -37,7 +38,7 @@ impl TypmodInOutFuncs for Enigma {
         if typmod < 0 {
             panic!("Unknown typmod: {}\ninput:{:?}\noid: {:?}", 
                 typmod, input, _oid);
-        }
+        } 
         let value: String = input
                 .to_str()
                 .expect("Enigma::input can't convert to str")
@@ -107,30 +108,54 @@ fn type_enigma_out(typmod: i32) -> CString {
 }
 
 
-/*
-extension_sql!(
-    r#"
-    ALTER TYPE Enigma  SET (TYPMOD_IN = 'type_enigma_in', TYPMOD_OUT='type_enigma_out');
-    "#,
-    name = "type_enigma",
-    finalize,
-);
-*/
+//
+// cast functions
+//
 
-/*
+
+#[pg_extern(immutable, parallel_safe)]
+fn enigma_to_text(enigma: Enigma, typmod: i32, explicit: bool) 
+-> Result<String, Box<dyn Error>> {
+    Ok(enigma.value)
+}
+
+#[pg_extern(immutable, parallel_safe)]
+fn text_to_enigma(text: String, typmod: i32, explicit: bool) 
+-> Result<Enigma, Box<dyn Error>> {
+    Ok(Enigma { value: text })
+}
+
+#[pg_extern(immutable, parallel_safe)]
+fn enigma_to_enigma(enigma: Enigma, typmod: i32, explicit: bool) 
+-> Result<Enigma, Box<dyn Error>> {
+    Ok(enigma)
+}
+
+
+// some convenient casts
 extension_sql!(
     r#"
-    ALTER TYPE Enigma  SET (TYPMOD_IN = 'type_enigma_in');
-    "#,
-    name = "type_enigma",
-    finalize,
+CREATE CAST (Enigma AS Enigma) 
+    WITH FUNCTION enigma_to_enigma(Enigma, INT, bool) 
+    AS IMPLICIT;
+CREATE CAST (Enigma AS text) 
+    WITH FUNCTION enigma_to_text(Enigma, INT, bool) 
+    AS IMPLICIT;
+CREATE CAST (text AS Enigma) 
+    WITH FUNCTION text_to_enigma(text, INT, bool) 
+    AS IMPLICIT;
+"#,
+    name = "typmod_cast",
+    requires = [enigma_to_enigma, enigma_to_text, text_to_enigma],
+    finalize
 );
-*/
+
+
 
 /// TODO: add docs
 #[pg_extern]
 fn set_private_key(id: i32, key: &str, pass: &str)
--> Result<String, Box<(dyn std::error::Error + 'static)>> {
+-> Result<String, Box<(dyn Error)>> {
     PRIV_KEYS.set(id, key, pass)
 }   
 
@@ -138,7 +163,7 @@ fn set_private_key(id: i32, key: &str, pass: &str)
 /// TODO: add docs
 #[pg_extern]
 fn set_public_key(id: i32, key: &str)
--> Result<String, Box<(dyn std::error::Error + 'static)>> {
+-> Result<String, Box<(dyn Error)>> {
     match insert_public_key(id, key)? {
         Some(_) => PUB_KEYS.set(id, key),
         None => Err(format!("No key ({}) inserted", id).into())
@@ -148,21 +173,21 @@ fn set_public_key(id: i32, key: &str)
 /// Delete the private key from memory
 #[pg_extern]
 fn forget_private_key(id: i32)
--> Result<String, Box<(dyn std::error::Error + 'static)>> {
+-> Result<String, Box<(dyn Error)>> {
     PRIV_KEYS.del(id)
 }
 
 /// Delete the public key from memory
 #[pg_extern]
 fn forget_public_key(id: i32)
--> Result<String, Box<(dyn std::error::Error + 'static)>> {
+-> Result<String, Box<(dyn Error)>> {
     PUB_KEYS.del(id)
 }
 
 /// Sets the private key from a file
 #[pg_extern]
 fn set_private_key_from_file(id: i32, file_path: &str, pass: &str)
--> Result<String, Box<(dyn std::error::Error + 'static)>> {
+-> Result<String, Box<(dyn Error)>> {
     let contents = fs::read_to_string(file_path)
     .expect("Error reading private key file");
     set_private_key(id, &contents, pass)
@@ -171,7 +196,7 @@ fn set_private_key_from_file(id: i32, file_path: &str, pass: &str)
 /// Sets the public key from a file
 #[pg_extern]
 fn set_public_key_from_file(id: i32, file_path: &str)
--> Result<String, Box<(dyn std::error::Error + 'static)>> {
+-> Result<String, Box<(dyn Error)>> {
     let contents = fs::read_to_string(file_path)
         .expect("Error reading public file");
     set_public_key(id, &contents)

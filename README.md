@@ -195,7 +195,7 @@ N2E+xKX1xkxgji7vIKx0XXAXC9pQEC1gMtQYHyOBA=
 ### Cleanup:
 ```sql
 DROP TABLE testab;
-DROP EXTENSION pg_enigma;
+DROP EXTENSION pg_enigma CASCADE;
 ```
 
 ## Roadmap
