@@ -8,9 +8,21 @@ use crate::functions::*;
 use crate::key_map::{PrivKeysMap,PubKeysMap};
 use once_cell::sync::Lazy;
 use pgrx::prelude::*;
-use pgrx::{StringInfo};
+use pgrx::{rust_regtypein, StringInfo};
 use serde::{Serialize, Deserialize};
 use std::fs;
+
+// start includes for testing manual implementation
+
+use pgrx::pgrx_sql_entity_graph::metadata::{
+    ArgumentError, Returns, ReturnsError, SqlMapping, SqlTranslatable,
+};
+use pgrx::callconv::{ArgAbi, BoxRet};
+use pgrx::datum::Datum;
+use pgrx::pg_sys::Oid;
+use std::fmt::{Display, Formatter};
+
+// finish includes for manual implementation
 
 pgrx::pg_module_magic!();
 
@@ -20,48 +32,82 @@ static PUB_KEYS: Lazy<PubKeysMap> = Lazy::new(|| PubKeysMap::new());
 
 
 /// Value stores entcrypted information
-#[derive(Serialize, Deserialize, Debug, PostgresType)]
-#[inoutfuncs]
+//#[derive(Serialize, Deserialize, Debug, PostgresType)]
+//#[derive(Serialize, Deserialize, Debug)]
+#[repr(transparent)]
+#[derive(
+    Clone,
+    Debug,
+    Ord,
+    PartialOrd,
+    Eq,
+    PartialEq,
+    Hash,
+    PostgresEq,
+    PostgresOrd,
+    PostgresHash
+)]
+//#[inoutfuncs]
 struct Enigma {
     value: String,
 }
 
 
 /// Functions for extracting and inserting data
-impl InOutFuncs for Enigma {
+//TEST no trait impl InOutFuncs for Enigma {
     // Get from postgres
-    fn input(input: &CStr) -> Self {
+
+
+    #[pg_extern(immutable, parallel_safe, requires = [ "shell_type" ])]
+    //fn input(input: &CStr) -> Self {
+    fn enigma_input_with_typmod(input: &CStr, oid: pg_sys::Oid, typmod: i32) -> Enigma {
+        info!("Entrando a input");
+    	info!("ARGUMENTS: Input: {:?}, OID: {:?},  Typmod: {}", input, oid, typmod);
         let value: String = input
                 .to_str()
                 .expect("Enigma::input can't convert to str")
                 .to_string();
         let HARDCODED_KEY_ID = 1; // TODO: Obtener el ID del modificador
+        info!("USANDO HARDCODED_KEY_ID = {}", HARDCODED_KEY_ID);
         let pub_key = match PUB_KEYS.get(HARDCODED_KEY_ID)
                 .expect("Get from key map") {
             Some(k) => k,
             None => {
+                info!("PUB_KEYS.get(HARDCODED_KEY_ID) dio None la va a tomar del SQL");
                 let key = match get_public_key(HARDCODED_KEY_ID)
                     .expect("Get public key from SQL") {
                     Some(k) => k,
                     None => panic!("No public key with id: {}", 
                         HARDCODED_KEY_ID)
                 };
+                info!("Cargó public key del SQL");
+                info!("Agregando a PUB_KEYS");
                 PUB_KEYS.set(HARDCODED_KEY_ID, &key)
                     .expect("Set into key map");
+                info!("Regresando de PUB_KEYS HARDCODED_KEY_ID: {}", HARDCODED_KEY_ID);
                 PUB_KEYS.get(HARDCODED_KEY_ID)
                     .expect("Get (just set) from key map").unwrap()
             }
         };
 
+
+        info!("Input: Encrypting value: {}", value);
+        info!("Input: AFTER encrypt: {}", pub_key.encrypt(&value).expect("Encrypt"));
         Enigma {
             value: pub_key.encrypt(&value).expect("Encrypt"),
         }
     }
 
     // Send to postgres
-    fn output(&self, buffer: &mut StringInfo) {
-        let value: String = self.value.clone();
-        let KEY_ID=1; // TODO: Deshardcodear este hardcodeado
+    //fn output(&self, buffer: &mut StringInfo) {
+    // TODO check if we can return just StringInfo
+    #[pg_extern(immutable, parallel_safe, requires = [ "shell_type" ])]
+    fn enigma_output(e: Enigma) -> &'static CStr {
+        let mut buffer = StringInfo::new();
+        let value: String = e.value.clone();
+        let KEY_ID = 1; // TODO: Deshardcodear este hardcodeado
+
+        info!("En output: VALUE cifrado: {}", value);
 
         match PRIV_KEYS.decrypt(KEY_ID, &value) {
             Ok(Some(v)) => buffer.push_str(&v),
@@ -69,7 +115,159 @@ impl InOutFuncs for Enigma {
             Err(e) =>  panic!("Decrypt error: {}", e),
             _ => buffer.push_str(&value),
         }
+
+        //TODO try to avoid this unsafe
+        unsafe { buffer.leak_cstr() }
+
     }
+// TEST NO Inoutfuncs trait}
+
+
+// Boilerplate traits for converting type to postgres internals
+// Needed for the FunctionMetadata trait
+unsafe impl SqlTranslatable for Enigma {
+    fn argument_sql() -> Result<SqlMapping, ArgumentError> {
+        // this is what the SQL type is called when used in a function argument position
+        Ok(SqlMapping::As("enigma".into()))
+    }
+
+    fn return_sql() -> Result<Returns, ReturnsError> {
+        // this is what the SQL type is called when used in a function return type position
+        Ok(Returns::One(SqlMapping::As("enigma".into())))
+    }
+}
+
+
+unsafe impl<'fcx> ArgAbi<'fcx> for Enigma
+where
+    Self: 'fcx,
+{
+    unsafe fn unbox_arg_unchecked(arg: ::pgrx::callconv::Arg<'_, 'fcx>) -> Self {
+        unsafe { arg.unbox_arg_using_from_datum().unwrap() }
+    }
+}
+
+
+unsafe impl BoxRet for Enigma {
+    unsafe fn box_into<'fcx>(self, fcinfo: &mut pgrx::callconv::FcInfo<'fcx>) -> Datum<'fcx> {
+        //unsafe { fcinfo.return_raw_datum(pg_sys::Datum::from(self.value)) }
+        unsafe { fcinfo.return_raw_datum(
+			self.value.into_datum()
+				.expect("Can't convert enigma value into Datum")
+		)}
+    }
+}
+
+impl FromDatum for Enigma {
+    unsafe fn from_polymorphic_datum(datum: pg_sys::Datum, is_null: bool, _: Oid) -> Option<Self>
+    where
+        Self: Sized,
+    {
+        if is_null {
+            None
+        } else {
+            Some(Enigma { value: datum.value().to_string()})
+        }
+    }
+}
+
+impl IntoDatum for Enigma {
+    fn into_datum(self) -> Option<pg_sys::Datum> {
+        Some(
+			self.value
+				.into_datum()
+				.expect("Can't convert enigma value to Datum!")
+		)
+    }
+
+    fn type_oid() -> Oid {
+        rust_regtypein::<Self>()
+    }
+}
+
+impl Display for Enigma {
+	// test display
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.value)
+    }
+}
+
+
+// Create the type manually
+extension_sql!(
+    r#"
+        CREATE TYPE enigma;
+    "#,
+    name = "shell_type",
+    bootstrap // declare this extension_sql block as the "bootstrap" block so that it happens first in sql generation
+
+);
+
+// Create the real type
+extension_sql!(
+    r#"
+        CREATE TYPE enigma (
+            INPUT  = enigma_input_with_typmod,
+            OUTPUT = enigma_output,
+            TYPMOD_IN = enigma_type_modifier_input
+        );
+    "#,
+    name = "concrete_type",
+    creates = [Type(Enigma)],
+    requires = ["shell_type", enigma_input_with_typmod, enigma_output, enigma_type_modifier_input]
+);
+
+/*
+#[pg_extern]
+fn enigma_input_with_typmod(input: &CStr, oid: pg_sys::Oid, typmod: i32) -> Enigma {
+    info!("ARGUMENTS: Input: {:?}, OID: {:?},  Typmod: {}", input, oid, typmod);
+    let value: String = input
+            .to_str()
+            .expect("Enigma::input can't convert to str")
+            .to_string();
+    let HARDCODED_KEY_ID = 1; // TODO: Obtener el ID del modificador
+    let pub_key = match PUB_KEYS.get(HARDCODED_KEY_ID)
+            .expect("Get from key map") {
+        Some(k) => k,
+        None => {
+            let key = match get_public_key(HARDCODED_KEY_ID)
+                .expect("Get public key from SQL") {
+                Some(k) => k,
+                None => panic!("No public key with id: {}", 
+                    HARDCODED_KEY_ID)
+            };
+            PUB_KEYS.set(HARDCODED_KEY_ID, &key)
+                .expect("Set into key map");
+            PUB_KEYS.get(HARDCODED_KEY_ID)
+                .expect("Get (just set) from key map").unwrap()
+        }
+    };
+
+    Enigma {
+        value: pub_key.encrypt(&value).expect("Encrypt"),
+    }
+}
+*/
+
+/// Needed for managing keys for each column
+/// We mark this function as `immutable` because its output depends ONLY on its inputs.
+/// This is required for functions used as a `TYPMOD_IN`, as the planner needs
+/// to rely on its output being consistent.
+#[pg_extern(immutable, name = "enigma_type_modifier_input")]
+pub fn enigma_type_modifier_input(cstrings: pgrx::Array<'_, &CStr>) -> i32 {
+
+    let rust_strings: Vec<&str> = cstrings
+        .iter()
+        .flatten()
+        .map(|cstr| cstr.to_str().unwrap_or_default())
+        .collect();
+
+    info!("enigma_type_modifier_input:: value {}", rust_strings[0].parse::<i32>().unwrap());
+
+    //typmod[0].unwrap().to_str()
+    rust_strings[0]
+        .parse::<i32>()
+        .expect("Canto convert typmod to integer")
 }
 
 
@@ -123,6 +321,54 @@ fn set_public_key_from_file(id: i32, file_path: &str)
     set_public_key(id, &contents)
 }
 
+
+/// Cast enigma to enigma to get the typmod
+#[pg_extern]
+fn enigma_cast(original: Enigma, typmod: i32) -> Enigma {
+    let value: String = original.value.clone();
+    let KEY_ID = typmod; // TODO: Deshardcodear este hardcodeado
+
+    let output_value = match PRIV_KEYS.decrypt(KEY_ID, &value) {
+        Ok(v) => v.unwrap(),
+        // TODO: check if we need more granular errors
+        Err(e) =>  panic!("Decrypt error: {}", e),
+        _ => value,
+    };
+
+    Enigma {
+        value: output_value
+    }
+}
+
+
+// Creates the casting function so we can get the key id in the
+// typmod value, this is needed because postgres does not send 
+// the typmod to the input function.
+// https://stackoverflow.com/questions/40406662/postgres-doc-regaring-input-function-for-create-type-does-not-seem-to-be-correct/74426960#74426960
+// https://www.postgresql.org/message-id/67091D2B.5080002%40acm.org
+
+extension_sql!(
+
+    r#"
+        CREATE CAST (enigma AS enigma) WITH FUNCTION enigma_cast AS IMPLICIT;
+    "#,
+    name = "enigma_casts",
+    requires = [enigma_cast]
+
+);
+
+// Add the typmod function to the type
+/*
+extension_sql!(
+    r#"
+        ALTER TYPE enigma SET (
+            TYPMOD_IN = enigma_type_modifier_input
+        );
+    "#,
+    name = "enigma_typmod",
+    requires = [enigma_type_modifier_input]
+);
+*/
 
 
 #[cfg(any(test, feature = "pg_test"))]
