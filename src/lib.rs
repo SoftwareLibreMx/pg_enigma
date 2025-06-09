@@ -80,7 +80,8 @@ extension_sql!(
 /// Functions for extracting and inserting data
 #[pg_extern(immutable, parallel_safe, requires = [ "shell_type" ])]
 //fn input(input: &CStr) -> Self {
-fn enigma_input_with_typmod(input: &CStr, oid: pg_sys::Oid, typmod: i32) -> Enigma {
+fn enigma_input_with_typmod(input: &CStr, oid: pg_sys::Oid, typmod: i32) 
+-> Enigma {
 	debug1!("enigma_input_with_typmod: \
             ARGUMENTS: Input: {:?}, OID: {:?},  Typmod: {}", 
             input, oid, typmod);
@@ -222,24 +223,44 @@ fn set_public_key_from_file(id: i32, file_path: &str)
 
 /// Cast enigma to enigma to get the typmod
 #[pg_extern]
-fn enigma_cast(original: Enigma, typmod: i32) -> Enigma {
-	info!("Entrando a enimga_cast con typmod: {}", typmod);
-    let value: String = original.value.clone();
-    let KEY_ID = typmod; // TODO: Deshardcodear este hardcodeado
+fn enigma_cast(original: Enigma, typmod: i32, explicit: bool) -> Enigma {
+	debug1!("enigma_cast: \
+            ARGUMENTS: original: {:?}, explicit: {},  Typmod: {}", 
+            original, explicit, typmod);
+     if typmod == -1 {
+        panic!("Unknown typmod: {}\noriginal: {:?}\nexplicit: {}", 
+            typmod, original, explicit);
+     }
+	let mut value = original.value;
+     if value.starts_with("BEGIN PLAIN=====>") {
+         value = value
+                .trim_start_matches("BEGIN PLAIN=====>")
+                .trim_end_matches("<=====END PLAIN")
+                .to_string();
+         let key_id = typmod; // TODO: as u32
+         // TODO: move this repetitive code to a function
+         let pub_key = match PUB_KEYS.get(key_id)
+                   .expect("Get from key map") {
+              Some(k) => k,
+              None => {
+                   let key = match get_public_key(key_id)
+                        .expect("Get public key from SQL") {
+                        Some(k) => k,
+                        None => panic!("No public key with id: {}",
+                             key_id)
+                   };
+                   PUB_KEYS.set(key_id, &key)
+                        .expect("Set into key map");
+                   PUB_KEYS.get(key_id)
+                        .expect("Get (just set) from key map").unwrap()
+              }
+         };
+         debug1!("Input: Encrypting value: {}", value);
+         value = pub_key.encrypt(&value).expect("Encrypt");
+         debug1!("Input: AFTER encrypt: {}", value);
+     } 
 
-	info!("En cast Valor: {:#?}", original);
-
-
-    let output_value = match PRIV_KEYS.decrypt(KEY_ID, &value) {
-        Ok(v) => v.unwrap(),
-        // TODO: check if we need more granular errors
-        Err(e) =>  panic!("enigma_cast::Decrypt error: {}", e),
-        _ => value,
-    };
-
-    Enigma {
-        value: output_value
-    }
+	Enigma { value: value }
 }
 
 
@@ -248,7 +269,6 @@ fn enigma_cast(original: Enigma, typmod: i32) -> Enigma {
 // the typmod to the input function.
 // https://stackoverflow.com/questions/40406662/postgres-doc-regaring-input-function-for-create-type-does-not-seem-to-be-correct/74426960#74426960
 // https://www.postgresql.org/message-id/67091D2B.5080002%40acm.org
-/* TODO: Use the cast for getting the typmod
 extension_sql!(
     r#"
         CREATE CAST (enigma AS enigma) WITH FUNCTION enigma_cast AS IMPLICIT;
@@ -256,7 +276,6 @@ extension_sql!(
     name = "enigma_casts",
     requires = ["concrete_type", enigma_cast]
 );
-*/
 
         //CREATE CAST (enigma AS enigma) WITH FUNCTION enigma_cast WITH INOUT AS IMPLICIT;
 
