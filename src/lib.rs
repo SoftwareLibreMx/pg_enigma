@@ -35,17 +35,19 @@ struct Enigma {
 impl TypmodInOutFuncs for Enigma {
     // Get from postgres
     fn input(input: &CStr, _oid: Oid, typmod: i32) -> Self {
-        if typmod < 0 {
+        info!("typmod: {}\ninput:{:?}\noid: {:?}", 
+            typmod, input, _oid);
+        /*if typmod < 0 {
             panic!("Unknown typmod: {}\ninput:{:?}\noid: {:?}", 
                 typmod, input, _oid);
-        } 
+        } */
         let value: String = input
                 .to_str()
                 .expect("Enigma::input can't convert to str")
                 .to_string();
         // let HARDCODED_KEY_ID = 1; // TODO: Obtener el ID del modificador
         let mut key_id = typmod;
-        //if key_id < 0 {key_id = 0}
+        if key_id < 0 {key_id = 1}
         let pub_key = match PUB_KEYS.get(key_id)
                 .expect("Get from key map") {
             Some(k) => k,
@@ -87,21 +89,23 @@ impl TypmodInOutFuncs for Enigma {
             panic!("Enigma type modifier must be a single integer value");
         }
         // TODO: handle unwrap errors ellegantly using expect()
-        input.iter() // iterator
+        let ret = input.iter() // iterator
         .next() // Option<Item>
         .unwrap() // Item
         .unwrap() // &Cstr
         .to_str() // Option<&Str>
         .unwrap() // &$tr
         .parse::<i32>() // Result<i32>
-        .unwrap() // i32
+        .unwrap() ; // i32
+        info!("typmod_in({ret})");
+        ret
     }
 }
     
 
 #[::pgrx::pgrx_macros::pg_extern(immutable,parallel_safe)]
 fn type_enigma_out(typmod: i32) -> CString {
-    log!("Typmodout: {}", typmod);
+    info!("Typmodout: {}", typmod);
     let output = format!(" Key pair index: {}", typmod);
     CString::new(output.as_bytes())
         .expect("Can't convert typmod to CString!!")
@@ -116,18 +120,21 @@ fn type_enigma_out(typmod: i32) -> CString {
 #[pg_extern(immutable, parallel_safe)]
 fn enigma_to_text(enigma: Enigma, typmod: i32, explicit: bool) 
 -> Result<String, Box<dyn Error>> {
+    info!(" enigma_to_text(typmod: {typmod}, explicit: {explicit})");
     Ok(enigma.value)
 }
 
 #[pg_extern(immutable, parallel_safe)]
 fn text_to_enigma(text: String, typmod: i32, explicit: bool) 
 -> Result<Enigma, Box<dyn Error>> {
+    info!(" text_to_enigma(typmod: {typmod}, explicit: {explicit})");
     Ok(Enigma { value: text })
 }
 
 #[pg_extern(immutable, parallel_safe)]
 fn enigma_to_enigma(enigma: Enigma, typmod: i32, explicit: bool) 
 -> Result<Enigma, Box<dyn Error>> {
+    info!(" enigma_to_enigma(typmod: {typmod}, explicit: {explicit})");
     Ok(enigma)
 }
 
@@ -135,14 +142,14 @@ fn enigma_to_enigma(enigma: Enigma, typmod: i32, explicit: bool)
 // some convenient casts
 extension_sql!(
     r#"
-CREATE CAST (Enigma AS Enigma) 
-    WITH FUNCTION enigma_to_enigma(Enigma, INT, bool) 
+CREATE CAST (enigma AS enigma) 
+    WITH FUNCTION enigma_to_enigma 
+    ;
+CREATE CAST (enigma AS varchar) 
+    WITH FUNCTION enigma_to_text 
     AS IMPLICIT;
-CREATE CAST (Enigma AS text) 
-    WITH FUNCTION enigma_to_text(Enigma, INT, bool) 
-    AS IMPLICIT;
-CREATE CAST (text AS Enigma) 
-    WITH FUNCTION text_to_enigma(text, INT, bool) 
+CREATE CAST (varchar AS enigma) 
+    WITH FUNCTION text_to_enigma 
     AS IMPLICIT;
 "#,
     name = "typmod_cast",
