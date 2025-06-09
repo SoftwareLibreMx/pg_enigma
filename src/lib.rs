@@ -34,18 +34,7 @@ static PUB_KEYS: Lazy<PubKeysMap> = Lazy::new(|| PubKeysMap::new());
 //#[derive(Serialize, Deserialize, Debug, PostgresType)]
 //#[derive(Serialize, Deserialize, Debug)]
 #[repr(transparent)]
-#[derive(
-    Clone,
-    Debug,
-    Ord,
-    PartialOrd,
-    Eq,
-    PartialEq,
-    Hash,
-    PostgresEq,
-    PostgresOrd,
-    PostgresHash
-)]
+#[derive( Clone, Debug)]
 //#[inoutfuncs]
 struct Enigma {
     value: String,
