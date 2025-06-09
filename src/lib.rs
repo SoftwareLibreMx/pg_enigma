@@ -334,15 +334,22 @@ unsafe impl BoxRet for Enigma {
 }
 
 impl FromDatum for Enigma {
-    unsafe fn from_polymorphic_datum(datum: pg_sys::Datum, is_null: bool, _: Oid) -> Option<Self>
+    unsafe fn from_polymorphic_datum(datum: pg_sys::Datum, 
+    is_null: bool, _: Oid) 
+    -> Option<Self>
     where
         Self: Sized,
     {
         if is_null {
-            None
-        } else {
-            Some(Enigma { value: datum.value().to_string()})
-        }
+            return None;
+        }  
+        //Some(Enigma { value: datum.value().to_string()})
+        let value = match String::from_datum(datum, is_null) {
+            None => return None,
+            Some(v) => v
+        };
+        Some(Enigma { value: value })
+        
     }
 }
 
