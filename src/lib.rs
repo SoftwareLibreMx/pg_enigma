@@ -81,35 +81,45 @@ extension_sql!(
 #[pg_extern(immutable, parallel_safe, requires = [ "shell_type" ])]
 //fn input(input: &CStr) -> Self {
 fn enigma_input_with_typmod(input: &CStr, oid: pg_sys::Oid, typmod: i32) -> Enigma {
-	debug1!("enigma_input_with_typmod: ARGUMENTS: Input: {:?}, OID: {:?},  Typmod: {}", input, oid, typmod);
+	debug1!("enigma_input_with_typmod: \
+            ARGUMENTS: Input: {:?}, OID: {:?},  Typmod: {}", 
+            input, oid, typmod);
 	let value: String = input
 			.to_str()
 			.expect("Enigma::input can't convert to str")
 			.to_string();
-	let HARDCODED_KEY_ID = 1; // TODO: Obtener el ID del modificador
-	let pub_key = match PUB_KEYS.get(HARDCODED_KEY_ID)
+     if typmod == -1 { // unknown typmod 
+        info!("Unknown typmod: {}\ninput:{:?}\noid: {:?}", 
+            typmod, input, oid);
+        // TODO: PubKey::NO_KEY
+        let plain = format!("BEGIN PLAIN=====>{value}<=====END PLAIN");
+        debug1!("PLAIN VALUE:\n{plain}");
+        return Enigma { value: plain };
+     }
+     let key_id = typmod; // TODO: as u32
+	let pub_key = match PUB_KEYS.get(key_id)
 			.expect("Get from key map") {
 		Some(k) => k,
 		None => {
-			let key = match get_public_key(HARDCODED_KEY_ID)
+			let key = match get_public_key(key_id)
 				.expect("Get public key from SQL") {
 				Some(k) => k,
 				None => panic!("No public key with id: {}",
-					HARDCODED_KEY_ID)
+					key_id)
 			};
-			PUB_KEYS.set(HARDCODED_KEY_ID, &key)
+			PUB_KEYS.set(key_id, &key)
 				.expect("Set into key map");
-			PUB_KEYS.get(HARDCODED_KEY_ID)
+			PUB_KEYS.get(key_id)
 				.expect("Get (just set) from key map").unwrap()
 		}
 	};
 
 	debug1!("Input: Encrypting value: {}", value);
-	debug1!("Input: AFTER encrypt: {}", pub_key.encrypt(&value).expect("Encrypt"));
-	Enigma {
-		value: pub_key.encrypt(&value).expect("Encrypt"),
-	}
+     let encrypted = pub_key.encrypt(&value).expect("Encrypt");
+	debug1!("Input: AFTER encrypt: {}", encrypted);
+	Enigma { value: encrypted }
 }
+
 
 // Send to postgres
 //fn output(&self, buffer: &mut StringInfo) {
@@ -249,19 +259,6 @@ extension_sql!(
 */
 
         //CREATE CAST (enigma AS enigma) WITH FUNCTION enigma_cast WITH INOUT AS IMPLICIT;
-
-// Add the typmod function to the type
-/*
-extension_sql!(
-    r#"
-        ALTER TYPE enigma SET (
-            TYPMOD_IN = enigma_type_modifier_input
-        );
-    "#,
-    name = "enigma_typmod",
-    requires = [enigma_type_modifier_input]
-);
-*/
 
 
 #[cfg(any(test, feature = "pg_test"))]
