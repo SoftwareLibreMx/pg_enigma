@@ -26,7 +26,7 @@ $ cargo pgrx run
 CREATE EXTENSION pg_enigma;
 CREATE TABLE testab (
     a SERIAL, 
-    b Enigma
+    b Enigma(2)
 );
 
 SELECT set_public_key_from_file(1, '../../pg_enigma/test/public-key.asc'); 
@@ -195,7 +195,7 @@ N2E+xKX1xkxgji7vIKx0XXAXC9pQEC1gMtQYHyOBA=
 ### Cleanup:
 ```sql
 DROP TABLE testab;
-DROP EXTENSION pg_enigma;
+DROP EXTENSION pg_enigma CASCADE;
 ```
 
 ## Roadmap

@@ -1,6 +1,11 @@
 use std::collections::BTreeMap;
 use crate::priv_key::PrivKey;
 use crate::pub_key::PubKey;
+use pgp::Esk::PublicKeyEncryptedSessionKey;
+use pgp::Deserializable;
+use pgp::Message;
+use pgp::Message::Encrypted;
+use std::io::Cursor;
 use std::sync::RwLock;
 
 /********************
@@ -90,14 +95,47 @@ impl PrivKeysMap {
         Ok(Some(key))
     }
 
-    pub fn decrypt(self: &'static PrivKeysMap, id: i32, value: &String)
+    pub fn decrypt(self: &'static PrivKeysMap, value: &String)
     -> Result<Option<String>, Box<(dyn std::error::Error + 'static)>> {
-        match self.get(id)? {
+        // TODO: key_id map
+        match self.find_encrypting_key(value)? {
             Some(sec_key) => {
                 let decrypted = sec_key.decrypt(value)?;
                 Ok(Some(decrypted))
             },
             None => Ok(None)
+        }
+    }
+
+    pub fn find_encrypting_key(self: &'static PrivKeysMap, value: &String)
+    -> Result<Option<&'static PrivKey>, 
+    Box<(dyn std::error::Error + 'static)>> {
+        if value.contains("-----BEGIN PGP MESSAGE-----") {
+            let binding = self.keys.read()?;
+            // TODO: message module
+            let buf = Cursor::new(value);
+            let (msg, _) = Message::from_armor_single(buf)?;
+            match msg {
+                Encrypted { esk, .. } => {
+                    for each_esk in esk {
+                        match each_esk {
+                            PublicKeyEncryptedSessionKey(skey) => {
+                                let mkey_id = format!("{:?}", skey.id()?);
+                                for (_,pkey) in binding.iter() {
+                                    if mkey_id == pkey.key_id() {
+                                        return Ok(Some(pkey));
+                                    }
+                                }
+                            },
+                            _ =>  return Ok(None)
+                        }
+                    }
+                    Ok(None)
+                },
+                _ => Ok(None)
+            }
+        } else {
+            Ok(None)
         }
     }
 }
