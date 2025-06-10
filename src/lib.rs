@@ -240,9 +240,9 @@ fn enigma_cast(original: Enigma, typmod: i32, explicit: bool) -> Enigma {
                 .trim_start_matches("BEGIN PLAIN=====>")
                 .trim_end_matches("<=====END PLAIN")
                 .to_string();
-         let key_id = typmod; // TODO: as u32
-         // TODO: move this repetitive code to a function
-         let pub_key = match PUB_KEYS.get(key_id)
+        let key_id = typmod; // TODO: as u32
+        // TODO: move this repetitive code to a function
+        let pub_key = match PUB_KEYS.get(key_id)
                    .expect("Get from key map") {
               Some(k) => k,
               None => {
@@ -257,10 +257,10 @@ fn enigma_cast(original: Enigma, typmod: i32, explicit: bool) -> Enigma {
                    PUB_KEYS.get(key_id)
                         .expect("Get (just set) from key map").unwrap()
               }
-         };
-         debug1!("Input: Encrypting value: {}", value);
-         value = pub_key.encrypt(&value).expect("Encrypt");
-         debug1!("Input: AFTER encrypt: {}", value);
+        };
+        debug1!("Input: Encrypting value: {}", value);
+        value = pub_key.encrypt(&value).expect("Encrypt");
+        debug1!("Input: AFTER encrypt: {}", value);
     } 
 
     Enigma { value: value }
