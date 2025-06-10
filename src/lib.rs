@@ -220,19 +220,23 @@ fn set_public_key_from_file(id: i32, file_path: &str)
 }
 
 
-/// Cast enigma to enigma to get the typmod
+/// Cast enigma to enigma is called after enigma_input_with_typmod(). 
+/// This function is passed the correct known typmod argument.
+// TODO: handle type Enigma (without typmod) as key_id 0
+// Since enigma_input_with_typmod() always gets -1 on typmod argument, 
+// this cast is needed for knowing the typmod.
 #[pg_extern]
 fn enigma_cast(original: Enigma, typmod: i32, explicit: bool) -> Enigma {
-	debug1!("enigma_cast: \
-            ARGUMENTS: original: {:?}, explicit: {},  Typmod: {}", 
-            original, explicit, typmod);
-     if typmod == -1 {
+    debug1!("enigma_cast: \
+        ARGUMENTS: original: {:?}, explicit: {},  Typmod: {}", 
+        original, explicit, typmod);
+    if typmod == -1 {
         panic!("Unknown typmod: {}\noriginal: {:?}\nexplicit: {}", 
             typmod, original, explicit);
-     }
-	let mut value = original.value;
-     if value.starts_with("BEGIN PLAIN=====>") {
-         value = value
+    }
+    let mut value = original.value;
+    if value.starts_with("BEGIN PLAIN=====>") {
+        value = value
                 .trim_start_matches("BEGIN PLAIN=====>")
                 .trim_end_matches("<=====END PLAIN")
                 .to_string();
@@ -257,9 +261,9 @@ fn enigma_cast(original: Enigma, typmod: i32, explicit: bool) -> Enigma {
          debug1!("Input: Encrypting value: {}", value);
          value = pub_key.encrypt(&value).expect("Encrypt");
          debug1!("Input: AFTER encrypt: {}", value);
-     } 
+    } 
 
-	Enigma { value: value }
+    Enigma { value: value }
 }
 
 
