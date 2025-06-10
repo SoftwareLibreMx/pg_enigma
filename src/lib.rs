@@ -130,11 +130,10 @@ fn enigma_output(e: Enigma) -> &'static CStr {
 	debug1!("enigma_output: Entering enigma_output");
 	let mut buffer = StringInfo::new();
 	let value: String = e.value.clone();
-	let KEY_ID = 1; // TODO: Deshardcodear este hardcodeado
 
 	debug1!("enigma_output value: {}", value);
 
-	match PRIV_KEYS.decrypt(KEY_ID, &value) {
+	match PRIV_KEYS.decrypt(&value) {
 		Ok(Some(v)) => buffer.push_str(&v),
 		// TODO: check if we need more granular errors
 		Err(e) =>  panic!("Decrypt error: {}", e),
