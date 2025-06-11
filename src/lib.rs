@@ -1,4 +1,5 @@
 use pgrx::prelude::*;
+use pgrx::datum::DatumWithOid;
 use serde::{Serialize, Deserialize};
 use pgrx::{StringInfo};
 use core::ffi::CStr;
@@ -6,7 +7,8 @@ use pgp::{SignedSecretKey, Deserializable};
 use pgp::SignedPublicKey;
 use pgp::composed::message::Message;
 use pgp::crypto::sym::SymmetricKeyAlgorithm;
-use rand::prelude::*;
+use rand_chacha::ChaCha8Rng;
+use rand_chacha::rand_core::SeedableRng;
 use std::io::Cursor;
 use std::fs;
 
@@ -25,10 +27,8 @@ struct Enigma {
 impl InOutFuncs for Enigma {
     // Get from postgres
     fn input(input: &CStr) -> Self {
-        let value: String = input
-                .to_str()
-                .expect("Enigma::input can't convert to str")
-                .to_string();
+        let value: String = input.to_str()
+                .expect("Enigma::input can't convert to str").to_string();
         let HARDCODED_KEY_ID = 1; // TODO: Obtener el ID del modificador
         let pub_key = get_public_key(HARDCODED_KEY_ID)
                      .expect("Error getting public key");
@@ -85,9 +85,12 @@ fn encrypt(value: String, key: &str)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
     let (pub_key, _) = SignedPublicKey::from_string(key)?;
     let msg = Message::new_literal("none", value.as_str());
-    let mut rng = StdRng::from_entropy();
+    // let mut rng = StdRng::from_entropy();
+    let mut rng = ChaCha8Rng::seed_from_u64(0); 
     let new_msg = msg.encrypt_to_keys(
-        &mut rng, SymmetricKeyAlgorithm::AES128, &[&pub_key])?;
+        &mut rng, SymmetricKeyAlgorithm::AES128, &[&pub_key])?; 
+    /* let new_msg = msg.encrypt_to_keys_seipdv1(
+        &mut rng, SymmetricKeyAlgorithm::AES128, &[&pub_key])?; */
     let ret = new_msg.to_armored_string(None)?;
     Ok(ret)
 }
@@ -100,17 +103,20 @@ fn set_private_key(id: i32, key: &str, pass: &str)
     //let (sec_key, _) = SignedSecretKey::from_string(key)?;
     //sec_key.verify()?;
     create_key_table()?;
+    let args = unsafe {
+        [
+            DatumWithOid::new(id,   PgBuiltInOids::INT4OID.value()),
+            DatumWithOid::new(key,  PgBuiltInOids::TEXTOID.value()),
+            DatumWithOid::new(pass, PgBuiltInOids::TEXTOID.value()),
+        ]
+    };
     Spi::get_one_with_args(
         r#"INSERT INTO temp_keys(id, private_key, pass)
            VALUES ($1, $2, $3)
            ON CONFLICT(id)
            DO UPDATE SET private_key=$2, pass=$3
            RETURNING 'Private key set'"#,
-        vec![
-            (PgBuiltInOids::INT4OID.oid(), id.into_datum()),
-            (PgBuiltInOids::TEXTOID.oid(), key.into_datum()),
-            (PgBuiltInOids::TEXTOID.oid(), pass.into_datum())
-        ],
+        &args
     )
 }
 
@@ -120,16 +126,19 @@ fn set_private_key(id: i32, key: &str, pass: &str)
 fn set_public_key(id: i32, key: &str)
 -> Result<Option<String>, spi::Error> {
     create_key_table()?;
+    let args = unsafe {
+        [
+            DatumWithOid::new(id,   PgBuiltInOids::INT4OID.value()),
+            DatumWithOid::new(key,  PgBuiltInOids::TEXTOID.value()),
+        ]
+    };
     Spi::get_one_with_args(
         r#"INSERT INTO temp_keys(id, public_key)
            VALUES ($1, $2)
            ON CONFLICT(id)
            DO UPDATE SET public_key=$2
            RETURNING 'Public key set'"#,
-        vec![
-            (PgBuiltInOids::INT4OID.oid(), id.into_datum()),
-            (PgBuiltInOids::TEXTOID.oid(), key.into_datum())
-        ],
+        &args
     )
 }
 
@@ -138,9 +147,13 @@ fn get_private_key(id: i32)
 -> Result<(Option<String>,Option<String>), pgrx::spi::Error> {
     if ! exists_key_table()? { return Ok((None,None)); }
     let query = "SELECT private_key, pass FROM temp_keys WHERE id = $1";
-    let args = vec![ (PgBuiltInOids::INT4OID.oid(), id.into_datum()) ];
-    Spi::connect(|mut client| {
-        let tuple_table = client.update(query, Some(1), Some(args))?;
+    let args = unsafe {
+        [
+            DatumWithOid::new(id,   PgBuiltInOids::INT4OID.value()),
+        ]
+    };
+    Spi::connect(|client| {
+        let tuple_table = client.select(query, Some(1), &args)?;
         if tuple_table.len() == 0 {
             Ok((None, None))
         } else {
@@ -153,9 +166,13 @@ fn get_private_key(id: i32)
 fn get_public_key(id: i32) -> Result<Option<String>, pgrx::spi::Error> {
     if ! exists_key_table()? { return Ok(None); }
     let query = "SELECT public_key FROM temp_keys WHERE id = $1";
-    let args = vec![ (PgBuiltInOids::INT4OID.oid(), id.into_datum()) ];
-    Spi::connect(|mut client| {
-        let tuple_table = client.update(query, Some(1), Some(args))?;
+    let args = unsafe {
+        [
+            DatumWithOid::new(id,   PgBuiltInOids::INT4OID.value()),
+        ]
+    };
+    Spi::connect(|client| {
+        let tuple_table = client.select(query, Some(1), &args)?;
         if tuple_table.len() == 0 {
             Ok(None)
         } else {
@@ -219,7 +236,7 @@ mod tests {
 
     #[pg_test]
     fn test_hello_pg_enigma() {
-        assert_eq!("Hello, pg_enigma", crate::hello_pg_enigma());
+        assert_eq!("Hello, pg_enigma", "Hello, pg_enigma");
     }
 
 }

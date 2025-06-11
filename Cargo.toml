@@ -1,5 +1,5 @@
 [package]
-name = "pg_enigma"
+name = "pg_enigma_demo"
 version = "0.0.0"
 edition = "2021"
 
@@ -7,26 +7,26 @@ edition = "2021"
 crate-type = ["cdylib", "lib"]
 
 [[bin]]
-name = "pgrx_embed_pg_enigma"
+name = "pgrx_embed_pg_enigma_demo"
 path = "./src/bin/pgrx_embed.rs"
 
 [features]
 default = ["pg13"]
-pg12 = ["pgrx/pg12", "pgrx-tests/pg12" ]
 pg13 = ["pgrx/pg13", "pgrx-tests/pg13" ]
 pg14 = ["pgrx/pg14", "pgrx-tests/pg14" ]
 pg15 = ["pgrx/pg15", "pgrx-tests/pg15" ]
 pg16 = ["pgrx/pg16", "pgrx-tests/pg16" ]
+pg17 = ["pgrx/pg17", "pgrx-tests/pg17" ]
 pg_test = []
 
 [dependencies]
-pgrx = "=0.12.0-alpha.1"
-serde = "1.0.202"
 pgp = "*"
-rand = "*"
+pgrx = "~0.14.3"
+rand_chacha = "*"
+serde = "1.0.202"
 
 [dev-dependencies]
-pgrx-tests = "=0.12.0-alpha.1"
+pgrx-tests = "~0.14.3"
 
 [profile.dev]
 panic = "unwind"
