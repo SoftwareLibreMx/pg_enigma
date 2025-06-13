@@ -287,10 +287,39 @@ extension_sql!(
 #[pg_schema]
 mod tests {
     use pgrx::prelude::*;
-
+    use std::error::Error;
+    
     #[pg_test]
     fn dummy_test() {
         assert_eq!("Hello, pg_enigma", "Hello, pg_enigma");
+    }
+
+    #[pg_test]
+    fn e01_create_table_testab()  -> Result<(), Box<dyn Error>> {
+        Ok(Spi::run(
+        "
+CREATE TABLE testab (
+    a SERIAL, 
+    b Enigma(2)
+);
+
+-- SELECT set_public_key_from_file(2, 'test/public-key.asc'); 
+
+--INSERT INTO testab (b) VALUES ('my first record');
+SELECT * FROM testab;
+        ")?)
+    }
+
+    #[pg_test]
+    #[should_panic]
+    fn e02_insert_without_pub_key()  -> Result<(), Box<dyn Error>> {
+        Ok(Spi::run(
+        "
+-- SELECT set_public_key_from_file(2, 'test/public-key.asc'); 
+
+INSERT INTO testab (b) VALUES ('my first record');
+SELECT * FROM testab;
+        ")?)
     }
 
     // TODO: (set|get)_(private|public)_key()
