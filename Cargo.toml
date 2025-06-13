@@ -26,7 +26,6 @@ openssl = "~0.10.64"
 pgp = "~0.15.0"
 pgrx = "~0.14.0"
 rand_chacha = "*"
-rand = "*"
 regex = "1"
 serde = "1.0.202"
 
