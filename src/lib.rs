@@ -290,23 +290,10 @@ mod tests {
     use std::error::Error;
     
     #[pg_test]
-    fn dummy_test() {
-        assert_eq!("Hello, pg_enigma", "Hello, pg_enigma");
-    }
-
-    #[pg_test]
     fn e01_create_table_testab()  -> Result<(), Box<dyn Error>> {
         Ok(Spi::run(
         "
-CREATE TABLE testab (
-    a SERIAL, 
-    b Enigma(2)
-);
-
--- SELECT set_public_key_from_file(2, 'test/public-key.asc'); 
-
---INSERT INTO testab (b) VALUES ('my first record');
-SELECT * FROM testab;
+CREATE TABLE testab ( a SERIAL, b Enigma(2));
         ")?)
     }
 
@@ -315,10 +302,30 @@ SELECT * FROM testab;
     fn e02_insert_without_pub_key()  -> Result<(), Box<dyn Error>> {
         Ok(Spi::run(
         "
--- SELECT set_public_key_from_file(2, 'test/public-key.asc'); 
-
+CREATE TABLE testab ( a SERIAL, b Enigma(2));
 INSERT INTO testab (b) VALUES ('my first record');
-SELECT * FROM testab;
+        ")?)
+    }
+
+    #[pg_test]
+    fn e03_set_public_key()  -> Result<(), Box<dyn Error>> {
+        use std::env;
+        let path = env::current_dir()?;
+        info!("The current directory is {}", path.display());
+        // pwd seems to be pg_enigma/target/test-pgdata/13
+        Ok(Spi::run(
+        "
+SELECT set_public_key_from_file(2, '../../../test/public-key.asc'); 
+        ")?)
+    }
+
+    #[pg_test]
+    fn e04_insert_with_pub_key()  -> Result<(), Box<dyn Error>> {
+        Ok(Spi::run(
+        "
+CREATE TABLE testab ( a SERIAL, b Enigma(2));
+SELECT set_public_key_from_file(2, '../../../test/public-key.asc'); 
+INSERT INTO testab (b) VALUES ('my first record');
         ")?)
     }
 
