@@ -274,7 +274,7 @@ fn enigma_cast(original: Enigma, typmod: i32, explicit: bool) -> Enigma {
 // https://www.postgresql.org/message-id/67091D2B.5080002%40acm.org
 extension_sql!(
     r#"
-        CREATE CAST (enigma AS enigma) WITH FUNCTION enigma_cast AS IMPLICIT;
+    CREATE CAST (enigma AS enigma) WITH FUNCTION enigma_cast AS IMPLICIT;
     "#,
     name = "enigma_casts",
     requires = ["concrete_type", enigma_cast]
@@ -294,6 +294,7 @@ extension_sql!(
 #[cfg(any(test, feature = "pg_test"))]
 #[pg_schema]
 mod tests {
+    use crate::Enigma;
     use pgrx::prelude::*;
     use std::error::Error;
  
@@ -368,18 +369,18 @@ SELECT public_key FROM enigma_public_keys WHERE id = 2;
     /// Insert a row in the table and then query the encrypted value
     #[pg_test]
     fn e06_insert_with_pub_key()  -> Result<(), Box<dyn Error>> {
-        Ok(Spi::run(
+        Spi::run(
         "
 CREATE TABLE testab ( a SERIAL, b Enigma(2));
 SELECT set_public_key_from_file(2, '../../../test/public-key.asc'); 
 INSERT INTO testab (b) VALUES ('my first record');
-        ")?) /* ; TODO: Validation requites CAST(Enigma AS Text)
-        if let Some(res) = Spi::get_one::<String>("
+        ")? ; 
+        if let Some(res) = Spi::get_one::<Enigma>("
 SELECT b FROM testab LIMIT 1;
         ")? {
-            if res.contains("BEGIN PGP MESSAGE") { return Ok(()); }
+            if res.value.contains("BEGIN PGP MESSAGE") { return Ok(()); }
         } 
-        Err("Should return String with PGP message".into()) */
+        Err("Should return String with PGP message".into()) 
     }
 
     // TODO: e07_select_with_priv_key()
