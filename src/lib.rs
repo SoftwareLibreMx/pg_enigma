@@ -9,6 +9,7 @@ use crate::key_map::{PrivKeysMap,PubKeysMap};
 use once_cell::sync::Lazy;
 use pgrx::prelude::*;
 use pgrx::{rust_regtypein, StringInfo};
+use pgrx::pg_sys::StringInfoData;
 use serde::{Serialize, Deserialize};
 use std::fs;
 
@@ -68,12 +69,13 @@ extension_sql!(
         CREATE TYPE enigma (
             INPUT  = enigma_input_with_typmod,
             OUTPUT = enigma_output,
-            TYPMOD_IN = enigma_type_modifier_input
+            TYPMOD_IN = enigma_type_modifier_input,
+            SEND = enigma_send
         );
     "#,
     name = "concrete_type",
     creates = [Type(Enigma)],
-    requires = ["shell_type", enigma_input_with_typmod, enigma_output, enigma_type_modifier_input],
+    requires = ["shell_type", enigma_input_with_typmod, enigma_output, enigma_type_modifier_input, enigma_send],
 );
 
 
@@ -121,6 +123,26 @@ fn enigma_input_with_typmod(input: &CStr, oid: pg_sys::Oid, typmod: i32)
 	Enigma { value: encrypted }
 }
 
+/* TODO: Receive function for Enigma
+    The optional receive_function converts the type's external binary 
+    representation to the internal representation.
+    The receive function can be declared as taking one argument of type 
+    internal, or as taking three arguments of types internal, oid, integer.
+    The first argument is a pointer to a StringInfo buffer holding the 
+    received byte string; the optional arguments are the same as for the 
+    text input function. 
+    The receive function must return a value of the data type itself.
+
+#[pg_extern]
+fn enigma_receive(input: PgBox<StringInfo>) -> Enigma {
+
+    /*let cstr_input = unsafe { CStr::from_ptr(input.as_ptr()) };
+        
+    let oid = rust_regtypein::<Enigma>();
+    enigma_input_with_typmod(cstr_input, oid, -1) */
+    Enigma { value: ".oOo.".into() }
+} */
+
 
 // Send to postgres
 //fn output(&self, buffer: &mut StringInfo) {
@@ -143,6 +165,11 @@ fn enigma_output(e: Enigma) -> &'static CStr {
 	//TODO try to avoid this unsafe
 	unsafe { buffer.leak_cstr() }
 
+}
+
+#[pg_extern(immutable, parallel_safe, requires = [ "shell_type" ])]
+fn enigma_send(e: Enigma) -> &'static [u8] {
+	enigma_output(e).to_bytes()
 }
 
 
