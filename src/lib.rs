@@ -283,20 +283,38 @@ extension_sql!(
         //CREATE CAST (enigma AS enigma) WITH FUNCTION enigma_cast WITH INOUT AS IMPLICIT;
 
 
+/**************************************************************************
+*                                                                         *
+*                                                                         *
+*                       T E S T  F U N C T I O N S                        *
+*                                                                         *
+*                                                                         *
+**************************************************************************/
+
 #[cfg(any(test, feature = "pg_test"))]
 #[pg_schema]
 mod tests {
     use pgrx::prelude::*;
     use std::error::Error;
-    
+ 
+    /// Just create a table with type Enigma with typmod
     #[pg_test]
-    fn e01_create_table_testab()  -> Result<(), Box<dyn Error>> {
-        Ok(Spi::run(
+    fn e01_create_table_with_enigma()  -> Result<(), Box<dyn Error>> {
+        Spi::run(
         "
 CREATE TABLE testab ( a SERIAL, b Enigma(2));
-        ")?)
+        ")?;
+        if let Some(res) = Spi::get_one::<i64>("
+SELECT count(a) FROM testab;
+        ")? {
+            if res == 0 { return Ok(()); }
+        } 
+        Err("Should return count: 0".into())
     }
 
+    /// Create the table, then try to insert a row in the table without 
+    /// setting the public key.
+    /// `INSERT` should fail with error "No public key with id"
     #[pg_test]
     #[should_panic]
     fn e02_insert_without_pub_key()  -> Result<(), Box<dyn Error>> {
@@ -304,32 +322,67 @@ CREATE TABLE testab ( a SERIAL, b Enigma(2));
         "
 CREATE TABLE testab ( a SERIAL, b Enigma(2));
 INSERT INTO testab (b) VALUES ('my first record');
-        ")?)
+        ")?) // Err( No public key )
     }
 
+    /// Ser wrong public key should fail
     #[pg_test]
-    fn e03_set_public_key()  -> Result<(), Box<dyn Error>> {
+    #[should_panic]
+    fn e03_set_wrong_pub_key()  -> Result<(), Box<dyn Error>> {
+        Ok(Spi::run(
+        "
+SELECT set_public_key(2, '--- INVALID KEY ---'); 
+        ")?) // Err( key type not supported )
+    }
+
+    /// Ser wrong private key should fail
+    #[pg_test]
+    #[should_panic]
+    fn e04_set_wrong_priv_key()  -> Result<(), Box<dyn Error>> {
+        Ok(Spi::run(
+        "
+SELECT set_private_key(2, '--- INVALID KEY ---', 'bad pass'); 
+        ")?) // Err( key type not supported )
+    }
+
+    /// Just set the public key. 
+    /// Should not fail unless public key file is not there.
+    #[pg_test]
+    fn e05_set_public_key()  -> Result<(), Box<dyn Error>> {
         use std::env;
         let path = env::current_dir()?;
         info!("The current directory is {}", path.display());
         // pwd seems to be pg_enigma/target/test-pgdata/13
-        Ok(Spi::run(
+        Spi::run(
         "
 SELECT set_public_key_from_file(2, '../../../test/public-key.asc'); 
-        ")?)
+        ")?;
+        if let Some(res) = Spi::get_one::<String>("
+SELECT public_key FROM enigma_public_keys WHERE id = 2;
+        ")? {
+            if res.contains("BEGIN PGP PUBLIC KEY") { return Ok(()); }
+        } 
+        Err("Should return String with PGP public key".into())
     }
 
+    /// Insert a row in the table and then query the encrypted value
     #[pg_test]
-    fn e04_insert_with_pub_key()  -> Result<(), Box<dyn Error>> {
+    fn e06_insert_with_pub_key()  -> Result<(), Box<dyn Error>> {
         Ok(Spi::run(
         "
 CREATE TABLE testab ( a SERIAL, b Enigma(2));
 SELECT set_public_key_from_file(2, '../../../test/public-key.asc'); 
 INSERT INTO testab (b) VALUES ('my first record');
-        ")?)
+        ")?) /* ; TODO: Validation requites CAST(Enigma AS Text)
+        if let Some(res) = Spi::get_one::<String>("
+SELECT b FROM testab LIMIT 1;
+        ")? {
+            if res.contains("BEGIN PGP MESSAGE") { return Ok(()); }
+        } 
+        Err("Should return String with PGP message".into()) */
     }
 
-    // TODO: (set|get)_(private|public)_key()
+    // TODO: e07_select_with_priv_key()
 }
 
 /// This module is required by `cargo pgrx test` invocations.
@@ -348,13 +401,13 @@ pub mod pg_test {
 
 
 
-/******************************************************************************
-*                                                                             *
-*                                                                             *
-*                  B O I L E R P L A T E  F U N C T I O N S                   *
-*                                                                             *
-*                                                                             *
-*******************************************************************************/
+/**************************************************************************
+*                                                                         *
+*                                                                         *
+*                B O I L E R P L A T E  F U N C T I O N S                 *
+*                                                                         *
+*                                                                         *
+**************************************************************************/
 
 // Boilerplate traits for converting type to postgres internals
 // Needed for the FunctionMetadata trait
