@@ -127,11 +127,11 @@ fn enigma_input_with_typmod(input: &CStr, oid: pg_sys::Oid, typmod: i32)
 // TODO check if we can return just StringInfo
 #[pg_extern(immutable, parallel_safe, requires = [ "shell_type" ])]
 fn enigma_output(e: Enigma) -> &'static CStr {
-	debug1!("enigma_output: Entering enigma_output");
+	info!("enigma_output: Entering enigma_output");
 	let mut buffer = StringInfo::new();
 	let value: String = e.value.clone();
 
-	debug1!("enigma_output value: {}", value);
+	info!("enigma_output value: {}", value);
 
 	match PRIV_KEYS.decrypt(&value) {
 		Ok(Some(v)) => buffer.push_str(&v),
@@ -227,7 +227,7 @@ fn set_public_key_from_file(id: i32, file_path: &str)
 // this cast is needed for knowing the typmod.
 #[pg_extern]
 fn enigma_cast(original: Enigma, typmod: i32, explicit: bool) -> Enigma {
-    debug1!("enigma_cast: \
+    info!("enigma_cast: \
         ARGUMENTS: original: {:?}, explicit: {},  Typmod: {}", 
         original, explicit, typmod);
     if typmod == -1 {
@@ -258,9 +258,9 @@ fn enigma_cast(original: Enigma, typmod: i32, explicit: bool) -> Enigma {
                         .expect("Get (just set) from key map").unwrap()
               }
         };
-        debug1!("Input: Encrypting value: {}", value);
+        info!("Input: Encrypting value: {}", value);
         value = pub_key.encrypt(&value).expect("Encrypt");
-        debug1!("Input: AFTER encrypt: {}", value);
+        info!("Input: AFTER encrypt: {}", value);
     } 
 
     Enigma { value: value }
@@ -383,7 +383,28 @@ SELECT b FROM testab LIMIT 1;
         Err("Should return String with PGP message".into()) 
     }
 
-    // TODO: e07_select_with_priv_key()
+    /* TODO: FIXME: SELECT is not entering output function
+    /// Insert a row in the table, then set private key and then 
+    /// query the decrypted value
+    #[pg_test]
+    fn e07_select_with_priv_key()  -> Result<(), Box<dyn Error>> {
+        Spi::run(
+        "
+CREATE TABLE testab ( a SERIAL, b Enigma(2));
+SELECT set_public_key_from_file(2, '../../../test/public-key.asc'); 
+INSERT INTO testab (b) VALUES ('my first record');
+SELECT set_private_key_from_file(2, 
+    '../../../test/private-key.asc', 'Prueba123!'); 
+        ")? ; 
+        if let Some(res) = Spi::get_one::<Enigma>("
+SELECT b FROM testab LIMIT 1;
+        ")? {
+            info!("Decrypted value: {}", res.value);
+            if res.value.as_str() == "my first record" { return Ok(()); }
+        } 
+        Err("Should return decrypted string".into()) 
+    } */
+
 }
 
 /// This module is required by `cargo pgrx test` invocations.

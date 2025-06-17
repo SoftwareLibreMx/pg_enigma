@@ -29,7 +29,7 @@ CREATE TABLE testab (
     b Enigma(2)
 );
 
-SELECT set_public_key_from_file(1, '../../pg_enigma/test/public-key.asc'); 
+SELECT set_public_key_from_file(2, '../../pg_enigma/test/public-key.asc'); 
 
 INSERT INTO testab (b) VALUES ('my first record');
 SELECT * FROM testab;
@@ -65,7 +65,7 @@ SELECT * FROM testab limit 1;
 Expected result:
 
 ```sql
-pg_enigma=# SELECT set_private_key_from_file(1, 
+pg_enigma=# SELECT set_private_key_from_file(2, 
         '../../pg_enigma/test/private-key.asc', 'Prueba123!');
           set_private_key_from_file          
 ---------------------------------------------
