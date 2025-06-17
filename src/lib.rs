@@ -375,15 +375,15 @@ CREATE TABLE testab ( a SERIAL, b Enigma(2));
 SELECT set_public_key_from_file(2, '../../../test/public-key.asc'); 
 INSERT INTO testab (b) VALUES ('my first record');
         ")? ; 
-        if let Some(res) = Spi::get_one::<Enigma>("
-SELECT b FROM testab LIMIT 1;
+        if let Some(res) = Spi::get_one::<String>("
+SELECT CAST(b AS Text) FROM testab LIMIT 1;
         ")? {
-            if res.value.contains("BEGIN PGP MESSAGE") { return Ok(()); }
+            if res.contains("BEGIN PGP MESSAGE") { return Ok(()); }
         } 
         Err("Should return String with PGP message".into()) 
     }
 
-    /* TODO: FIXME: SELECT is not entering output function
+    /* TODO: Make decrypt work without CAST(Enigma AS Text) */
     /// Insert a row in the table, then set private key and then 
     /// query the decrypted value
     #[pg_test]
@@ -396,14 +396,14 @@ INSERT INTO testab (b) VALUES ('my first record');
 SELECT set_private_key_from_file(2, 
     '../../../test/private-key.asc', 'Prueba123!'); 
         ")? ; 
-        if let Some(res) = Spi::get_one::<Enigma>("
-SELECT b FROM testab LIMIT 1;
+        if let Some(res) = Spi::get_one::<String>("
+SELECT CAST(b AS Text) FROM testab LIMIT 1;
         ")? {
-            info!("Decrypted value: {}", res.value);
-            if res.value.as_str() == "my first record" { return Ok(()); }
+            info!("Decrypted value: {}", res);
+            if res.as_str() == "my first record" { return Ok(()); }
         } 
         Err("Should return decrypted string".into()) 
-    } */
+    } 
 
 }
 
