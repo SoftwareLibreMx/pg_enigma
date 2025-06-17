@@ -1842,7 +1842,6 @@ dependencies = [
  "pgp",
  "pgrx",
  "pgrx-tests",
- "rand 0.9.1",
  "rand_chacha 0.3.1",
  "regex",
  "serde",

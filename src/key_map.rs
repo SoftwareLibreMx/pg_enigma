@@ -5,6 +5,7 @@ use pgp::Esk::PublicKeyEncryptedSessionKey;
 use pgp::Deserializable;
 use pgp::Message;
 use pgp::Message::Encrypted;
+use pgrx::info;
 use std::io::Cursor;
 use std::sync::RwLock;
 
@@ -123,6 +124,7 @@ impl PrivKeysMap {
                                 let mkey_id = format!("{:?}", skey.id()?);
                                 for (_,pkey) in binding.iter() {
                                     if mkey_id == pkey.key_id() {
+                                        info!("KEY_ID: {mkey_id}");
                                         return Ok(Some(pkey));
                                     }
                                 }
