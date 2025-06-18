@@ -31,11 +31,8 @@ static PUB_KEYS: Lazy<PubKeysMap> = Lazy::new(|| PubKeysMap::new());
 
 
 /// Value stores entcrypted information
-//#[derive(Serialize, Deserialize, Debug, PostgresType)]
-//#[derive(Serialize, Deserialize, Debug)]
 #[repr(transparent)]
 #[derive( Clone, Debug)]
-//#[inoutfuncs]
 struct Enigma {
     value: String,
 }
@@ -46,8 +43,9 @@ extension_sql!(
         CREATE TYPE enigma;
     "#,
     name = "shell_type",
-    bootstrap // declare this extension_sql block as the "bootstrap" block so that it happens first in sql generation
-
+    // declare this extension_sql block as the "bootstrap" block 
+    // so it happens first in sql generation
+    bootstrap 
 );
 
 
@@ -68,7 +66,6 @@ extension_sql!(
 
 /// Functions for extracting and inserting data
 #[pg_extern(immutable, parallel_safe, requires = [ "shell_type" ])]
-//fn input(input: &CStr) -> Self {
 fn enigma_input_with_typmod(input: &CStr, oid: pg_sys::Oid, typmod: i32) 
 -> Enigma {
 	debug1!("enigma_input_with_typmod: \
@@ -79,11 +76,11 @@ fn enigma_input_with_typmod(input: &CStr, oid: pg_sys::Oid, typmod: i32)
 			.expect("Enigma::input can't convert to str")
 			.to_string();
      if typmod == -1 { // unknown typmod 
-        info!("Unknown typmod: {}\ninput:{:?}\noid: {:?}", 
+        debug1!("Unknown typmod: {}\ninput:{:?}\noid: {:?}", 
             typmod, input, oid);
         // TODO: PubKey::NO_KEY
         let plain = format!("BEGIN PLAIN=====>{value}<=====END PLAIN");
-        debug1!("PLAIN VALUE:\n{plain}");
+        debug5!("PLAIN VALUE:\n{plain}");
         return Enigma { value: plain };
      }
      let key_id = typmod; // TODO: as u32
@@ -112,15 +109,14 @@ fn enigma_input_with_typmod(input: &CStr, oid: pg_sys::Oid, typmod: i32)
 
 
 // Send to postgres
-//fn output(&self, buffer: &mut StringInfo) {
 // TODO check if we can return just StringInfo
 #[pg_extern(immutable, parallel_safe, requires = [ "shell_type" ])]
 fn enigma_output(e: Enigma) -> &'static CStr {
-	info!("enigma_output: Entering enigma_output");
+	debug1!("enigma_output: Entering enigma_output");
 	let mut buffer = StringInfo::new();
 	let value: String = e.value.clone();
 
-	info!("enigma_output value: {}", value);
+	debug2!("enigma_output value: {}", value);
 
 	match PRIV_KEYS.decrypt(&value) {
 		Ok(Some(v)) => buffer.push_str(&v),
@@ -148,9 +144,9 @@ pub fn enigma_type_modifier_input(cstrings: pgrx::Array<'_, &CStr>) -> i32 {
         .map(|cstr| cstr.to_str().unwrap_or_default())
         .collect();
 
-    info!("enigma_type_modifier_input:: value {}", rust_strings[0].parse::<i32>().unwrap());
+    debug5!("enigma_type_modifier_input:: value {}", 
+        rust_strings[0].parse::<i32>().unwrap());
 
-    //typmod[0].unwrap().to_str()
     rust_strings[0]
         .parse::<i32>()
         .expect("Canto convert typmod to integer")
@@ -216,9 +212,8 @@ fn set_public_key_from_file(id: i32, file_path: &str)
 // this cast is needed for knowing the typmod.
 #[pg_extern]
 fn enigma_cast(original: Enigma, typmod: i32, explicit: bool) -> Enigma {
-    info!("enigma_cast: \
-        ARGUMENTS: original: {:?}, explicit: {},  Typmod: {}", 
-        original, explicit, typmod);
+    debug1!("enigma_cast: \
+        ARGUMENTS: explicit: {},  Typmod: {}", explicit, typmod);
     if typmod == -1 {
         panic!("Unknown typmod: {}\noriginal: {:?}\nexplicit: {}", 
             typmod, original, explicit);
@@ -247,9 +242,9 @@ fn enigma_cast(original: Enigma, typmod: i32, explicit: bool) -> Enigma {
                         .expect("Get (just set) from key map").unwrap()
               }
         };
-        info!("Input: Encrypting value: {}", value);
+        debug5!("Input: Encrypting value: {}", value);
         value = pub_key.encrypt(&value).expect("Encrypt");
-        info!("Input: AFTER encrypt: {}", value);
+        debug1!("Input: AFTER encrypt: {}", value);
     } 
 
     Enigma { value: value }
@@ -339,7 +334,7 @@ SELECT set_private_key(2, '--- INVALID KEY ---', 'bad pass');
     fn e05_set_public_key()  -> Result<(), Box<dyn Error>> {
         use std::env;
         let path = env::current_dir()?;
-        info!("The current directory is {}", path.display());
+        debug1!("The current directory is {}", path.display());
         // pwd seems to be pg_enigma/target/test-pgdata/13
         Spi::run(
         "
@@ -386,7 +381,7 @@ SELECT set_private_key_from_file(2,
         if let Some(res) = Spi::get_one::<Enigma>("
 SELECT b FROM testab LIMIT 1;
         ")? {
-            info!("Decrypted value: {}", res);
+            debug1!("Decrypted value: {}", res);
             if res.value.as_str() == "my first record" { return Ok(()); }
         } 
         Err("Should return decrypted string".into()) 
@@ -444,12 +439,13 @@ where
 
 
 unsafe impl BoxRet for Enigma {
-    unsafe fn box_into<'fcx>(self, fcinfo: &mut pgrx::callconv::FcInfo<'fcx>) -> Datum<'fcx> {
-        //unsafe { fcinfo.return_raw_datum(pg_sys::Datum::from(self.value)) }
-        unsafe { fcinfo.return_raw_datum(
-			self.value.into_datum()
-				.expect("Can't convert enigma value into Datum")
-		)}
+    unsafe fn box_into<'fcx>(self, 
+    fcinfo: &mut pgrx::callconv::FcInfo<'fcx>) 
+    -> Datum<'fcx> {
+        fcinfo.return_raw_datum(
+           self.value.into_datum()
+                .expect("Can't convert enigma value into Datum")
+        )
     }
 }
 
@@ -463,7 +459,6 @@ impl FromDatum for Enigma {
         if is_null {
             return None;
         }  
-        //Some(Enigma { value: datum.value().to_string()})
         let value = match String::from_datum(datum, is_null) {
             None => return None,
             Some(v) => v
@@ -490,22 +485,10 @@ impl IntoDatum for Enigma {
     fn type_oid() -> Oid {
         rust_regtypein::<Self>()
     }
-
-    /* Did not work as expected
-     * TODO: cleanup
-    fn is_compatible_with(other: pg_sys::Oid) -> bool {
-        // first, if our type is the other type, then we're compatible
-        Self::type_oid() == other
-
-        // and here's the other type we're compatible with
-        || other == pg_sys::TEXTOID
-        // || other == pg_sys::VARCHAROID
-    } */
 }
 
 impl Display for Enigma {
-	// test display
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "i|| {} ||", self.value)
+        write!(f, "{}", self.value)
     }
 }
