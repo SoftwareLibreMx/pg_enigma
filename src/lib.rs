@@ -1,5 +1,6 @@
 mod functions;
 mod key_map;
+mod message;
 mod priv_key;
 mod pub_key;
 
