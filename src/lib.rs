@@ -57,9 +57,7 @@ extension_sql!(
         CREATE TYPE enigma (
             INPUT  = enigma_input_with_typmod,
             OUTPUT = enigma_output,
-            TYPMOD_IN = enigma_type_modifier_input,
-            LIKE = Text,
-            CATEGORY = 'S'
+            TYPMOD_IN = enigma_type_modifier_input
         );
     "#,
     name = "concrete_type",
@@ -470,7 +468,7 @@ impl FromDatum for Enigma {
             None => return None,
             Some(v) => v
         };
-        info!("FromDatum: Encrypted value: {value}");
+        debug2!("FromDatum: Encrypted value: {value}");
         match PRIV_KEYS.decrypt(&value) {
             Ok(Some(v)) => Some(Enigma { value: v }),
             Err(e) =>  panic!("FromDatum: Decrypt error: {}", e),
@@ -493,6 +491,8 @@ impl IntoDatum for Enigma {
         rust_regtypein::<Self>()
     }
 
+    /* Did not work as expected
+     * TODO: cleanup
     fn is_compatible_with(other: pg_sys::Oid) -> bool {
         // first, if our type is the other type, then we're compatible
         Self::type_oid() == other
@@ -500,7 +500,7 @@ impl IntoDatum for Enigma {
         // and here's the other type we're compatible with
         || other == pg_sys::TEXTOID
         // || other == pg_sys::VARCHAROID
-    }
+    } */
 }
 
 impl Display for Enigma {
