@@ -4,19 +4,22 @@ use pgp::Esk::PublicKeyEncryptedSessionKey;
 use pgp::Message;
 use pgp::types::KeyId;
 use pgrx::debug1;
+use std::fmt::{Display, Formatter};
 use std::io::Cursor;
 
 const PGP_BEGIN: &str = "-----BEGIN PGP MESSAGE-----\n";
 const PGP_END: &str = "-----END PGP MESSAGE-----\n";
+const RSA_BEGIN: &str = "-----BEGIN RSA ENCRYPTED-----\n";
+const RSA_END: &str = "-----END RSA ENCRYPTED-----\n";
+const RSA_KEY: &str = "-----RSA KEY ID ";
 const PLAIN_BEGIN: &str = "BEGIN PLAIN=====>";
 const PLAIN_END: &str = "<=====END PLAIN";
-// TODO: Enigma RSA envelope
 
 pub enum EnigmaMsg {
     /// PGP message
     PGP(pgp::Message),
     /// OpenSSL RSA encrypted message
-    RSA(Vec<u8>,u64), // TODO: refactor
+    RSA(String,u64), // TODO: refactor
     /// Plain unencrypted message
     Plain(String)
 }
@@ -88,6 +91,50 @@ impl TryFrom<Enigma> for EnigmaMsg {
     }
 }
 
+impl From<EnigmaMsg> for Enigma {
+    fn from(msg: EnigmaMsg) -> Enigma {
+        let value: String;
+        match msg {
+            EnigmaMsg::PGP(m) => {
+                value = m.to_armored_string(None.into())
+                    .expect("PGP error")
+                    .trim_start_matches(PGP_BEGIN)
+                    .trim_end_matches(PGP_END)
+                    .to_string();
+            },
+            EnigmaMsg::RSA(msg,k) => {
+                value = format!("{}{}{}\n{}{}", 
+                    RSA_BEGIN, RSA_KEY, k, msg, RSA_END);
+            },
+            EnigmaMsg::Plain(s) => {
+                value = format!("{}{}{}",PLAIN_BEGIN, s ,PLAIN_END);
+            }
+        }
+        Enigma{ value: value }
+    }
+}
+
+impl Display for EnigmaMsg {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::PGP(m) => {
+                let armored = m.to_armored_string(None.into())
+                    .expect("PGP error");
+
+                let out = armored.trim_start_matches(PGP_BEGIN)
+                    .trim_end_matches(PGP_END);
+                write!(f, "{}", out)
+            },
+            Self::RSA(m,_) => {
+                write!(f, "{}", m)
+            },
+            Self::Plain(s) => {
+                write!(f, "{}", s)
+            }
+        }
+    }
+}
+
 impl EnigmaMsg {
     pub fn plain(value: String) -> Self {
         Self::Plain(value)
@@ -122,6 +169,15 @@ impl EnigmaMsg {
             }
         }
         Ok(keys)
+    }
+
+    pub fn encrypting_key(&self)
+    -> Result<KeyId, Box<(dyn std::error::Error + 'static)>> {
+        let mut keys = self.encrypting_keys()?;
+        if keys.len() > 1 {
+            return Err("More than one encrypting key".into());
+        }
+        keys.pop().ok_or("No encrypting key found".into())
     }
 }
 
