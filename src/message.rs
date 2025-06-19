@@ -1,6 +1,9 @@
 use crate::Enigma;
 use pgp::Deserializable;
+use pgp::Esk::PublicKeyEncryptedSessionKey;
 use pgp::Message;
+use pgp::types::KeyId;
+use pgrx::debug1;
 use std::io::Cursor;
 
 const PGP_BEGIN: &str = "-----BEGIN PGP MESSAGE-----\n";
@@ -106,7 +109,20 @@ impl EnigmaMsg {
         matches!(*self, Self::Plain(_))
     }
 
-
+    pub fn encrypting_keys(&self)
+    -> Result<Vec<KeyId>, Box<(dyn std::error::Error + 'static)>> {
+        let mut keys = Vec::new();
+        if let Self::PGP(pgp::Message::Encrypted{ esk, .. }) = self {
+            for each_esk in esk {
+                if let PublicKeyEncryptedSessionKey(skey) = each_esk {
+                    let skey_id = skey.id()?;
+                    debug1!("Encrypting key: {:?}", skey_id);
+                    keys.push(skey_id.clone());
+                }
+            }
+        }
+        Ok(keys)
+    }
 }
 
 /*********************

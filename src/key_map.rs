@@ -116,25 +116,13 @@ impl PrivKeysMap {
         // TODO: message module
         //let buf = Cursor::new(value);
         //let (msg, _) = Message::from_armor_single(buf)?;
-        if let EnigmaMsg::PGP(msg) = EnigmaMsg::try_from(value)? {
-            match msg {
-                Encrypted { esk, .. } => {
-                    for each_esk in esk {
-                        match each_esk {
-                            PublicKeyEncryptedSessionKey(skey) => {
-                                let mkey_id = format!("{:?}", skey.id()?);
-                                for (_,pkey) in binding.iter() {
-                                    if mkey_id == pkey.key_id() {
-                                        info!("KEY_ID: {mkey_id}");
-                                        return Ok(Some(pkey));
-                                    }
-                                }
-                            },
-                            _ =>  return Ok(None)
-                        }
-                    }
-                },
-                _ => return Ok(None)
+        for skey_id in EnigmaMsg::try_from(value)?.encrypting_keys()? {
+            let mkey_id = format!("{:?}", skey_id);
+            for (_,pkey) in binding.iter() {
+                if mkey_id == pkey.key_id() {
+                    info!("KEY_ID: {mkey_id}");
+                    return Ok(Some(pkey));
+                }
             }
         }
         Ok(None)
