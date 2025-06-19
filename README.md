@@ -8,12 +8,8 @@ Encrypted postgres data type for fun and profit
 
 Install the Rust toolchain version 1.74 or nwer.
 
-Initialize pgrx. It only works with version 0.12.0-beta.3 and newer
-but cargo will default to non-alpha versions so we need to specify it
-explicitly.
-
 ```bash
-$ cargo install --locked cargo-pgrx@0.12.0-beta.3
+$ cargo install --locked cargo-pgrx
 $ cargo pgrx init
 ```
 
@@ -30,7 +26,7 @@ $ cargo pgrx run
 CREATE EXTENSION pg_enigma;
 CREATE TABLE testab (
     a SERIAL, 
-    b Enigma
+    b Enigma(2)
 );
 
 SELECT set_public_key_from_file(1, '../../pg_enigma/test/public-key.asc'); 
@@ -199,7 +195,7 @@ N2E+xKX1xkxgji7vIKx0XXAXC9pQEC1gMtQYHyOBA=
 ### Cleanup:
 ```sql
 DROP TABLE testab;
-DROP EXTENSION pg_enigma;
+DROP EXTENSION pg_enigma CASCADE;
 ```
 
 ## Roadmap

@@ -9,8 +9,12 @@ use crate::key_map::{PrivKeysMap,PubKeysMap};
 use once_cell::sync::Lazy;
 use pgrx::prelude::*;
 use pgrx::{StringInfo};
+use pgrx::ffi::CString;
+use pgrx::pg_sys::Oid;
 use serde::{Serialize, Deserialize};
+use std::error::Error;
 use std::fs;
+use pgrx_macros::extension_sql;
 
 pgrx::pg_module_magic!();
 
@@ -21,34 +25,42 @@ static PUB_KEYS: Lazy<PubKeysMap> = Lazy::new(|| PubKeysMap::new());
 
 /// Value stores entcrypted information
 #[derive(Serialize, Deserialize, Debug, PostgresType)]
-#[inoutfuncs]
+#[typmod_inoutfuncs]
 struct Enigma {
     value: String,
 }
 
 
 /// Functions for extracting and inserting data
-impl InOutFuncs for Enigma {
+impl TypmodInOutFuncs for Enigma {
     // Get from postgres
-    fn input(input: &CStr) -> Self {
+    fn input(input: &CStr, _oid: Oid, typmod: i32) -> Self {
+        info!("typmod: {}\ninput:{:?}\noid: {:?}", 
+            typmod, input, _oid);
+        /*if typmod < 0 {
+            panic!("Unknown typmod: {}\ninput:{:?}\noid: {:?}", 
+                typmod, input, _oid);
+        } */
         let value: String = input
                 .to_str()
                 .expect("Enigma::input can't convert to str")
                 .to_string();
-        let HARDCODED_KEY_ID = 1; // TODO: Obtener el ID del modificador
-        let pub_key = match PUB_KEYS.get(HARDCODED_KEY_ID)
+        // let HARDCODED_KEY_ID = 1; // TODO: Obtener el ID del modificador
+        let mut key_id = typmod;
+        if key_id < 0 {key_id = 1}
+        let pub_key = match PUB_KEYS.get(key_id)
                 .expect("Get from key map") {
             Some(k) => k,
             None => {
-                let key = match get_public_key(HARDCODED_KEY_ID)
+                let key = match get_public_key(key_id)
                     .expect("Get public key from SQL") {
                     Some(k) => k,
                     None => panic!("No public key with id: {}", 
-                        HARDCODED_KEY_ID)
+                        key_id)
                 };
-                PUB_KEYS.set(HARDCODED_KEY_ID, &key)
+                PUB_KEYS.set(key_id, &key)
                     .expect("Set into key map");
-                PUB_KEYS.get(HARDCODED_KEY_ID)
+                PUB_KEYS.get(key_id)
                     .expect("Get (just set) from key map").unwrap()
             }
         };
@@ -70,13 +82,87 @@ impl InOutFuncs for Enigma {
             _ => buffer.push_str(&value),
         }
     }
+
+    // convert typmod from cstring to i32
+    fn typmod_in(input: Array<&CStr>) -> i32 {
+        if input.len() != 1 {
+            panic!("Enigma type modifier must be a single integer value");
+        }
+        // TODO: handle unwrap errors ellegantly using expect()
+        let ret = input.iter() // iterator
+        .next() // Option<Item>
+        .unwrap() // Item
+        .unwrap() // &Cstr
+        .to_str() // Option<&Str>
+        .unwrap() // &$tr
+        .parse::<i32>() // Result<i32>
+        .unwrap() ; // i32
+        info!("typmod_in({ret})");
+        ret
+    }
 }
+    
+
+#[::pgrx::pgrx_macros::pg_extern(immutable,parallel_safe)]
+fn type_enigma_out(typmod: i32) -> CString {
+    info!("Typmodout: {}", typmod);
+    let output = format!(" Key pair index: {}", typmod);
+    CString::new(output.as_bytes())
+        .expect("Can't convert typmod to CString!!")
+}
+
+
+//
+// cast functions
+//
+
+
+#[pg_extern(immutable, parallel_safe)]
+fn enigma_to_text(enigma: Enigma, typmod: i32, explicit: bool) 
+-> Result<String, Box<dyn Error>> {
+    info!(" enigma_to_text(typmod: {typmod}, explicit: {explicit})");
+    Ok(enigma.value)
+}
+
+#[pg_extern(immutable, parallel_safe)]
+fn text_to_enigma(text: String, typmod: i32, explicit: bool) 
+-> Result<Enigma, Box<dyn Error>> {
+    info!(" text_to_enigma(typmod: {typmod}, explicit: {explicit})");
+    Ok(Enigma { value: text })
+}
+
+#[pg_extern(immutable, parallel_safe)]
+fn enigma_to_enigma(enigma: Enigma, typmod: i32, explicit: bool) 
+-> Result<Enigma, Box<dyn Error>> {
+    info!(" enigma_to_enigma(typmod: {typmod}, explicit: {explicit})");
+    Ok(enigma)
+}
+
+
+// some convenient casts
+extension_sql!(
+    r#"
+CREATE CAST (enigma AS enigma) 
+    WITH FUNCTION enigma_to_enigma 
+    ;
+CREATE CAST (enigma AS varchar) 
+    WITH FUNCTION enigma_to_text 
+    AS IMPLICIT;
+CREATE CAST (varchar AS enigma) 
+    WITH FUNCTION text_to_enigma 
+    AS IMPLICIT;
+"#,
+    name = "typmod_cast",
+    requires = [enigma_to_enigma, enigma_to_text, text_to_enigma],
+    finalize
+);
+
 
 
 /// TODO: add docs
 #[pg_extern]
 fn set_private_key(id: i32, key: &str, pass: &str)
--> Result<String, Box<(dyn std::error::Error + 'static)>> {
+-> Result<String, Box<(dyn Error)>> {
     PRIV_KEYS.set(id, key, pass)
 }   
 
@@ -84,7 +170,7 @@ fn set_private_key(id: i32, key: &str, pass: &str)
 /// TODO: add docs
 #[pg_extern]
 fn set_public_key(id: i32, key: &str)
--> Result<String, Box<(dyn std::error::Error + 'static)>> {
+-> Result<String, Box<(dyn Error)>> {
     match insert_public_key(id, key)? {
         Some(_) => PUB_KEYS.set(id, key),
         None => Err(format!("No key ({}) inserted", id).into())
@@ -94,21 +180,21 @@ fn set_public_key(id: i32, key: &str)
 /// Delete the private key from memory
 #[pg_extern]
 fn forget_private_key(id: i32)
--> Result<String, Box<(dyn std::error::Error + 'static)>> {
+-> Result<String, Box<(dyn Error)>> {
     PRIV_KEYS.del(id)
 }
 
 /// Delete the public key from memory
 #[pg_extern]
 fn forget_public_key(id: i32)
--> Result<String, Box<(dyn std::error::Error + 'static)>> {
+-> Result<String, Box<(dyn Error)>> {
     PUB_KEYS.del(id)
 }
 
 /// Sets the private key from a file
 #[pg_extern]
 fn set_private_key_from_file(id: i32, file_path: &str, pass: &str)
--> Result<String, Box<(dyn std::error::Error + 'static)>> {
+-> Result<String, Box<(dyn Error)>> {
     let contents = fs::read_to_string(file_path)
     .expect("Error reading private key file");
     set_private_key(id, &contents, pass)
@@ -117,7 +203,7 @@ fn set_private_key_from_file(id: i32, file_path: &str, pass: &str)
 /// Sets the public key from a file
 #[pg_extern]
 fn set_public_key_from_file(id: i32, file_path: &str)
--> Result<String, Box<(dyn std::error::Error + 'static)>> {
+-> Result<String, Box<(dyn Error)>> {
     let contents = fs::read_to_string(file_path)
         .expect("Error reading public file");
     set_public_key(id, &contents)
