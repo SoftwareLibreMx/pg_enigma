@@ -10,7 +10,7 @@ use crate::key_map::{PrivKeysMap,PubKeysMap};
 use once_cell::sync::Lazy;
 use pgrx::prelude::*;
 use pgrx::{rust_regtypein, StringInfo};
-use serde::{Serialize, Deserialize};
+// use serde::{Serialize, Deserialize};
 use std::fs;
 
 // start includes for testing manual implementation
@@ -284,7 +284,7 @@ extension_sql!(
 #[cfg(any(test, feature = "pg_test"))]
 #[pg_schema]
 mod tests {
-    use crate::Enigma;
+    // use crate::Enigma;
     use pgrx::prelude::*;
     use std::error::Error;
  

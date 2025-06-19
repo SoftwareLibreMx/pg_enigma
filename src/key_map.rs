@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use crate::message::*;
 use crate::priv_key::PrivKey;
 use crate::pub_key::PubKey;
 use pgp::Esk::PublicKeyEncryptedSessionKey;
@@ -6,6 +6,7 @@ use pgp::Deserializable;
 use pgp::Message;
 use pgp::Message::Encrypted;
 use pgrx::info;
+use std::collections::BTreeMap;
 use std::io::Cursor;
 use std::sync::RwLock;
 
@@ -111,11 +112,11 @@ impl PrivKeysMap {
     pub fn find_encrypting_key(self: &'static PrivKeysMap, value: &String)
     -> Result<Option<&'static PrivKey>, 
     Box<(dyn std::error::Error + 'static)>> {
-        if value.contains("-----BEGIN PGP MESSAGE-----") {
-            let binding = self.keys.read()?;
-            // TODO: message module
-            let buf = Cursor::new(value);
-            let (msg, _) = Message::from_armor_single(buf)?;
+        let binding = self.keys.read()?;
+        // TODO: message module
+        //let buf = Cursor::new(value);
+        //let (msg, _) = Message::from_armor_single(buf)?;
+        if let EnigmaMsg::PGP(msg) = EnigmaMsg::try_from(value)? {
             match msg {
                 Encrypted { esk, .. } => {
                     for each_esk in esk {
@@ -132,13 +133,11 @@ impl PrivKeysMap {
                             _ =>  return Ok(None)
                         }
                     }
-                    Ok(None)
                 },
-                _ => Ok(None)
+                _ => return Ok(None)
             }
-        } else {
-            Ok(None)
         }
+        Ok(None)
     }
 }
 
