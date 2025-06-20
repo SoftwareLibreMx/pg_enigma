@@ -116,7 +116,11 @@ fn enigma_input_with_typmod(input: &CStr, oid: pg_sys::Oid, typmod: i32)
 	debug1!("Input: AFTER encrypt: {}", encrypted);
 	Enigma { value: encrypted }
      */
-    let encrypted = PUB_KEYS.encrypt(key_id, plain).expect("Encrypt");
+    let encrypted = PUB_KEYS.get(key_id) // Result
+                            .expect("Get public key (input)") // Option
+                            .expect("No public key") // PubKey
+                            .encrypt(key_id, plain) // Result
+                            .expect("Encrypt (input)"); // EnigmaMsg
     Enigma::from(encrypted)
 }
 
@@ -264,7 +268,11 @@ fn enigma_cast(original: Enigma, typmod: i32, explicit: bool) -> Enigma {
         info!("enigma_cast: AFTER encrypt: {}", value);
         return Enigma{ value: value };
         */
-        let encrypted = PUB_KEYS.encrypt(key_id, msg).expect("Encrypt");
+        let encrypted = PUB_KEYS.get(key_id) // Result
+                        .expect("Get public key (typmod cast)") // Option
+                        .expect("No public key") // PubKey
+                        .encrypt(key_id, msg) // Result
+                        .expect("Encrypt (typmod cast)"); // EnigmaMsg
         return Enigma::from(encrypted);
     } 
     

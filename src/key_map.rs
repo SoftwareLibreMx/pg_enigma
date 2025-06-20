@@ -213,23 +213,44 @@ impl PubKeysMap {
         let binding = self.keys.read()?;
         let key = match binding.get(&id) {
             Some(k) => k,
-            None => return Ok(None)
+            None => {
+                // TODO: rename to public_ket_from_sql()
+                let armored_key = get_public_key(id)?; // Key from SQL
+                match armored_key {
+                    Some(k) => {
+                        let set_msg = self.set(id, &k)?;
+                        info!("{set_msg}");
+                        // retry get kwy just being set
+                        match binding.get(&id) {
+                            Some(k) => k,
+                            None => return Ok(None)
+                        }
+                    }
+                    None => return Ok(None)
+                }
+            }
         };
         Ok(Some(key))
     }
 }
 
-impl Encrypt<EnigmaMsg> for PubKeysMap {
+/*impl Encrypt<EnigmaMsg> for PubKeysMap {
     fn encrypt(&self, id: i32, msg: EnigmaMsg) 
     -> Result<EnigmaMsg, Box<(dyn std::error::Error + 'static)>> {
-        if let Some(pub_key) = self.get(id)? {
+        /* if let Some(pub_key) = self.get(id)? {
+            return pub_key.encrypt(id, msg);
+        } */
+        let binding = self.keys.read()?;
+        if let Some(pub_key) = binding.get(&id) {
             return pub_key.encrypt(id, msg);
         }
+
         if let Some(armored_key) = get_public_key(id)? {
             let set_msg = self.set(id, &armored_key)?;
-            let pub_key = self.get(id)?.ok_or("Just set public key")?;
             info!("{set_msg}");
-            return pub_key.encrypt(id, msg);
+            if let Some(pub_key) = binding.get(&id) {
+                return pub_key.encrypt(id, msg);
+            }
         }
         Err(format!("No public key with id: {}", id).into())
     }
@@ -243,5 +264,5 @@ impl Encrypt<String> for PubKeysMap {
         self.encrypt(id, msg)
     }
 }
-
+*/
 
