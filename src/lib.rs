@@ -1,3 +1,5 @@
+mod decrypt;
+mod encrypt;
 mod functions;
 mod key_map;
 mod message;
