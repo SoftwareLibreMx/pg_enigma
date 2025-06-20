@@ -17,6 +17,7 @@ const SEPARATOR: &str = "\n";
 const PLAIN_BEGIN: &str = "BEGIN PLAIN=====>";
 const PLAIN_END: &str = "<=====END PLAIN";
 
+// TODO: KEY ID in envelope header
 pub enum EnigmaMsg {
     /// PGP message
     PGP(pgp::Message),
@@ -144,6 +145,14 @@ impl EnigmaMsg {
         Self::Plain(value)
     }
 
+    pub fn pgp(value: pgp::Message) -> Self {
+        Self::PGP(value)
+    }
+
+    pub fn rsa(value: String, id: i32) -> Self {
+        Self::RSA(value, id)
+    }
+
     pub fn is_encrypted(&self) -> bool {
         !self.is_plain()
     }
@@ -161,6 +170,7 @@ impl EnigmaMsg {
     }
 
     pub fn encrypting_keys(&self)
+    // TODO: Vec<u64>
     -> Result<Vec<KeyId>, Box<(dyn std::error::Error + 'static)>> {
         let mut keys = Vec::new();
         if let Self::PGP(pgp::Message::Encrypted{ esk, .. }) = self {
@@ -176,6 +186,7 @@ impl EnigmaMsg {
     }
 
     pub fn encrypting_key(&self)
+    // TODO: u64
     -> Result<KeyId, Box<(dyn std::error::Error + 'static)>> {
         let mut keys = self.encrypting_keys()?;
         if keys.len() > 1 {
@@ -183,6 +194,12 @@ impl EnigmaMsg {
         }
         keys.pop().ok_or("No encrypting key found".into())
     }
+
+    pub fn encrypting_key_as_string(&self)
+    -> Result<String, Box<(dyn std::error::Error + 'static)>> {
+        let key_id = self.encrypting_key()?;
+        Ok(format!("{key_id:x}"))
+    } 
 }
 
 /*********************

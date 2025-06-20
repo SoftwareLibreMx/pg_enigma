@@ -1,15 +1,15 @@
-mod decrypt;
-mod encrypt;
 mod functions;
 mod key_map;
 mod message;
 mod priv_key;
 mod pub_key;
+mod traits;
 
 use core::ffi::CStr;
 use crate::message::EnigmaMsg;
 use crate::functions::*;
 use crate::key_map::{PrivKeysMap,PubKeysMap};
+use crate::traits::{Encrypt,Decrypt};
 use once_cell::sync::Lazy;
 use pgrx::prelude::*;
 use pgrx::{rust_regtypein, StringInfo};
@@ -91,7 +91,7 @@ fn enigma_input_with_typmod(input: &CStr, oid: pg_sys::Oid, typmod: i32)
         return Enigma::from(plain);
      }
      let key_id = typmod; // TODO: as u32
-	let pub_key = match PUB_KEYS.get(key_id)
+/*	let pub_key = match PUB_KEYS.get(key_id)
 			.expect("Get from key map") {
 		Some(k) => k,
 		None => {
@@ -106,15 +106,18 @@ fn enigma_input_with_typmod(input: &CStr, oid: pg_sys::Oid, typmod: i32)
 			PUB_KEYS.get(key_id)
 				.expect("Get (just set) from key map").unwrap()
 		}
-	};
+	}; 
 
      // TODO: EnigmaMsg::Encrypt
      // let encrypted = plain.encrypt(PUB_KEYS,id).expect("Encryption")
      let value = plain.to_string(); // dirty redefine because of borrow
 	debug1!("Input: Encrypting value: {}", value);
-     let encrypted = pub_key.encrypt(&value).expect("Encrypt");
+     let encrypted = pub_key.encrypt(key_id, &value).expect("Encrypt");
 	debug1!("Input: AFTER encrypt: {}", encrypted);
 	Enigma { value: encrypted }
+     */
+    let encrypted = PUB_KEYS.encrypt(key_id, plain).expect("Encrypt");
+    Enigma::from(encrypted)
 }
 
 
@@ -235,8 +238,9 @@ fn enigma_cast(original: Enigma, typmod: i32, explicit: bool) -> Enigma {
     }
     let msg = EnigmaMsg::try_from(original).expect("Corrupted Enigma");
     if msg.is_plain() {
-        let plain = msg.to_string();
+        //let plain = msg.to_string();
         let key_id = typmod; // TODO: as u32
+        /*
         // TODO: move this repetitive code to a function
         let pub_key = match PUB_KEYS.get(key_id)
                    .expect("Get from key map") {
@@ -259,6 +263,9 @@ fn enigma_cast(original: Enigma, typmod: i32, explicit: bool) -> Enigma {
                 .expect("Encrypt");
         info!("enigma_cast: AFTER encrypt: {}", value);
         return Enigma{ value: value };
+        */
+        let encrypted = PUB_KEYS.encrypt(key_id, msg).expect("Encrypt");
+        return Enigma::from(encrypted);
     } 
     
     // TODO: if msg.key_id != key_id {try_reencrypt()} 

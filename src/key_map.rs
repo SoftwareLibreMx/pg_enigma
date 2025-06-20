@@ -1,6 +1,8 @@
+use crate::functions::get_public_key;
 use crate::message::*;
 use crate::priv_key::PrivKey;
 use crate::pub_key::PubKey;
+use crate::traits::{Encrypt,Decrypt};
 //use pgp::Esk::PublicKeyEncryptedSessionKey;
 //use pgp::Deserializable;
 //use pgp::Message;
@@ -215,17 +217,31 @@ impl PubKeysMap {
         };
         Ok(Some(key))
     }
+}
 
-    /*pub fn encrypt(self: &'static PubKeysMap, id: i32, value: &String)
-    -> Result<Option<String>, Box<(dyn std::error::Error + 'static)>> {
-        match self.get(id)? {
-            Some(key) => {
-                let encrypted = key.encrypt(value)?;
-                Ok(Some(encrypted))
-            },
-            None => Ok(None)
+impl Encrypt<EnigmaMsg> for PubKeysMap {
+    fn encrypt(&self, id: i32, msg: EnigmaMsg) 
+    -> Result<EnigmaMsg, Box<(dyn std::error::Error + 'static)>> {
+        if let Some(pub_key) = self.get(id)? {
+            return pub_key.encrypt(id, msg);
         }
-    }*/
+        if let Some(armored_key) = get_public_key(id)? {
+            let set_msg = self.set(id, &armored_key)?;
+            let pub_key = self.get(id)?.ok_or("Just set public key")?;
+            info!("{set_msg}");
+            return pub_key.encrypt(id, msg);
+        }
+        Err(format!("No public key with id: {}", id).into())
+    }
+}
+
+
+impl Encrypt<String> for PubKeysMap {
+    fn encrypt(&self, id: i32, value: String) 
+    -> Result<EnigmaMsg, Box<(dyn std::error::Error + 'static)>> {
+        let msg = EnigmaMsg::try_from(value)?;
+        self.encrypt(id, msg)
+    }
 }
 
 
