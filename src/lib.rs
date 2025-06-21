@@ -269,8 +269,6 @@ extension_sql!(
     requires = ["concrete_type", enigma_cast]
 );
 
-        //CREATE CAST (enigma AS enigma) WITH FUNCTION enigma_cast WITH INOUT AS IMPLICIT;
-
 
 /**************************************************************************
 *                                                                         *
@@ -364,10 +362,10 @@ CREATE TABLE testab ( a SERIAL, b Enigma(2));
 SELECT set_public_key_from_file(2, '../../../test/public-key.asc'); 
 INSERT INTO testab (b) VALUES ('my first record');
         ")? ; 
-        if let Some(res) = Spi::get_one::<String>("
-SELECT CAST(b AS Text) FROM testab LIMIT 1;
+        if let Some(res) = Spi::get_one::<Enigma>("
+SELECT b FROM testab LIMIT 1;
         ")? {
-            if res.contains("BEGIN PGP MESSAGE") { return Ok(()); }
+            if res.value.contains("BEGIN PGP MESSAGE") { return Ok(()); }
         } 
         Err("Should return String with PGP message".into()) 
     }
@@ -385,11 +383,11 @@ INSERT INTO testab (b) VALUES ('my first record');
 SELECT set_private_key_from_file(2, 
     '../../../test/private-key.asc', 'Prueba123!'); 
         ")? ; 
-        if let Some(res) = Spi::get_one::<String>("
-SELECT CAST(b AS Text) FROM testab LIMIT 1;
+        if let Some(res) = Spi::get_one::<Enigma>("
+SELECT b FROM testab LIMIT 1;
         ")? {
             info!("Decrypted value: {}", res);
-            if res.as_str() == "my first record" { return Ok(()); }
+            if res.value.as_str() == "my first record" { return Ok(()); }
         } 
         Err("Should return decrypted string".into()) 
     } 
@@ -470,7 +468,12 @@ impl FromDatum for Enigma {
             None => return None,
             Some(v) => v
         };
-        Some(Enigma { value: value })
+        debug2!("FromDatum: Encrypted value: {value}");
+        match PRIV_KEYS.decrypt(&value) {
+            Ok(Some(v)) => Some(Enigma { value: v }),
+            Err(e) =>  panic!("FromDatum: Decrypt error: {}", e),
+            _ => Some(Enigma { value: value })
+        }
         
     }
 }
@@ -487,11 +490,22 @@ impl IntoDatum for Enigma {
     fn type_oid() -> Oid {
         rust_regtypein::<Self>()
     }
+
+    /* Did not work as expected
+     * TODO: cleanup
+    fn is_compatible_with(other: pg_sys::Oid) -> bool {
+        // first, if our type is the other type, then we're compatible
+        Self::type_oid() == other
+
+        // and here's the other type we're compatible with
+        || other == pg_sys::TEXTOID
+        // || other == pg_sys::VARCHAROID
+    } */
 }
 
 impl Display for Enigma {
 	// test display
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.value)
+        write!(f, "i|| {} ||", self.value)
     }
 }
