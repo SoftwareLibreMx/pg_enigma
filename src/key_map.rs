@@ -94,27 +94,30 @@ impl PrivKeysMap {
         Ok(Some(key))
     }
 
-    pub fn decrypt(self: &'static PrivKeysMap, value: &String)
-    -> Result<Option<String>, Box<(dyn std::error::Error + 'static)>> {
+    /// Custom decrypt function for `PrivKeysMap`.
+    /// This function is not an implementation of trait `Decrypt`
+    /// Will look for the decryption key in it's key map and call
+    /// the key's decrypt function to decrypt the message.
+    pub fn decrypt(self: &'static PrivKeysMap, message: EnigmaMsg)
+    -> Result<EnigmaMsg, Box<(dyn std::error::Error + 'static)>> {
         // TODO: key_id map
-        match self.find_encrypting_key(value)? {
+        match self.find_encrypting_key(&message)? {
             Some(sec_key) => {
-                let decrypted = sec_key.decrypt(value.clone())?;
-                Ok(Some(decrypted))
+                sec_key.decrypt(message)
             },
-            None => Ok(None)
+            None => Ok(message)
         }
     }
 
-    pub fn find_encrypting_key(self: &'static PrivKeysMap, value: &String)
+    /// Iterates over each of the message's encrypting keys looking
+    /// for a matching key_id in it's own private keys map
+    pub fn find_encrypting_key(self: &'static PrivKeysMap, msg: &EnigmaMsg)
     -> Result<Option<&'static PrivKey>, 
     Box<(dyn std::error::Error + 'static)>> {
         let binding = self.keys.read()?;
-        // TODO: message module
-        //let buf = Cursor::new(value);
-        //let (msg, _) = Message::from_armor_single(buf)?;
-        for skey_id in EnigmaMsg::try_from(value)?.encrypting_keys()? {
+        for skey_id in msg.encrypting_keys()? {
             let mkey_id = format!("{:?}", skey_id);
+            // TODO: key_id map
             for (_,pkey) in binding.iter() {
                 if mkey_id == pkey.key_id() {
                     info!("KEY_ID: {mkey_id}");

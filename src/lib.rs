@@ -94,22 +94,18 @@ fn enigma_cast(original: Enigma, typmod: i32, explicit: bool) -> Enigma {
 fn enigma_output(e: Enigma) -> &'static CStr {
 	debug2!("enigma_output: Entering enigma_output");
 	let mut buffer = StringInfo::new();
-	// TODO: EnigmaMsg::From<Enigma>
-	let value: String = e.value.clone();
+	let message  = EnigmaMsg::try_from(e).expect("Corrupted Enigma");
 
-	debug2!("enigma_output value: {}", value);
+	debug2!("enigma_output value: {}", message);
 
-     // TODO: EnigmaMsg::Decrypt 
-     match PRIV_KEYS.decrypt(&value) {
-		Ok(Some(v)) => buffer.push_str(&v),
-		// TODO: check if we need more granular errors
-		Err(e) =>  panic!("Decrypt error: {}", e),
-		_ => buffer.push_str(&value),
+     // if decrypting key is not set, returns the same message
+     match PRIV_KEYS.decrypt(message) {
+		Ok(m) => buffer.push_str(m.to_string().as_str()),
+		Err(e) =>  panic!("Decrypt error: {}", e)
 	}
 
 	//TODO try to avoid this unsafe
 	unsafe { buffer.leak_cstr() }
-
 }
 
 
@@ -357,7 +353,7 @@ SELECT set_private_key_from_file(2,
         if let Some(res) = Spi::get_one::<Enigma>("
 SELECT b FROM testab LIMIT 1;
         ")? {
-            debug1!("Decrypted value: {}", res);
+            info!("Decrypted value: {}", res);
             if res.value.as_str() == "my first record" { return Ok(()); }
         } 
         Err("Should return decrypted string".into()) 
@@ -439,13 +435,14 @@ impl FromDatum for Enigma {
             None => return None,
             Some(v) => v
         };
-        debug2!("FromDatum: Encrypted value: {value}");
-        match PRIV_KEYS.decrypt(&value) {
-            Ok(Some(v)) => Some(Enigma { value: v }),
-            Err(e) =>  panic!("FromDatum: Decrypt error: {}", e),
-            _ => Some(Enigma { value: value })
+        let message = EnigmaMsg::try_from(value).expect("Corrupted Enigma");
+        info!("FromDatum: Encrypted message: {message}");
+        let decrypted = PRIV_KEYS.decrypt(message)
+                                .expect("FromDatum: Decrypt error");
+        match decrypted {
+            EnigmaMsg::Plain(m) => Some(Enigma{value: m}),
+            _ => Some(Enigma::from(decrypted))
         }
-        
     }
 }
 

@@ -18,6 +18,7 @@ const PLAIN_BEGIN: &str = "BEGIN PLAIN=====>";
 const PLAIN_END: &str = "<=====END PLAIN";
 
 // TODO: KEY ID in envelope header
+#[derive( Clone, Debug)]
 pub enum EnigmaMsg {
     /// PGP message
     PGP(pgp::Message),
