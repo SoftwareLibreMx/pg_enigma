@@ -99,7 +99,7 @@ impl PrivKeysMap {
         // TODO: key_id map
         match self.find_encrypting_key(value)? {
             Some(sec_key) => {
-                let decrypted = sec_key.decrypt(value)?;
+                let decrypted = sec_key.decrypt(value.clone())?;
                 Ok(Some(decrypted))
             },
             None => Ok(None)
