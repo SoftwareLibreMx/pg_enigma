@@ -430,7 +430,7 @@ impl FromDatum for Enigma {
             Some(v) => v
         };
         let message = EnigmaMsg::try_from(value).expect("Corrupted Enigma");
-        info!("FromDatum: Encrypted message: {message}");
+        debug2!("FromDatum: Encrypted message: {message}");
         let decrypted = PRIV_KEYS.decrypt(message)
                                 .expect("FromDatum: Decrypt error");
         match decrypted {
