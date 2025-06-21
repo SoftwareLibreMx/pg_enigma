@@ -115,6 +115,7 @@ impl PrivKeysMap {
     pub fn find_encrypting_key(self: &'static PrivKeysMap, msg: &EnigmaMsg)
     -> Result<Option<&'static PrivKey>, 
     Box<(dyn std::error::Error + 'static)>> {
+        // TODO: enigma_key_id from envelope
         let binding = self.keys.read()?;
         for skey_id in msg.encrypting_keys()? {
             let mkey_id = format!("{:?}", skey_id);
@@ -219,7 +220,7 @@ impl PubKeysMap {
                     Some(k) => {
                         let set_msg = self.set(id, &k)?;
                         info!("{set_msg}");
-                        // retry get kwy just being set
+                        // retry get key just being set
                         match binding.get(&id) {
                             Some(k) => k,
                             None => return Ok(None)
@@ -236,14 +237,6 @@ impl PubKeysMap {
     -> Result<EnigmaMsg, Box<(dyn std::error::Error + 'static)>> {
         if let Some(pub_key) = self.get(id)? {
             return pub_key.encrypt(id, msg);
-        }
-
-        if let Some(armored_key) = get_public_key(id)? {
-            let set_msg = self.set(id, &armored_key)?;
-            info!("{set_msg}");
-            if let Some(pub_key) = self.get(id)? {
-                return pub_key.encrypt(id, msg);
-            }
         }
         Err(format!("No public key with id: {}", id).into())
     }

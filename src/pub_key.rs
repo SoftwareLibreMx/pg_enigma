@@ -25,6 +25,7 @@ impl PubKey {
     /// from the `armored key`
     pub fn new(armored_key: &str) 
     -> Result<Self, Box<(dyn std::error::Error + 'static)>> {
+        // TODO: From<String>
         lazy_static! {
             static ref RE_PGP: Regex = 
                 Regex::new(r"BEGIN PGP PUBLIC KEY BLOCK")

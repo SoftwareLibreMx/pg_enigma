@@ -22,6 +22,7 @@ impl PrivKey {
     /// from the `armored key` and the provided plain text password
     pub fn new(armored_key: &str, pw: &str) 
     -> Result<Self, Box<(dyn std::error::Error + 'static)>> {
+        // TODO: From<String>
         lazy_static! {
             static ref RE_PGP: Regex = 
                 Regex::new(r"BEGIN PGP PRIVATE KEY BLOCK")
