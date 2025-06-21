@@ -83,7 +83,14 @@ impl Encrypt<EnigmaMsg> for PubKey {
     }
 }
 
-// TODO: Encrypt<String>
+
+impl Encrypt<String> for PubKey {
+    fn encrypt(&self, id: i32, message: String) 
+    -> Result<String, Box<(dyn std::error::Error + 'static)>> {
+        let msg = EnigmaMsg::try_from(message)?;
+        Ok(self.encrypt(id,msg)?.to_string())
+    }
+}
 
 fn encrypt_pgp(pub_key: &SignedPublicKey, message: String) 
 -> Result<Message, Box<(dyn std::error::Error + 'static)>> {
