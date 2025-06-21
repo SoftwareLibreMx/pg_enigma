@@ -13,11 +13,6 @@ use crate::traits::{Encrypt,Decrypt};
 use once_cell::sync::Lazy;
 use pgrx::prelude::*;
 use pgrx::{rust_regtypein, StringInfo};
-// use serde::{Serialize, Deserialize};
-use std::fs;
-
-// start includes for testing manual implementation
-
 use pgrx::pgrx_sql_entity_graph::metadata::{
     ArgumentError, Returns, ReturnsError, SqlMapping, SqlTranslatable,
 };
@@ -25,8 +20,8 @@ use pgrx::callconv::{ArgAbi, BoxRet};
 use pgrx::datum::Datum;
 use pgrx::pg_sys::Oid;
 use std::fmt::{Display, Formatter};
+use std::fs;
 
-// finish includes for manual implementation
 
 pgrx::pg_module_magic!();
 
@@ -42,77 +37,23 @@ struct Enigma {
     value: String,
 }
 
-// Create the type manually
-extension_sql!(
-    r#"
-        CREATE TYPE enigma;
-    "#,
-    name = "shell_type",
-    // declare this extension_sql block as the "bootstrap" block 
-    // so it happens first in sql generation
-    bootstrap 
-);
-
-
-// Create the real type
-extension_sql!(
-    r#"
-        CREATE TYPE enigma (
-            INPUT  = enigma_input_with_typmod,
-            OUTPUT = enigma_output,
-            TYPMOD_IN = enigma_type_modifier_input
-        );
-    "#,
-    name = "concrete_type",
-    creates = [Type(Enigma)],
-    requires = ["shell_type", enigma_input_with_typmod, enigma_output, enigma_type_modifier_input],
-);
-
 
 /// Functions for extracting and inserting data
 #[pg_extern(immutable, parallel_safe, requires = [ "shell_type" ])]
 fn enigma_input_with_typmod(input: &CStr, oid: pg_sys::Oid, typmod: i32) 
 -> Enigma {
-	debug1!("enigma_input_with_typmod: \
-            ARGUMENTS: Input: {:?}, OID: {:?},  Typmod: {}", 
-            input, oid, typmod);
+	debug2!("enigma_input_with_typmod: \
+            ARGUMENTS: Input: *****, OID: {:?},  Typmod: {}", oid, typmod);
 	let value: String = input
 			.to_str()
 			.expect("Enigma::input can't convert to str")
 			.to_string();
     let plain = EnigmaMsg::plain(value);
-     if typmod == -1 { // unknown typmod 
-        debug1!("Unknown typmod: {}\ninput:{:?}\noid: {:?}", 
-            typmod, input, oid);
-        // TODO: PubKey::NO_KEY
+    if typmod == -1 { // unknown typmod 
+        debug1!("Unknown typmod: {}\noid: {:?}", typmod, oid);
         return Enigma::from(plain);
-     }
-     let key_id = typmod; // TODO: as u32
-/*	let pub_key = match PUB_KEYS.get(key_id)
-			.expect("Get from key map") {
-		Some(k) => k,
-		None => {
-			let key = match get_public_key(key_id)
-				.expect("Get public key from SQL") {
-				Some(k) => k,
-				None => panic!("No public key with id: {}",
-					key_id)
-			};
-			PUB_KEYS.set(key_id, &key)
-				.expect("Set into key map");
-			PUB_KEYS.get(key_id)
-				.expect("Get (just set) from key map").unwrap()
-		}
-	}; 
-
-     // TODO: EnigmaMsg::Encrypt
-     // let encrypted = plain.encrypt(PUB_KEYS,id).expect("Encryption")
-     let value = plain.to_string(); // dirty redefine because of borrow
-	debug1!("Input: Encrypting value: {}", value);
-     let encrypted = pub_key.encrypt(key_id, &value).expect("Encrypt");
-	debug1!("Input: AFTER encrypt: {}", encrypted);
-	Enigma { value: encrypted }
-     */
+    }
+    let key_id = typmod; // TODO: as u32
     let encrypted = PUB_KEYS.get(key_id) // Result
                             .expect("Get public key (input)") // Option
                             .expect("No public key") // PubKey
@@ -121,12 +62,37 @@ fn enigma_input_with_typmod(input: &CStr, oid: pg_sys::Oid, typmod: i32)
     Enigma::from(encrypted)
 }
 
+/// Cast enigma to enigma is called after enigma_input_with_typmod(). 
+/// This function is passed the correct known typmod argument.
+#[pg_extern]
+fn enigma_cast(original: Enigma, typmod: i32, explicit: bool) -> Enigma {
+    debug2!("enigma_cast: \
+        ARGUMENTS: explicit: {},  Typmod: {}", explicit, typmod);
+    if typmod == -1 {
+        panic!("Unknown typmod: {}\noriginal: {:?}\nexplicit: {}", 
+            typmod, original, explicit);
+    }
+    let msg = EnigmaMsg::try_from(original).expect("Corrupted Enigma");
+    if msg.is_plain() {
+        let key_id = typmod; // TODO: as u32
+        let encrypted = PUB_KEYS.get(key_id) // Result
+                        .expect("Get public key (typmod cast)") // Option
+                        .expect("No public key") // PubKey
+                        .encrypt(key_id, msg) // Result
+                        .expect("Encrypt (typmod cast)"); // EnigmaMsg
+        return Enigma::from(encrypted);
+    } 
+    
+    // TODO: if msg.key_id != key_id {try_reencrypt()} 
+    Enigma::from(msg)
+}
+
 
 // Send to postgres
 // TODO check if we can return just StringInfo
 #[pg_extern(immutable, parallel_safe, requires = [ "shell_type" ])]
 fn enigma_output(e: Enigma) -> &'static CStr {
-	debug1!("enigma_output: Entering enigma_output");
+	debug2!("enigma_output: Entering enigma_output");
 	let mut buffer = StringInfo::new();
 	// TODO: EnigmaMsg::From<Enigma>
 	let value: String = e.value.clone();
@@ -161,7 +127,7 @@ pub fn enigma_type_modifier_input(cstrings: pgrx::Array<'_, &CStr>) -> i32 {
         .map(|cstr| cstr.to_str().unwrap_or_default())
         .collect();
 
-    debug5!("enigma_type_modifier_input:: value {}", 
+    debug2!("enigma_type_modifier_input:: value {}", 
         rust_strings[0].parse::<i32>().unwrap());
 
     rust_strings[0]
@@ -171,7 +137,9 @@ pub fn enigma_type_modifier_input(cstrings: pgrx::Array<'_, &CStr>) -> i32 {
 
 
 
-/// TODO: add docs
+/// SQL function for setting private key in memory (PrivKeysMap)
+/// All in-memory private keys will be lost when session is closed
+/// and postgres sessionprocess ends.
 #[pg_extern]
 fn set_private_key(id: i32, key: &str, pass: &str)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
@@ -179,7 +147,9 @@ fn set_private_key(id: i32, key: &str, pass: &str)
 }   
 
 
-/// TODO: add docs
+/// SQL function for setting public key in memory (PubKeysMap)
+/// Also inserts provided public key into enigma public keys table, 
+/// making it available for other sessions.
 #[pg_extern]
 fn set_public_key(id: i32, key: &str)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
@@ -189,21 +159,21 @@ fn set_public_key(id: i32, key: &str)
     }
 }
 
-/// Delete the private key from memory
+/// Delete the private key from memory (PrivKeysMap)
 #[pg_extern]
 fn forget_private_key(id: i32)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
     PRIV_KEYS.del(id)
 }
 
-/// Delete the public key from memory
+/// Delete the public key from memory (PubKeysMap)
 #[pg_extern]
 fn forget_public_key(id: i32)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
     PUB_KEYS.del(id)
 }
 
-/// Sets the private key from a file
+/// Sets the private key reading it from a file
 #[pg_extern]
 fn set_private_key_from_file(id: i32, file_path: &str, pass: &str)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
@@ -212,7 +182,7 @@ fn set_private_key_from_file(id: i32, file_path: &str, pass: &str)
     set_private_key(id, &contents, pass)
 }
 
-/// Sets the public key from a file
+/// Sets the public key reading it from a file
 #[pg_extern]
 fn set_public_key_from_file(id: i32, file_path: &str)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
@@ -222,59 +192,40 @@ fn set_public_key_from_file(id: i32, file_path: &str)
 }
 
 
-/// Cast enigma to enigma is called after enigma_input_with_typmod(). 
-/// This function is passed the correct known typmod argument.
-// TODO: handle type Enigma (without typmod) as key_id 0
-// Since enigma_input_with_typmod() always gets -1 on typmod argument, 
-// this cast is needed for knowing the typmod.
-#[pg_extern]
-fn enigma_cast(original: Enigma, typmod: i32, explicit: bool) -> Enigma {
-    debug1!("enigma_cast: \
-        ARGUMENTS: explicit: {},  Typmod: {}", explicit, typmod);
-    if typmod == -1 {
-        panic!("Unknown typmod: {}\noriginal: {:?}\nexplicit: {}", 
-            typmod, original, explicit);
-    }
-    let msg = EnigmaMsg::try_from(original).expect("Corrupted Enigma");
-    if msg.is_plain() {
-        //let plain = msg.to_string();
-        let key_id = typmod; // TODO: as u32
-        /*
-        // TODO: move this repetitive code to a function
-        let pub_key = match PUB_KEYS.get(key_id)
-                   .expect("Get from key map") {
-              Some(k) => k,
-              None => {
-                   let key = match get_public_key(key_id)
-                        .expect("Get public key from SQL") {
-                        Some(k) => k,
-                        None => panic!("No public key with id: {}",
-                             key_id)
-                   };
-                   PUB_KEYS.set(key_id, &key)
-                        .expect("Set into key map");
-                   PUB_KEYS.get(key_id)
-                        .expect("Get (just set) from key map").unwrap()
-              }
-        };
-        // TODO: EnigmaMsg::Encrypt
-        let value = pub_key.encrypt(&plain)
-                .expect("Encrypt");
-        info!("enigma_cast: AFTER encrypt: {}", value);
-        return Enigma{ value: value };
-        */
-        let encrypted = PUB_KEYS.get(key_id) // Result
-                        .expect("Get public key (typmod cast)") // Option
-                        .expect("No public key") // PubKey
-                        .encrypt(key_id, msg) // Result
-                        .expect("Encrypt (typmod cast)"); // EnigmaMsg
-        return Enigma::from(encrypted);
-    } 
-    
-    // TODO: if msg.key_id != key_id {try_reencrypt()} 
-    Enigma::from(msg)
-}
+/**************************************************************************
+*                                                                         *
+*                                                                         *
+*           S Q L   F O R   C R E A T E   E X T E N S I O N               *
+*                                                                         *
+*                                                                         *
+**************************************************************************/
 
+
+// Create the type manually
+extension_sql!(
+    r#"
+        CREATE TYPE enigma;
+    "#,
+    name = "shell_type",
+    // declare this extension_sql block as the "bootstrap" block 
+    // so it happens first in sql generation
+    bootstrap 
+);
+
+
+// Create the real type
+extension_sql!(
+    r#"
+        CREATE TYPE enigma (
+            INPUT  = enigma_input_with_typmod,
+            OUTPUT = enigma_output,
+            TYPMOD_IN = enigma_type_modifier_input
+        );
+    "#,
+    name = "concrete_type",
+    creates = [Type(Enigma)],
+    requires = ["shell_type", enigma_input_with_typmod, enigma_output, enigma_type_modifier_input],
+);
 
 // Creates the casting function so we can get the key id in the
 // typmod value, this is needed because postgres does not send 

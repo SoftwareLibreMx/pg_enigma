@@ -3,13 +3,8 @@ use crate::message::*;
 use crate::priv_key::PrivKey;
 use crate::pub_key::PubKey;
 use crate::traits::{Encrypt,Decrypt};
-//use pgp::Esk::PublicKeyEncryptedSessionKey;
-//use pgp::Deserializable;
-//use pgp::Message;
-//use pgp::Message::Encrypted;
 use pgrx::info;
 use std::collections::BTreeMap;
-//use std::io::Cursor;
 use std::sync::RwLock;
 
 /********************

@@ -55,33 +55,6 @@ impl PubKey {
             PubKey::RSA(k) => format!("{:?}", k.id())
         }
     }
-
-/*    pub fn encrypt(&self, message: &String) 
-    -> Result<String, Box<(dyn std::error::Error + 'static)>> {
-        match self {
-            PubKey::PGP(pub_key) => {
-                let msg = Message::new_literal("none", message.as_str());
-                // TODO: use some random seed (nanoseconds or something)
-                let mut rng = ChaCha8Rng::seed_from_u64(0); 
-                let new_msg = msg.encrypt_to_keys_seipdv1(
-                    &mut rng, SymmetricKeyAlgorithm::AES128, &[&pub_key])?;
-                Ok(new_msg.to_armored_string(None.into())?)
-            },
-            PubKey::RSA(pub_key) => {
-                let mut encrypter = Encrypter::new(&pub_key)?;
-                encrypter.set_rsa_padding(Padding::PKCS1)?;
-                // Get the length of the output buffer
-                let buffer_len = encrypter.encrypt_len(&message.as_bytes())?;
-                let mut encoded = vec![0u8; buffer_len];
-                // Encode the data and get its length
-                let encoded_len = encrypter.encrypt(&message.as_bytes(), 
-                    &mut encoded)?;
-                // Use only the part of the buffer with the encoded data
-                let encoded = &encoded[..encoded_len];
-                Ok(encode_block(encoded))
-            }
-        }
-    } */
 }
 
 impl Encrypt<EnigmaMsg> for PubKey {
