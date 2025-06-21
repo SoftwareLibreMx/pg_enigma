@@ -98,6 +98,7 @@ impl PrivKeysMap {
     /// This function is not an implementation of trait `Decrypt`
     /// Will look for the decryption key in it's key map and call
     /// the key's decrypt function to decrypt the message.
+    /// If no decrypting key is found, returns the same encrypted message.
     pub fn decrypt(self: &'static PrivKeysMap, message: EnigmaMsg)
     -> Result<EnigmaMsg, Box<(dyn std::error::Error + 'static)>> {
         // TODO: key_id map
@@ -230,37 +231,22 @@ impl PubKeysMap {
         };
         Ok(Some(key))
     }
-}
 
-/*impl Encrypt<EnigmaMsg> for PubKeysMap {
-    fn encrypt(&self, id: i32, msg: EnigmaMsg) 
+    pub fn encrypt(self: &'static PubKeysMap, id: i32, msg: EnigmaMsg) 
     -> Result<EnigmaMsg, Box<(dyn std::error::Error + 'static)>> {
-        /* if let Some(pub_key) = self.get(id)? {
-            return pub_key.encrypt(id, msg);
-        } */
-        let binding = self.keys.read()?;
-        if let Some(pub_key) = binding.get(&id) {
+        if let Some(pub_key) = self.get(id)? {
             return pub_key.encrypt(id, msg);
         }
 
         if let Some(armored_key) = get_public_key(id)? {
             let set_msg = self.set(id, &armored_key)?;
             info!("{set_msg}");
-            if let Some(pub_key) = binding.get(&id) {
+            if let Some(pub_key) = self.get(id)? {
                 return pub_key.encrypt(id, msg);
             }
         }
         Err(format!("No public key with id: {}", id).into())
     }
-}
 
-
-impl Encrypt<String> for PubKeysMap {
-    fn encrypt(&self, id: i32, value: String) 
-    -> Result<EnigmaMsg, Box<(dyn std::error::Error + 'static)>> {
-        let msg = EnigmaMsg::try_from(value)?;
-        self.encrypt(id, msg)
-    }
 }
-*/
 

@@ -80,9 +80,10 @@ impl Encrypt<EnigmaMsg> for PubKey {
                 Ok(EnigmaMsg::rsa(new_msg, id))
             }
         }
-        
     }
 }
+
+// TODO: Encrypt<String>
 
 fn encrypt_pgp(pub_key: &SignedPublicKey, message: String) 
 -> Result<Message, Box<(dyn std::error::Error + 'static)>> {

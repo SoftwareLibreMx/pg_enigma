@@ -9,7 +9,6 @@ use core::ffi::CStr;
 use crate::message::EnigmaMsg;
 use crate::functions::*;
 use crate::key_map::{PrivKeysMap,PubKeysMap};
-use crate::traits::{Encrypt,Decrypt};
 use once_cell::sync::Lazy;
 use pgrx::prelude::*;
 use pgrx::{rust_regtypein, StringInfo};
@@ -28,7 +27,7 @@ pgrx::pg_module_magic!();
 static PRIV_KEYS: Lazy<PrivKeysMap> = Lazy::new(|| PrivKeysMap::new());
 static PUB_KEYS: Lazy<PubKeysMap> = Lazy::new(|| PubKeysMap::new());
 // TODO: KEY_IDs map optimization
-// TODO: LAST_KEY: (key_id,Option<PrivKey>) optimization
+// TODO: LAST_KEY: (enigma_key,Option<PrivKey>) optimization
 
 /// Value stores entcrypted information
 #[repr(transparent)]
@@ -53,11 +52,9 @@ fn enigma_input_with_typmod(input: &CStr, oid: pg_sys::Oid, typmod: i32)
         debug1!("Unknown typmod: {}\noid: {:?}", typmod, oid);
         return Enigma::from(plain);
     }
-    let key_id = typmod; // TODO: as u32
-    let encrypted = PUB_KEYS.get(key_id) // Result
-                            .expect("Get public key (input)") // Option
-                            .expect("No public key") // PubKey
-                            .encrypt(key_id, plain) // Result
+    // enigma_key to avoid confusion with PGP key_id
+    let enigma_key = typmod; // TODO: as u32
+    let encrypted = PUB_KEYS.encrypt(enigma_key, plain) // Result
                             .expect("Encrypt (input)"); // EnigmaMsg
     Enigma::from(encrypted)
 }
@@ -74,16 +71,13 @@ fn enigma_cast(original: Enigma, typmod: i32, explicit: bool) -> Enigma {
     }
     let msg = EnigmaMsg::try_from(original).expect("Corrupted Enigma");
     if msg.is_plain() {
-        let key_id = typmod; // TODO: as u32
-        let encrypted = PUB_KEYS.get(key_id) // Result
-                        .expect("Get public key (typmod cast)") // Option
-                        .expect("No public key") // PubKey
-                        .encrypt(key_id, msg) // Result
+        let enigma_key = typmod; // TODO: as u32
+        let encrypted = PUB_KEYS.encrypt(enigma_key, msg) // Result
                         .expect("Encrypt (typmod cast)"); // EnigmaMsg
         return Enigma::from(encrypted);
     } 
     
-    // TODO: if msg.key_id != key_id {try_reencrypt()} 
+    // TODO: if msg.enigma_key != enigma_key {try_reencrypt()} 
     Enigma::from(msg)
 }
 
