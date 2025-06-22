@@ -11,8 +11,9 @@ const PGP_BEGIN: &str = "-----BEGIN PGP MESSAGE-----\n";
 const PGP_END: &str = "-----END PGP MESSAGE-----\n";
 const RSA_BEGIN: &str = "-----BEGIN RSA ENCRYPTED-----\n";
 const RSA_END: &str = "-----END RSA ENCRYPTED-----\n";
+// TODO: Shorter key header
 const KEY_BEGIN: &str = "-----KEY ";
-const KEY_END: &str = " -----";
+const KEY_END: &str = " -----"; // TODO: unnecessary
 const SEPARATOR: &str = "\n";
 const PLAIN_BEGIN: &str = "BEGIN PLAIN=====>";
 const PLAIN_END: &str = "<=====END PLAIN";
@@ -21,7 +22,7 @@ const PLAIN_END: &str = "<=====END PLAIN";
 #[derive( Clone, Debug)]
 pub enum EnigmaMsg {
     /// PGP message
-    PGP(pgp::Message),
+    PGP(pgp::Message), //TODO: Enigma key
     /// OpenSSL RSA encrypted message
     RSA(String,i32), 
     /// Plain unencrypted message
@@ -68,6 +69,7 @@ impl TryFrom<String> for EnigmaMsg {
             return Ok(from_plain_envelope(value));
         }
 
+        // TODO: Enigma key envelope first
         if value.starts_with(PGP_BEGIN)
         && value.ends_with(PGP_END) {
             return try_from_pgp_armor(value);
@@ -103,12 +105,14 @@ impl From<EnigmaMsg> for Enigma {
         let value: String;
         match msg {
             EnigmaMsg::PGP(m) => {
+                // TODO: Enigma key header
                 value = m.to_armored_string(None.into())
                     .expect("PGP error");
             },
             EnigmaMsg::RSA(msg,k) => {
                 let key = format!("{}{}{}{}", 
                     KEY_BEGIN, k, KEY_END, SEPARATOR);
+                // TODO: Enigma key header first
                 value = format!("{}{}{}{}", 
                     RSA_BEGIN, key, msg, RSA_END);
             },
@@ -199,8 +203,17 @@ impl EnigmaMsg {
     pub fn encrypting_key_as_string(&self)
     -> Result<String, Box<(dyn std::error::Error + 'static)>> {
         let key_id = self.encrypting_key()?;
-        Ok(format!("{key_id:x}"))
+        Ok(format!("{key_id:x}")) // TODO: hex
     } 
+
+    pub fn enigma_key(&self)
+    -> Result<i32, Box<(dyn std::error::Error + 'static)>> {
+        match self {
+            Self::RSA(_,k) => Ok(*k),
+            Self::PGP(_) => Err("Enigma key not supported.".into()),
+            Self::Plain(_) => Err("Plain message; no key.".into())
+        }
+    }
 }
 
 /*********************

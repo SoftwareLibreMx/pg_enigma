@@ -87,6 +87,7 @@ impl PrivKeysMap {
     -> Result<Option<&'static PrivKey>, 
     Box<(dyn std::error::Error + 'static)>> {
         let binding = self.keys.read()?;
+        //Ok(match binding.get(&id))
         let key = match binding.get(&id) {
             Some(k) => k,
             None => return Ok(None)
@@ -115,17 +116,23 @@ impl PrivKeysMap {
     pub fn find_encrypting_key(self: &'static PrivKeysMap, msg: &EnigmaMsg)
     -> Result<Option<&'static PrivKey>, 
     Box<(dyn std::error::Error + 'static)>> {
-        // TODO: enigma_key_id from envelope
-        let binding = self.keys.read()?;
-        for skey_id in msg.encrypting_keys()? {
-            let mkey_id = format!("{:?}", skey_id);
-            // TODO: key_id map
-            for (_,pkey) in binding.iter() {
-                if mkey_id == pkey.key_id() {
-                    info!("KEY_ID: {mkey_id}");
-                    return Ok(Some(pkey));
+        if msg.is_pgp() {
+            // TODO: enigma_key_id from envelope
+            let binding = self.keys.read()?;
+            for skey_id in msg.encrypting_keys()? {
+                let mkey_id = format!("{:?}", skey_id);
+                // TODO: key_id map
+                for (_,pkey) in binding.iter() {
+                    if mkey_id == pkey.key_id() {
+                        info!("KEY_ID: {mkey_id}");
+                        return Ok(Some(pkey));
+                    }
                 }
             }
+            return Ok(None);
+        }
+        if let Ok(id) = msg.enigma_key() {
+            return self.get(id);
         }
         Ok(None)
     }
