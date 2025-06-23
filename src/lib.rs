@@ -9,6 +9,7 @@ use core::ffi::CStr;
 use crate::message::EnigmaMsg;
 use crate::functions::*;
 use crate::key_map::{PrivKeysMap,PubKeysMap};
+use crate::traits::IsPlain;
 use once_cell::sync::Lazy;
 use pgrx::prelude::*;
 use pgrx::{rust_regtypein, StringInfo};
@@ -321,7 +322,7 @@ SELECT public_key FROM enigma_public_keys WHERE id = 2;
         "
 CREATE TABLE testab ( a SERIAL, b Enigma(2));
 SELECT set_public_key_from_file(2, '../../../test/public-key.asc'); 
-INSERT INTO testab (b) VALUES ('my first record');
+INSERT INTO testab (b) VALUES ('my second record');
         ")? ; 
         if let Some(res) = Spi::get_one::<Enigma>("
 SELECT b FROM testab LIMIT 1;
@@ -331,7 +332,6 @@ SELECT b FROM testab LIMIT 1;
         Err("Should return String with PGP message".into()) 
     }
 
-    /* TODO: Make decrypt work without CAST(Enigma AS Text) */
     /// Insert a row in the table, then set private key and then 
     /// query the decrypted value
     #[pg_test]
@@ -340,7 +340,7 @@ SELECT b FROM testab LIMIT 1;
         "
 CREATE TABLE testab ( a SERIAL, b Enigma(2));
 SELECT set_public_key_from_file(2, '../../../test/public-key.asc'); 
-INSERT INTO testab (b) VALUES ('my first record');
+INSERT INTO testab (b) VALUES ('my second record');
 SELECT set_private_key_from_file(2, 
     '../../../test/private-key.asc', 'Prueba123!'); 
         ")? ; 
@@ -348,7 +348,7 @@ SELECT set_private_key_from_file(2,
 SELECT b FROM testab LIMIT 1;
         ")? {
             info!("Decrypted value: {}", res);
-            if res.value.as_str() == "my first record" { return Ok(()); }
+            if res.value.as_str() == "my second record" { return Ok(()); }
         } 
         Err("Should return decrypted string".into()) 
     } 
@@ -430,6 +430,9 @@ impl FromDatum for Enigma {
             Some(v) => v
         };
         let message = EnigmaMsg::try_from(value).expect("Corrupted Enigma");
+        if message.is_plain() {
+            error!("FromDatum: message not encrypted");
+        }
         debug2!("FromDatum: Encrypted message: {message}");
         let decrypted = PRIV_KEYS.decrypt(message)
                                 .expect("FromDatum: Decrypt error");
@@ -442,6 +445,11 @@ impl FromDatum for Enigma {
 
 impl IntoDatum for Enigma {
     fn into_datum(self) -> Option<pg_sys::Datum> {
+        //use crate::traits::IsPlain;
+        debug1!("into_datum: {}", self.value);
+        if self.value.is_plain() {
+            error!("IntoDatum: message not encrypted");
+        }
         Some(
 			self.value
 				.into_datum()

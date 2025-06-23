@@ -16,3 +16,18 @@ pub trait Decrypt<T> {
 
 }
 
+/// Function `is_plain(T)` returns `true` if T is plain (not encrypted)
+pub trait IsPlain {
+    fn is_plain(&self) -> bool;
+}
+
+/// Function `is_encrypted(T)` returns `true` if T is encrypted 
+pub trait IsEncrypted {
+    fn is_encrypted(&self) -> bool;
+}
+
+impl<T> IsEncrypted for T where T: IsPlain {
+    fn is_encrypted(&self) -> bool {
+        !self.is_plain()
+    }
+}

@@ -1,4 +1,5 @@
 use crate::Enigma;
+use crate::traits::IsPlain;
 use pgp::Deserializable;
 use pgp::Esk::PublicKeyEncryptedSessionKey;
 use pgp::Message;
@@ -145,6 +146,21 @@ impl Display for EnigmaMsg {
     }
 }
 
+impl IsPlain for EnigmaMsg {
+    fn is_plain(&self) -> bool {
+        matches!(*self, Self::Plain(_))
+    }
+}
+
+impl IsPlain for String {
+    fn is_plain(&self) -> bool {
+        self.contains(PLAIN_BEGIN)
+        ||
+        self.contains(PLAIN_END)
+    }
+}
+
+
 impl EnigmaMsg {
     pub fn plain(value: String) -> Self {
         Self::Plain(value)
@@ -158,10 +174,6 @@ impl EnigmaMsg {
         Self::RSA(value, id)
     }
 
-    pub fn is_encrypted(&self) -> bool {
-        !self.is_plain()
-    }
-
     pub fn is_pgp(&self) -> bool {
         matches!(*self, Self::PGP(_))
     }
@@ -170,9 +182,6 @@ impl EnigmaMsg {
         matches!(*self, Self::RSA(_,_))
     }
 
-    pub fn is_plain(&self) -> bool {
-        matches!(*self, Self::Plain(_))
-    }
 
     pub fn encrypting_keys(&self)
     // TODO: Vec<u64>

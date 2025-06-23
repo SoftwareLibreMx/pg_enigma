@@ -2,8 +2,8 @@ use crate::functions::get_public_key;
 use crate::message::*;
 use crate::priv_key::PrivKey;
 use crate::pub_key::PubKey;
-use crate::traits::{Encrypt,Decrypt};
-use pgrx::info;
+use crate::traits::{Encrypt,Decrypt,IsPlain};
+use pgrx::{info,warning};
 use std::collections::BTreeMap;
 use std::sync::RwLock;
 
@@ -102,6 +102,9 @@ impl PrivKeysMap {
     /// If no decrypting key is found, returns the same encrypted message.
     pub fn decrypt(self: &'static PrivKeysMap, message: EnigmaMsg)
     -> Result<EnigmaMsg, Box<(dyn std::error::Error + 'static)>> {
+        if message.is_plain() {
+            warning!("Decrypt: message not encrypted");
+        }
         // TODO: key_id map
         match self.find_encrypting_key(&message)? {
             Some(sec_key) => {
