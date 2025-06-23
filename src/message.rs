@@ -4,7 +4,7 @@ use pgp::Deserializable;
 use pgp::Esk::PublicKeyEncryptedSessionKey;
 use pgp::Message;
 use pgp::types::KeyId;
-use pgrx::debug1;
+use pgrx::{debug1,debug2};
 use std::fmt::{Display, Formatter};
 use std::io::Cursor;
 
@@ -31,36 +31,6 @@ pub enum EnigmaMsg {
 }
 
 
-/*
-impl From<String> for EnigmaMsg {
-    fn from(value: String) -> Self {
-        let value = enigma.value.clone();
-        
-        if value.starts_with(PLAIN_BEGIN)
-        && value.ends_with(PLAIN_END) {
-            return from_plain_envelope(value);
-        }
-
-        if value.starts_with(PGP_BEGIN)
-        && value.ends_with(PGP_END) {
-            if let Ok(pgp_msg) = try_from_pgp_armor(value) {
-                 return pgp_msg;
-            }
-        }
-
-        // TODO: RSA envelope
-
-        EnigmaMsg::Plain(value)
-    }
-}
-
-impl From<Enigma> for EnigmaMsg {
-    fn from(enigma: Enigma) -> Self {
-        Self::from(enigma.value)
-    }
-}
-*/
-
 impl TryFrom<String> for EnigmaMsg {
     type Error = Box<(dyn std::error::Error + 'static)>;
 
@@ -76,8 +46,8 @@ impl TryFrom<String> for EnigmaMsg {
             return try_from_pgp_armor(value);
         }
 
-        if value.starts_with(PLAIN_BEGIN)
-        && value.ends_with(PLAIN_END) {
+        if value.starts_with(RSA_BEGIN)
+        && value.ends_with(RSA_END) {
             return try_from_rsa_envelope(value);
         }
 
@@ -129,6 +99,7 @@ impl Display for EnigmaMsg {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::PGP(m) => {
+                debug2!("PGP(message)");
                 let armored = m.to_armored_string(None.into())
                     .expect("PGP error");
 
@@ -136,10 +107,12 @@ impl Display for EnigmaMsg {
                     .trim_end_matches(PGP_END);
                 write!(f, "{}", out)
             },
-            Self::RSA(m,_) => {
+            Self::RSA(m,id) => {
+                debug2!("RSA(message,{id})");
                 write!(f, "{}", m)
             },
             Self::Plain(s) => {
+                debug2!("Plain(message)");
                 write!(f, "{}", s)
             }
         }

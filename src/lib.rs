@@ -93,6 +93,7 @@ fn enigma_output(e: Enigma) -> &'static CStr {
 
 	debug2!("enigma_output value: {}", message);
 
+    // TODO: workaround double decrypt()
      // if decrypting key is not set, returns the same message
      match PRIV_KEYS.decrypt(message) {
 		Ok(m) => buffer.push_str(m.to_string().as_str()),
@@ -322,7 +323,7 @@ SELECT public_key FROM enigma_public_keys WHERE id = 2;
         "
 CREATE TABLE testab ( a SERIAL, b Enigma(2));
 SELECT set_public_key_from_file(2, '../../../test/public-key.asc'); 
-INSERT INTO testab (b) VALUES ('my second record');
+INSERT INTO testab (b) VALUES ('my PGP test record');
         ")? ; 
         if let Some(res) = Spi::get_one::<Enigma>("
 SELECT b FROM testab LIMIT 1;
@@ -340,7 +341,7 @@ SELECT b FROM testab LIMIT 1;
         "
 CREATE TABLE testab ( a SERIAL, b Enigma(2));
 SELECT set_public_key_from_file(2, '../../../test/public-key.asc'); 
-INSERT INTO testab (b) VALUES ('my second record');
+INSERT INTO testab (b) VALUES ('my PGP test record');
 SELECT set_private_key_from_file(2, 
     '../../../test/private-key.asc', 'Prueba123!'); 
         ")? ; 
@@ -348,7 +349,45 @@ SELECT set_private_key_from_file(2,
 SELECT b FROM testab LIMIT 1;
         ")? {
             info!("Decrypted value: {}", res);
-            if res.value.as_str() == "my second record" { return Ok(()); }
+            if res.value.as_str() == "my PGP test record" { return Ok(()); }
+        } 
+        Err("Should return decrypted string".into()) 
+    } 
+
+    /// Insert a row in the table and then query the encrypted value
+    #[pg_test]
+    fn e08_insert_with_rsa_pub_key()  -> Result<(), Box<dyn Error>> {
+        Spi::run(
+        "
+CREATE TABLE testab ( a SERIAL, b Enigma(3));
+SELECT set_public_key_from_file(3, '../../../test/alice_public.pem'); 
+INSERT INTO testab (b) VALUES ('my RSA test record');
+        ")? ; 
+        if let Some(res) = Spi::get_one::<Enigma>("
+SELECT b FROM testab LIMIT 1;
+        ")? {
+            if res.value.contains("BEGIN RSA ENCRYPTED") { return Ok(()); }
+        } 
+        Err("Should return String with RSA encrypted message".into()) 
+    }
+
+    /// Insert a row in the table, then set private key and then 
+    /// query the decrypted value
+    #[pg_test]
+    fn e09_select_with_rsa_priv_key()  -> Result<(), Box<dyn Error>> {
+        Spi::run(
+        "
+CREATE TABLE testab ( a SERIAL, b Enigma(3));
+SELECT set_public_key_from_file(3, '../../../test/alice_public.pem'); 
+INSERT INTO testab (b) VALUES ('my RSA test record');
+SELECT set_private_key_from_file(3, 
+    '../../../test/alice_private.pem', 'Prueba123!'); 
+        ")? ; 
+        if let Some(res) = Spi::get_one::<Enigma>("
+SELECT b FROM testab LIMIT 1;
+        ")? {
+            info!("Decrypted value: {}", res);
+            if res.value.as_str() == "my RSA test record" { return Ok(()); }
         } 
         Err("Should return decrypted string".into()) 
     } 

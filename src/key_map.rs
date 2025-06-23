@@ -87,7 +87,6 @@ impl PrivKeysMap {
     -> Result<Option<&'static PrivKey>, 
     Box<(dyn std::error::Error + 'static)>> {
         let binding = self.keys.read()?;
-        //Ok(match binding.get(&id))
         let key = match binding.get(&id) {
             Some(k) => k,
             None => return Ok(None)
