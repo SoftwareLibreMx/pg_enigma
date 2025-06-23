@@ -30,36 +30,6 @@ pub enum EnigmaMsg {
 }
 
 
-/*
-impl From<String> for EnigmaMsg {
-    fn from(value: String) -> Self {
-        let value = enigma.value.clone();
-        
-        if value.starts_with(PLAIN_BEGIN)
-        && value.ends_with(PLAIN_END) {
-            return from_plain_envelope(value);
-        }
-
-        if value.starts_with(PGP_BEGIN)
-        && value.ends_with(PGP_END) {
-            if let Ok(pgp_msg) = try_from_pgp_armor(value) {
-                 return pgp_msg;
-            }
-        }
-
-        // TODO: RSA envelope
-
-        EnigmaMsg::Plain(value)
-    }
-}
-
-impl From<Enigma> for EnigmaMsg {
-    fn from(enigma: Enigma) -> Self {
-        Self::from(enigma.value)
-    }
-}
-*/
-
 impl TryFrom<String> for EnigmaMsg {
     type Error = Box<(dyn std::error::Error + 'static)>;
 
