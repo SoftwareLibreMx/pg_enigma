@@ -32,7 +32,7 @@ impl PrivKeysMap {
     pub fn set(&self, id: i32, armored_key: &str, pw: &str)
     -> Result<String, Box<(dyn std::error::Error + 'static)>> {
         let key = PrivKey::new(armored_key, pw)?; // key with '1 lifetime
-        let key_id = key.key_id();
+        let priv_id = key.priv_key_id();
         // put the key into the box to allow change it's lifetime
         let boxed_key = Box::new(key);
         // leaked key is the same address, but now with 'static lifetime
@@ -48,13 +48,13 @@ impl PrivKeysMap {
         
         let msg = match old {
             Some(o) => { // the old key was replaced
-                let old_id = o.key_id(); 
+                let old_id = o.priv_key_id(); 
                 // TODO: drop(o); // free old key (explicitly)
                 format!("key {}: private key {} replaced with {}", 
-                    id, old_id, key_id)
+                    id, old_id, priv_id)
             },
             None => { // No previous key was replaced
-                format!("key {}: private key {} imported", id, key_id)
+                format!("key {}: private key {} imported", id, priv_id)
             }
         };
         Ok(msg)
@@ -73,9 +73,9 @@ impl PrivKeysMap {
 
         let msg = match old {
             Some(o) => {
-                let key_id = o.key_id();
+                let priv_id = o.priv_key_id();
                 // TODO: drop(o); // free old key (explicitly)
-                format!("key {}: private key {} forgotten", id, key_id)
+                format!("key {}: private key {} forgotten", id, priv_id)
             },
             None => format!("key {}: not set", id)
         };
@@ -101,8 +101,11 @@ impl PrivKeysMap {
     /// If no decrypting key is found, returns the same encrypted message.
     pub fn decrypt(self: &'static PrivKeysMap, message: EnigmaMsg)
     -> Result<EnigmaMsg, Box<(dyn std::error::Error + 'static)>> {
-        // TODO: key_id map
-        match self.find_encrypting_key(&message)? {
+        let key_id = match message.key_id() {
+            Some(k) => k,
+            None => return Ok(message) // Not encrypted
+        };
+        match self.get(key_id)? {
             Some(sec_key) => {
                 sec_key.decrypt(message)
             },
@@ -115,23 +118,22 @@ impl PrivKeysMap {
     pub fn find_encrypting_key(self: &'static PrivKeysMap, msg: &EnigmaMsg)
     -> Result<Option<&'static PrivKey>, 
     Box<(dyn std::error::Error + 'static)>> {
+        if let Some(id) = msg.key_id() {
+            return self.get(id);
+        }
         if msg.is_pgp() {
-            // TODO: enigma_key_id from envelope
             let binding = self.keys.read()?;
-            for skey_id in msg.encrypting_keys()? {
-                let mkey_id = format!("{:?}", skey_id);
+            for skey_id in msg.pgp_encrypting_keys()? {
+                let mkey_id = format!("{:x}", skey_id);
                 // TODO: key_id map
                 for (_,pkey) in binding.iter() {
-                    if mkey_id == pkey.key_id() {
+                    if mkey_id == pkey.priv_key_id() {
                         info!("KEY_ID: {mkey_id}");
                         return Ok(Some(pkey));
                     }
                 }
             }
             return Ok(None);
-        }
-        if let Ok(id) = msg.enigma_key() {
-            return self.get(id);
         }
         Ok(None)
     }
@@ -162,7 +164,7 @@ impl PubKeysMap {
     pub fn set(&self, id: i32, armored_key: &str)
     -> Result<String, Box<(dyn std::error::Error + 'static)>> {
         let key = PubKey::new(armored_key)?; // key with '1 lifetime
-        let key_id = key.key_id();
+        let pub_id = key.pub_key_id();
         // put the key into the box to allow change it's lifetime
         let boxed_key = Box::new(key);
         // leaked key is the same address, but now with 'static lifetime
@@ -178,13 +180,13 @@ impl PubKeysMap {
         
         let msg = match old {
             Some(o) => { // the old key was replaced
-                let old_id = o.key_id(); 
+                let old_id = o.pub_key_id(); 
                 // TODO: drop(o); // free old key (explicitly)
                 format!("key {}: public key {} replaced with {}", 
-                    id, old_id, key_id)
+                    id, old_id, pub_id)
             },
             None => { // No previous key was replaced
-                format!("key {}: public key {} imported", id, key_id)
+                format!("key {}: public key {} imported", id, pub_id)
             }
         };
         Ok(msg)
@@ -203,9 +205,9 @@ impl PubKeysMap {
 
         let msg = match old {
             Some(o) => {
-                let key_id = o.key_id();
+                let pub_id = o.pub_key_id();
                 // TODO: drop(o); // free old key (explicitly)
-                format!("key {}: public key {} forgotten", id, key_id)
+                format!("key {}: public key {} forgotten", id, pub_id)
             },
             None => format!("key {}: not set", id)
         };
@@ -241,6 +243,14 @@ impl PubKeysMap {
 
     pub fn encrypt(self: &'static PubKeysMap, id: i32, msg: EnigmaMsg) 
     -> Result<EnigmaMsg, Box<(dyn std::error::Error + 'static)>> {
+        if let Some(msgid) = msg.key_id() { // message is encrypted
+            if msgid == id {
+                info!("Already encrypted with key ID {msgid}"); 
+                return  Ok(msg);
+            };
+            // TODO: try to decrypt
+            return Err("Nested encryption not supported".into());
+        }
         if let Some(pub_key) = self.get(id)? {
             return pub_key.encrypt(id, msg);
         }

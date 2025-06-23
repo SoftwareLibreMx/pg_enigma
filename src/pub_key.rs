@@ -48,11 +48,9 @@ impl PubKey {
         }
     }
 
-    // TODO: u64
-    pub fn key_id(&self) -> String {
+    pub fn pub_key_id(&self) -> String {
         match self {
             PubKey::PGP(k) => format!("{:x}", k.key_id()),
-            // TODO: hex key ID
             PubKey::RSA(k) => format!("{:?}", k.id())
         }
     }
@@ -62,23 +60,17 @@ impl Encrypt<EnigmaMsg> for PubKey {
     fn encrypt(&self, id: i32, msg: EnigmaMsg) 
     -> Result<EnigmaMsg, Box<(dyn std::error::Error + 'static)>> {
         if msg.is_encrypted() { 
-            let msgid = msg.encrypting_key_as_string()?;
-            let my_id = self.key_id();
-            if msgid == my_id {
-                info!("Already encrypted with key ID {msgid}"); 
-                return  Ok(msg);
-            };
-            return Err("Nested encryption not supported".into());
+             return Err("Nested encryption not supported".into());
         }
 
         match self {
             PubKey::PGP(pub_key) => {
                 let new_msg = encrypt_pgp(pub_key, msg.to_string())?;
-                Ok(EnigmaMsg::pgp(new_msg))
+                Ok(EnigmaMsg::pgp(id, new_msg))
             },
             PubKey::RSA(pub_key) => {
                 let new_msg = encrypt_rsa(pub_key, msg.to_string())?;
-                Ok(EnigmaMsg::rsa(new_msg, id))
+                Ok(EnigmaMsg::rsa(id, new_msg))
             }
         }
     }

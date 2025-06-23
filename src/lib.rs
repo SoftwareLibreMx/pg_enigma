@@ -26,8 +26,6 @@ pgrx::pg_module_magic!();
 
 static PRIV_KEYS: Lazy<PrivKeysMap> = Lazy::new(|| PrivKeysMap::new());
 static PUB_KEYS: Lazy<PubKeysMap> = Lazy::new(|| PubKeysMap::new());
-// TODO: KEY_IDs map optimization
-// TODO: LAST_KEY: (enigma_key,Option<PrivKey>) optimization
 
 /// Value stores entcrypted information
 #[repr(transparent)]
@@ -50,11 +48,10 @@ fn enigma_input_with_typmod(input: &CStr, oid: pg_sys::Oid, typmod: i32)
     let plain = EnigmaMsg::plain(value);
     if typmod == -1 { // unknown typmod 
         debug1!("Unknown typmod: {}\noid: {:?}", typmod, oid);
-        return Enigma::from(plain);
+        return Enigma::try_from(plain).unwrap(); // Plain is always Ok()
     }
-    // enigma_key to avoid confusion with PGP key_id
-    let enigma_key = typmod; // TODO: as u32
-    let encrypted = PUB_KEYS.encrypt(enigma_key, plain) // Result
+    let key_id = typmod;
+    let encrypted = PUB_KEYS.encrypt(key_id, plain) // Result
                             .expect("Encrypt (input)"); // EnigmaMsg
     Enigma::from(encrypted)
 }
@@ -69,15 +66,17 @@ fn enigma_cast(original: Enigma, typmod: i32, explicit: bool) -> Enigma {
         panic!("Unknown typmod: {}\noriginal: {:?}\nexplicit: {}", 
             typmod, original, explicit);
     }
+    //debug5!("Original: {:?}", original);
     let msg = EnigmaMsg::try_from(original).expect("Corrupted Enigma");
     if msg.is_plain() {
-        let enigma_key = typmod; // TODO: as u32
-        let encrypted = PUB_KEYS.encrypt(enigma_key, msg) // Result
+        let key_id = typmod;
+        debug2!("Encrypting plain message with key ID: {key_id}");
+        let encrypted = PUB_KEYS.encrypt(key_id, msg) // Result
                         .expect("Encrypt (typmod cast)"); // EnigmaMsg
         return Enigma::from(encrypted);
     } 
     
-    // TODO: if msg.enigma_key != enigma_key {try_reencrypt()} 
+    // TODO: if msg.key_id != key_id {try_reencrypt()} 
     Enigma::from(msg)
 }
 
@@ -90,7 +89,7 @@ fn enigma_output(e: Enigma) -> &'static CStr {
 	let mut buffer = StringInfo::new();
 	let message  = EnigmaMsg::try_from(e).expect("Corrupted Enigma");
 
-	debug2!("enigma_output value: {}", message);
+	// debug3!("enigma_output value: {}", message);
 
     // TODO: workaround double decrypt()
      // if decrypting key is not set, returns the same message
@@ -332,7 +331,6 @@ SELECT b FROM testab LIMIT 1;
         Err("Should return String with PGP message".into()) 
     }
 
-    /* TODO: Make decrypt work without CAST(Enigma AS Text) */
     /// Insert a row in the table, then set private key and then 
     /// query the decrypted value
     #[pg_test]
@@ -468,10 +466,12 @@ impl FromDatum for Enigma {
             None => return None,
             Some(v) => v
         };
+        // debug5!("FromDatum value:\n{value}");
         let message = EnigmaMsg::try_from(value).expect("Corrupted Enigma");
-        debug2!("FromDatum: Encrypted message: {message}");
+        //debug5!("FromDatum: Encrypted message: {:?}", message);
         let decrypted = PRIV_KEYS.decrypt(message)
                                 .expect("FromDatum: Decrypt error");
+        //debug5!("FromDatum: Decrypted message: {:?}", decrypted);
         match decrypted {
             EnigmaMsg::Plain(m) => Some(Enigma{value: m}),
             _ => Some(Enigma::from(decrypted))

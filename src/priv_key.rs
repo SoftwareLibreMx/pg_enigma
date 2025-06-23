@@ -46,9 +46,9 @@ impl PrivKey {
         }
     }
 
-    pub fn key_id(&self) -> String {
+    pub fn priv_key_id(&self) -> String {
         match self {
-            PrivKey::PGP(k,_) => format!("{:?}", k.key_id()),
+            PrivKey::PGP(k,_) => format!("{:x}", k.key_id()),
             PrivKey::RSA(k) => format!("{:?}", k.id())
         }
     }
@@ -84,7 +84,7 @@ impl Decrypt<String> for PrivKey {
 
 fn decrypt_pgp(key: &SignedSecretKey, pass: String, message: EnigmaMsg)
 -> Result<EnigmaMsg, Box<(dyn std::error::Error + 'static)>> {
-    if let EnigmaMsg::PGP(msg) = message {
+    if let EnigmaMsg::PGP(_,msg) = message {
         let (decrypted, _) = msg.decrypt(|| pass.to_string(), &[&key])?;
         // TODO: Should `expect()` instead of `unwrap()`
         let bytes = decrypted.get_content()?.ok_or("No content")?;
@@ -98,7 +98,7 @@ fn decrypt_pgp_string(key: &SignedSecretKey, pass: String, message: String)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
     let buf = Cursor::new(message);
     let (msg, _) = Message::from_armor_single(buf)?;
-    Ok(decrypt_pgp(key, pass, EnigmaMsg::pgp(msg))?.to_string())
+    Ok(decrypt_pgp(key, pass, EnigmaMsg::pgp(-1,msg))?.to_string())
 }
 
 fn decrypt_rsa(key: &PKey<Private>, message: EnigmaMsg)
