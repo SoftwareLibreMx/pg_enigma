@@ -9,6 +9,7 @@ use core::ffi::CStr;
 use crate::message::EnigmaMsg;
 use crate::functions::*;
 use crate::key_map::{PrivKeysMap,PubKeysMap};
+use crate::traits::IsPlain;
 use once_cell::sync::Lazy;
 use pgrx::prelude::*;
 use pgrx::{rust_regtypein, StringInfo};
@@ -332,7 +333,6 @@ SELECT b FROM testab LIMIT 1;
         Err("Should return String with PGP message".into()) 
     }
 
-    /* TODO: Make decrypt work without CAST(Enigma AS Text) */
     /// Insert a row in the table, then set private key and then 
     /// query the decrypted value
     #[pg_test]
@@ -469,6 +469,9 @@ impl FromDatum for Enigma {
             Some(v) => v
         };
         let message = EnigmaMsg::try_from(value).expect("Corrupted Enigma");
+        if message.is_plain() {
+            warning!("FromDatum: message not encrypted");
+        }
         debug2!("FromDatum: Encrypted message: {message}");
         let decrypted = PRIV_KEYS.decrypt(message)
                                 .expect("FromDatum: Decrypt error");
@@ -481,6 +484,11 @@ impl FromDatum for Enigma {
 
 impl IntoDatum for Enigma {
     fn into_datum(self) -> Option<pg_sys::Datum> {
+        //use crate::traits::IsPlain;
+        debug1!("into_datum: {}", self.value);
+        if self.value.is_plain() {
+            error!("IntoDatum: message not encrypted");
+        }
         Some(
 			self.value
 				.into_datum()

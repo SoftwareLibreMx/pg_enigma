@@ -1,5 +1,6 @@
 use crate::EnigmaMsg;
 use crate::traits::Encrypt;
+use crate::traits::IsEncrypted;
 use lazy_static::lazy_static;
 use openssl::base64::encode_block;
 use openssl::encrypt::Encrypter;
