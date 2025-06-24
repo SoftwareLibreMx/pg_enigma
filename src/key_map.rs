@@ -113,6 +113,7 @@ impl PrivKeysMap {
         }
     }
 
+    /* PGP specific functions commented-out for future use
     /// Iterates over each of the message's encrypting keys looking
     /// for a matching key_id in it's own private keys map
     pub fn find_encrypting_key(self: &'static PrivKeysMap, msg: &EnigmaMsg)
@@ -136,7 +137,7 @@ impl PrivKeysMap {
             return Ok(None);
         }
         Ok(None)
-    }
+    } */
 }
 
 /*******************

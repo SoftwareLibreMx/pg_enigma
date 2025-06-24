@@ -8,7 +8,6 @@ use openssl::rsa::Padding;
 use pgp::{Deserializable,Message,SignedPublicKey};
 use pgp::crypto::sym::SymmetricKeyAlgorithm;
 use pgp::types::PublicKeyTrait;
-use pgrx::info;
 use rand_chacha::ChaCha8Rng;
 use rand_chacha::rand_core::SeedableRng;
 use regex::bytes::Regex;
@@ -84,6 +83,10 @@ impl Encrypt<String> for PubKey {
         Ok(self.encrypt(id,msg)?.to_string())
     }
 }
+
+/*********************
+ * PRIVATE FUNCTIONS *
+ * *******************/
 
 fn encrypt_pgp(pub_key: &SignedPublicKey, message: String) 
 -> Result<Message, Box<(dyn std::error::Error + 'static)>> {

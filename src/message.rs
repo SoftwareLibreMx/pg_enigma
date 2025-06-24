@@ -1,9 +1,7 @@
 use crate::Enigma;
 use pgp::Deserializable;
-use pgp::Esk::PublicKeyEncryptedSessionKey;
 use pgp::Message;
-use pgp::types::KeyId;
-use pgrx::{debug1,debug2};
+use pgrx::{debug2};
 use std::fmt::{Display, Formatter};
 use std::io::Cursor;
 
@@ -158,6 +156,7 @@ impl EnigmaMsg {
         }
     }
 
+    /* PGP specific functions commented-out for future use
     pub fn pgp_encrypting_keys(&self)
     -> Result<Vec<KeyId>, Box<(dyn std::error::Error + 'static)>> {
         let mut keys = Vec::new();
@@ -186,7 +185,7 @@ impl EnigmaMsg {
     -> Result<String, Box<(dyn std::error::Error + 'static)>> {
         let pgp_id = self.pgp_encrypting_key()?;
         Ok(format!("{:x}", pgp_id))
-    } 
+    } */
 }
 
 /*********************
