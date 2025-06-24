@@ -136,6 +136,7 @@ impl EnigmaMsg {
         !self.is_plain()
     }
 
+    #[allow(dead_code)]
     pub fn is_pgp(&self) -> bool {
         matches!(*self, Self::PGP(_,_))
     }

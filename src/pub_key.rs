@@ -1,6 +1,5 @@
 use crate::EnigmaMsg;
 use crate::traits::Encrypt;
-use lazy_static::lazy_static;
 use openssl::base64::encode_block;
 use openssl::encrypt::Encrypter;
 use openssl::pkey::{PKey,Public};
@@ -10,7 +9,12 @@ use pgp::crypto::sym::SymmetricKeyAlgorithm;
 use pgp::types::PublicKeyTrait;
 use rand_chacha::ChaCha8Rng;
 use rand_chacha::rand_core::SeedableRng;
-use regex::bytes::Regex;
+
+const PGP_BEGIN: &str = "-----BEGIN PGP PUBLIC KEY BLOCK-----";
+const PGP_END: &str = "-----END PGP PUBLIC KEY BLOCK-----";
+// TODO:  Other OpenSSK supported key types (elyptic curves, etc.)
+const SSL_BEGIN: &str = "-----BEGIN PUBLIC KEY-----";
+const SSL_END: &str = "-----END PUBLIC KEY-----";
 
 pub enum PubKey {
     /// PGP public key
@@ -22,29 +26,22 @@ pub enum PubKey {
 impl PubKey {
     /// Creates a `PubKey` struct with the key obtained
     /// from the `armored key`
-    pub fn new(armored_key: &str) 
+    pub fn new(armored: &str) 
     -> Result<Self, Box<(dyn std::error::Error + 'static)>> {
-        // TODO: From<String>
-        lazy_static! {
-            static ref RE_PGP: Regex = 
-                Regex::new(r"BEGIN PGP PUBLIC KEY BLOCK")
-                .expect("failed to compile PGP key regex");
-            static ref RE_RSA: Regex = 
-                Regex::new(r"BEGIN PUBLIC KEY")
-                .expect("failed to compile OpenSSL RSA key regex");
-        }
-        if RE_PGP.captures(armored_key.as_bytes()).is_some() {
+        if armored.contains(PGP_BEGIN) && armored.contains(PGP_END) {
             // https://docs.rs/pgp/latest/pgp/composed/trait.Deserializable.html#method.from_string
-            let (pub_key, _) = SignedPublicKey::from_string(armored_key)?;
+            let (pub_key, _) = SignedPublicKey::from_string(armored)?;
             pub_key.verify()?;
-            Ok(PubKey::PGP(pub_key))
-        } else if RE_RSA.captures(armored_key.as_bytes()).is_some() {
-            let pub_key = PKey::<Public>::public_key_from_pem(
-                armored_key.as_bytes())?;
-           Ok(PubKey::RSA(pub_key))
-        } else {
-            Err("key type not supported".into())
+            return Ok(PubKey::PGP(pub_key));
+        } 
+
+        if armored.contains(SSL_BEGIN) && armored.contains(SSL_END) {
+            let pub_key = 
+                PKey::<Public>::public_key_from_pem(armored.as_bytes())?;
+           return Ok(PubKey::RSA(pub_key));
         }
+
+        Err("Key not recognized".into())
     }
 
     pub fn pub_key_id(&self) -> String {
