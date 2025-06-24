@@ -5,8 +5,8 @@ use pgrx::{debug2};
 use std::fmt::{Display, Formatter};
 use std::io::Cursor;
 
-const PLAIN_BEGIN: &str = "-----BEGIN PLAIN UNENCRYPTED MESSAGE-----\n";
-const PLAIN_END: &str = "\n-----END PLAIN UNENCRYPTED MESSAGE-----";
+const PLAIN_BEGIN: &str = "-----BEGIN PLAIN NOT ENCRYPTED MESSAGE-----\n";
+const PLAIN_END: &str = "\n-----END PLAIN NOT ENCRYPTED MESSAGE-----";
 const PGP_BEGIN: &str = "-----BEGIN PGP MESSAGE-----\n";
 const PGP_END: &str = "-----END PGP MESSAGE-----\n";
 const RSA_BEGIN: &str = "-----BEGIN RSA ENCRYPTED-----\n";
