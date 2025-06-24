@@ -25,7 +25,9 @@ once_cell = "*"
 openssl = "~0.10.64"
 pgp = "~0.15.0"
 pgrx = "~0.14.0"
+rand_core = "~0.9.1"
 rand_chacha = "*"
+#rand_core = { version = "~0.9.3", features = [ "os_rng" ] }
 regex = "1"
 serde = "1.0.202"
 
