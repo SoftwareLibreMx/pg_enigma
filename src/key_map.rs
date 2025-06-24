@@ -59,7 +59,9 @@ impl PrivKeysMap {
         };
         Ok(msg)
     }
-
+    
+    /// Removes key from the `PrivKeysMap`. 
+    /// Once the key gets out of scope, it's supposed to be dropped.
     pub fn del(&'static self, id: i32) 
     -> Result<String, Box<(dyn std::error::Error + 'static)>> {
         let old = match self.keys.write() {
@@ -97,7 +99,7 @@ impl PrivKeysMap {
     /// Custom decrypt function for `PrivKeysMap`.
     /// This function is not an implementation of trait `Decrypt`
     /// Will look for the decryption key in it's key map and call
-    /// the key's decrypt function to decrypt the message.
+    /// the key's `decrypt()` function to decrypt the message.
     /// If no decrypting key is found, returns the same encrypted message.
     pub fn decrypt(self: &'static PrivKeysMap, message: EnigmaMsg)
     -> Result<EnigmaMsg, Box<(dyn std::error::Error + 'static)>> {
@@ -193,6 +195,8 @@ impl PubKeysMap {
         Ok(msg)
     }
 
+    /// Removes key from the `PubKeysMap`. 
+    /// Once the key gets out of scope, it's supposed to be dropped.
     pub fn del(&'static self, id: i32) 
     -> Result<String, Box<(dyn std::error::Error + 'static)>> {
         let old = match self.keys.write() {
@@ -242,20 +246,25 @@ impl PubKeysMap {
         Ok(Some(key))
     }
 
-    pub fn encrypt(self: &'static PubKeysMap, id: i32, msg: EnigmaMsg) 
+    /// Custom encrypt function for `PubKeysMap`.
+    /// This function is not an implementation of trait `Decrypt`
+    /// Will look for the encryption key in it's key map and call
+    /// the key's `encrypt()` function to encrypt the message.
+    /// If no encrypting key is found, returns an error message.
+    pub fn encrypt(self: &'static PubKeysMap, key_id: i32, msg: EnigmaMsg) 
     -> Result<EnigmaMsg, Box<(dyn std::error::Error + 'static)>> {
         if let Some(msgid) = msg.key_id() { // message is encrypted
-            if msgid == id {
+            if msgid == key_id {
                 info!("Already encrypted with key ID {msgid}"); 
                 return  Ok(msg);
             };
             // TODO: try to decrypt
             return Err("Nested encryption not supported".into());
         }
-        if let Some(pub_key) = self.get(id)? {
-            return pub_key.encrypt(id, msg);
+        if let Some(pub_key) = self.get(key_id)? {
+            return pub_key.encrypt(key_id, msg);
         }
-        Err(format!("No public key with id: {}", id).into())
+        Err(format!("No public key with key_id: {}", key_id).into())
     }
 
 }
