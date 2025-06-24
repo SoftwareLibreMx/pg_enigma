@@ -470,7 +470,7 @@ impl FromDatum for Enigma {
         };
         let message = EnigmaMsg::try_from(value).expect("Corrupted Enigma");
         if message.is_plain() {
-            error!("FromDatum: message not encrypted");
+            warning!("FromDatum: message not encrypted");
         }
         debug2!("FromDatum: Encrypted message: {message}");
         let decrypted = PRIV_KEYS.decrypt(message)
