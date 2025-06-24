@@ -3,6 +3,7 @@ mod key_map;
 mod message;
 mod priv_key;
 mod pub_key;
+mod traits;
 
 use core::ffi::CStr;
 use crate::message::EnigmaMsg;
@@ -11,11 +12,6 @@ use crate::key_map::{PrivKeysMap,PubKeysMap};
 use once_cell::sync::Lazy;
 use pgrx::prelude::*;
 use pgrx::{rust_regtypein, StringInfo};
-// use serde::{Serialize, Deserialize};
-use std::fs;
-
-// start includes for testing manual implementation
-
 use pgrx::pgrx_sql_entity_graph::metadata::{
     ArgumentError, Returns, ReturnsError, SqlMapping, SqlTranslatable,
 };
@@ -23,15 +19,15 @@ use pgrx::callconv::{ArgAbi, BoxRet};
 use pgrx::datum::Datum;
 use pgrx::pg_sys::Oid;
 use std::fmt::{Display, Formatter};
+use std::fs;
 
-// finish includes for manual implementation
 
 pgrx::pg_module_magic!();
 
 static PRIV_KEYS: Lazy<PrivKeysMap> = Lazy::new(|| PrivKeysMap::new());
 static PUB_KEYS: Lazy<PubKeysMap> = Lazy::new(|| PubKeysMap::new());
 // TODO: KEY_IDs map optimization
-// TODO: LAST_KEY: (key_id,Option<PrivKey>) optimization
+// TODO: LAST_KEY: (enigma_key,Option<PrivKey>) optimization
 
 /// Value stores entcrypted information
 #[repr(transparent)]
@@ -39,6 +35,162 @@ static PUB_KEYS: Lazy<PubKeysMap> = Lazy::new(|| PubKeysMap::new());
 struct Enigma {
     value: String,
 }
+
+
+/// Functions for extracting and inserting data
+#[pg_extern(immutable, parallel_safe, requires = [ "shell_type" ])]
+fn enigma_input_with_typmod(input: &CStr, oid: pg_sys::Oid, typmod: i32) 
+-> Enigma {
+	debug2!("enigma_input_with_typmod: \
+            ARGUMENTS: Input: *****, OID: {:?},  Typmod: {}", oid, typmod);
+	let value: String = input
+			.to_str()
+			.expect("Enigma::input can't convert to str")
+			.to_string();
+    let plain = EnigmaMsg::plain(value);
+    if typmod == -1 { // unknown typmod 
+        debug1!("Unknown typmod: {}\noid: {:?}", typmod, oid);
+        return Enigma::from(plain);
+    }
+    // enigma_key to avoid confusion with PGP key_id
+    let enigma_key = typmod; // TODO: as u32
+    let encrypted = PUB_KEYS.encrypt(enigma_key, plain) // Result
+                            .expect("Encrypt (input)"); // EnigmaMsg
+    Enigma::from(encrypted)
+}
+
+/// Cast enigma to enigma is called after enigma_input_with_typmod(). 
+/// This function is passed the correct known typmod argument.
+#[pg_extern]
+fn enigma_cast(original: Enigma, typmod: i32, explicit: bool) -> Enigma {
+    debug2!("enigma_cast: \
+        ARGUMENTS: explicit: {},  Typmod: {}", explicit, typmod);
+    if typmod == -1 {
+        panic!("Unknown typmod: {}\noriginal: {:?}\nexplicit: {}", 
+            typmod, original, explicit);
+    }
+    let msg = EnigmaMsg::try_from(original).expect("Corrupted Enigma");
+    if msg.is_plain() {
+        let enigma_key = typmod; // TODO: as u32
+        let encrypted = PUB_KEYS.encrypt(enigma_key, msg) // Result
+                        .expect("Encrypt (typmod cast)"); // EnigmaMsg
+        return Enigma::from(encrypted);
+    } 
+    
+    // TODO: if msg.enigma_key != enigma_key {try_reencrypt()} 
+    Enigma::from(msg)
+}
+
+
+// Send to postgres
+// TODO check if we can return just StringInfo
+#[pg_extern(immutable, parallel_safe, requires = [ "shell_type" ])]
+fn enigma_output(e: Enigma) -> &'static CStr {
+	debug2!("enigma_output: Entering enigma_output");
+	let mut buffer = StringInfo::new();
+	let message  = EnigmaMsg::try_from(e).expect("Corrupted Enigma");
+
+	debug2!("enigma_output value: {}", message);
+
+    // TODO: workaround double decrypt()
+     // if decrypting key is not set, returns the same message
+     match PRIV_KEYS.decrypt(message) {
+		Ok(m) => buffer.push_str(m.to_string().as_str()),
+		Err(e) =>  panic!("Decrypt error: {}", e)
+	}
+
+	//TODO try to avoid this unsafe
+	unsafe { buffer.leak_cstr() }
+}
+
+
+/// Needed for managing keys for each column
+/// We mark this function as `immutable` because its output depends ONLY on its inputs.
+/// This is required for functions used as a `TYPMOD_IN`, as the planner needs
+/// to rely on its output being consistent.
+#[pg_extern(immutable, name = "enigma_type_modifier_input", requires = [ "shell_type" ])]
+pub fn enigma_type_modifier_input(cstrings: pgrx::Array<'_, &CStr>) -> i32 {
+
+    // TODO: enigma_typmod_in() from KBrown/TypmodInOutFuncs is simpler
+    let rust_strings: Vec<&str> = cstrings
+        .iter()
+        .flatten()
+        .map(|cstr| cstr.to_str().unwrap_or_default())
+        .collect();
+
+    debug2!("enigma_type_modifier_input:: value {}", 
+        rust_strings[0].parse::<i32>().unwrap());
+
+    rust_strings[0]
+        .parse::<i32>()
+        .expect("Canto convert typmod to integer")
+}
+
+
+
+/// SQL function for setting private key in memory (PrivKeysMap)
+/// All in-memory private keys will be lost when session is closed
+/// and postgres sessionprocess ends.
+#[pg_extern]
+fn set_private_key(id: i32, key: &str, pass: &str)
+-> Result<String, Box<(dyn std::error::Error + 'static)>> {
+    PRIV_KEYS.set(id, key, pass)
+}   
+
+
+/// SQL function for setting public key in memory (PubKeysMap)
+/// Also inserts provided public key into enigma public keys table, 
+/// making it available for other sessions.
+#[pg_extern]
+fn set_public_key(id: i32, key: &str)
+-> Result<String, Box<(dyn std::error::Error + 'static)>> {
+    match insert_public_key(id, key)? {
+        Some(_) => PUB_KEYS.set(id, key),
+        None => Err(format!("No key ({}) inserted", id).into())
+    }
+}
+
+/// Delete the private key from memory (PrivKeysMap)
+#[pg_extern]
+fn forget_private_key(id: i32)
+-> Result<String, Box<(dyn std::error::Error + 'static)>> {
+    PRIV_KEYS.del(id)
+}
+
+/// Delete the public key from memory (PubKeysMap)
+#[pg_extern]
+fn forget_public_key(id: i32)
+-> Result<String, Box<(dyn std::error::Error + 'static)>> {
+    PUB_KEYS.del(id)
+}
+
+/// Sets the private key reading it from a file
+#[pg_extern]
+fn set_private_key_from_file(id: i32, file_path: &str, pass: &str)
+-> Result<String, Box<(dyn std::error::Error + 'static)>> {
+    let contents = fs::read_to_string(file_path)
+    .expect("Error reading private key file");
+    set_private_key(id, &contents, pass)
+}
+
+/// Sets the public key reading it from a file
+#[pg_extern]
+fn set_public_key_from_file(id: i32, file_path: &str)
+-> Result<String, Box<(dyn std::error::Error + 'static)>> {
+    let contents = fs::read_to_string(file_path)
+        .expect("Error reading public file");
+    set_public_key(id, &contents)
+}
+
+
+/**************************************************************************
+*                                                                         *
+*                                                                         *
+*           S Q L   F O R   C R E A T E   E X T E N S I O N               *
+*                                                                         *
+*                                                                         *
+**************************************************************************/
+
 
 // Create the type manually
 extension_sql!(
@@ -65,199 +217,6 @@ extension_sql!(
     creates = [Type(Enigma)],
     requires = ["shell_type", enigma_input_with_typmod, enigma_output, enigma_type_modifier_input],
 );
-
-
-/// Functions for extracting and inserting data
-#[pg_extern(immutable, parallel_safe, requires = [ "shell_type" ])]
-fn enigma_input_with_typmod(input: &CStr, oid: pg_sys::Oid, typmod: i32) 
--> Enigma {
-	debug1!("enigma_input_with_typmod: \
-            ARGUMENTS: Input: {:?}, OID: {:?},  Typmod: {}", 
-            input, oid, typmod);
-	let value: String = input
-			.to_str()
-			.expect("Enigma::input can't convert to str")
-			.to_string();
-    let plain = EnigmaMsg::plain(value);
-     if typmod == -1 { // unknown typmod 
-        debug1!("Unknown typmod: {}\ninput:{:?}\noid: {:?}", 
-            typmod, input, oid);
-        // TODO: PubKey::NO_KEY
-        return Enigma::from(plain);
-     }
-     let key_id = typmod; // TODO: as u32
-	let pub_key = match PUB_KEYS.get(key_id)
-			.expect("Get from key map") {
-		Some(k) => k,
-		None => {
-			let key = match get_public_key(key_id)
-				.expect("Get public key from SQL") {
-				Some(k) => k,
-				None => panic!("No public key with id: {}",
-					key_id)
-			};
-			PUB_KEYS.set(key_id, &key)
-				.expect("Set into key map");
-			PUB_KEYS.get(key_id)
-				.expect("Get (just set) from key map").unwrap()
-		}
-	};
-
-     // TODO: EnigmaMsg::Encrypt
-     // let encrypted = plain.encrypt(PUB_KEYS,id).expect("Encryption")
-     let value = plain.to_string(); // dirty redefine because of borrow
-	debug1!("Input: Encrypting value: {}", value);
-     let encrypted = pub_key.encrypt(&value).expect("Encrypt");
-	debug1!("Input: AFTER encrypt: {}", encrypted);
-	Enigma { value: encrypted }
-}
-
-
-// Send to postgres
-// TODO check if we can return just StringInfo
-#[pg_extern(immutable, parallel_safe, requires = [ "shell_type" ])]
-fn enigma_output(e: Enigma) -> &'static CStr {
-	debug1!("enigma_output: Entering enigma_output");
-	let mut buffer = StringInfo::new();
-	// TODO: EnigmaMsg::From<Enigma>
-	let value: String = e.value.clone();
-
-	debug2!("enigma_output value: {}", value);
-
-     // TODO: EnigmaMsg::Decrypt 
-     match PRIV_KEYS.decrypt(&value) {
-		Ok(Some(v)) => buffer.push_str(&v),
-		// TODO: check if we need more granular errors
-		Err(e) =>  panic!("Decrypt error: {}", e),
-		_ => buffer.push_str(&value),
-	}
-
-	//TODO try to avoid this unsafe
-	unsafe { buffer.leak_cstr() }
-
-}
-
-
-/// Needed for managing keys for each column
-/// We mark this function as `immutable` because its output depends ONLY on its inputs.
-/// This is required for functions used as a `TYPMOD_IN`, as the planner needs
-/// to rely on its output being consistent.
-#[pg_extern(immutable, name = "enigma_type_modifier_input", requires = [ "shell_type" ])]
-pub fn enigma_type_modifier_input(cstrings: pgrx::Array<'_, &CStr>) -> i32 {
-
-    // TODO: enigma_typmod_in() from KBrown/TypmodInOutFuncs is simpler
-    let rust_strings: Vec<&str> = cstrings
-        .iter()
-        .flatten()
-        .map(|cstr| cstr.to_str().unwrap_or_default())
-        .collect();
-
-    debug5!("enigma_type_modifier_input:: value {}", 
-        rust_strings[0].parse::<i32>().unwrap());
-
-    rust_strings[0]
-        .parse::<i32>()
-        .expect("Canto convert typmod to integer")
-}
-
-
-
-/// TODO: add docs
-#[pg_extern]
-fn set_private_key(id: i32, key: &str, pass: &str)
--> Result<String, Box<(dyn std::error::Error + 'static)>> {
-    PRIV_KEYS.set(id, key, pass)
-}   
-
-
-/// TODO: add docs
-#[pg_extern]
-fn set_public_key(id: i32, key: &str)
--> Result<String, Box<(dyn std::error::Error + 'static)>> {
-    match insert_public_key(id, key)? {
-        Some(_) => PUB_KEYS.set(id, key),
-        None => Err(format!("No key ({}) inserted", id).into())
-    }
-}
-
-/// Delete the private key from memory
-#[pg_extern]
-fn forget_private_key(id: i32)
--> Result<String, Box<(dyn std::error::Error + 'static)>> {
-    PRIV_KEYS.del(id)
-}
-
-/// Delete the public key from memory
-#[pg_extern]
-fn forget_public_key(id: i32)
--> Result<String, Box<(dyn std::error::Error + 'static)>> {
-    PUB_KEYS.del(id)
-}
-
-/// Sets the private key from a file
-#[pg_extern]
-fn set_private_key_from_file(id: i32, file_path: &str, pass: &str)
--> Result<String, Box<(dyn std::error::Error + 'static)>> {
-    let contents = fs::read_to_string(file_path)
-    .expect("Error reading private key file");
-    set_private_key(id, &contents, pass)
-}
-
-/// Sets the public key from a file
-#[pg_extern]
-fn set_public_key_from_file(id: i32, file_path: &str)
--> Result<String, Box<(dyn std::error::Error + 'static)>> {
-    let contents = fs::read_to_string(file_path)
-        .expect("Error reading public file");
-    set_public_key(id, &contents)
-}
-
-
-/// Cast enigma to enigma is called after enigma_input_with_typmod(). 
-/// This function is passed the correct known typmod argument.
-// TODO: handle type Enigma (without typmod) as key_id 0
-// Since enigma_input_with_typmod() always gets -1 on typmod argument, 
-// this cast is needed for knowing the typmod.
-#[pg_extern]
-fn enigma_cast(original: Enigma, typmod: i32, explicit: bool) -> Enigma {
-    debug1!("enigma_cast: \
-        ARGUMENTS: explicit: {},  Typmod: {}", explicit, typmod);
-    if typmod == -1 {
-        panic!("Unknown typmod: {}\noriginal: {:?}\nexplicit: {}", 
-            typmod, original, explicit);
-    }
-    let msg = EnigmaMsg::try_from(original).expect("Corrupted Enigma");
-    if msg.is_plain() {
-        let plain = msg.to_string();
-        let key_id = typmod; // TODO: as u32
-        // TODO: move this repetitive code to a function
-        let pub_key = match PUB_KEYS.get(key_id)
-                   .expect("Get from key map") {
-              Some(k) => k,
-              None => {
-                   let key = match get_public_key(key_id)
-                        .expect("Get public key from SQL") {
-                        Some(k) => k,
-                        None => panic!("No public key with id: {}",
-                             key_id)
-                   };
-                   PUB_KEYS.set(key_id, &key)
-                        .expect("Set into key map");
-                   PUB_KEYS.get(key_id)
-                        .expect("Get (just set) from key map").unwrap()
-              }
-        };
-        // TODO: EnigmaMsg::Encrypt
-        let value = pub_key.encrypt(&plain)
-                .expect("Encrypt");
-        info!("enigma_cast: AFTER encrypt: {}", value);
-        return Enigma{ value: value };
-    } 
-    
-    // TODO: if msg.key_id != key_id {try_reencrypt()} 
-    Enigma::from(msg)
-}
-
 
 // Creates the casting function so we can get the key id in the
 // typmod value, this is needed because postgres does not send 
@@ -363,7 +322,7 @@ SELECT public_key FROM enigma_public_keys WHERE id = 2;
         "
 CREATE TABLE testab ( a SERIAL, b Enigma(2));
 SELECT set_public_key_from_file(2, '../../../test/public-key.asc'); 
-INSERT INTO testab (b) VALUES ('my first record');
+INSERT INTO testab (b) VALUES ('my PGP test record');
         ")? ; 
         if let Some(res) = Spi::get_one::<Enigma>("
 SELECT b FROM testab LIMIT 1;
@@ -382,15 +341,53 @@ SELECT b FROM testab LIMIT 1;
         "
 CREATE TABLE testab ( a SERIAL, b Enigma(2));
 SELECT set_public_key_from_file(2, '../../../test/public-key.asc'); 
-INSERT INTO testab (b) VALUES ('my first record');
+INSERT INTO testab (b) VALUES ('my PGP test record');
 SELECT set_private_key_from_file(2, 
     '../../../test/private-key.asc', 'Prueba123!'); 
         ")? ; 
         if let Some(res) = Spi::get_one::<Enigma>("
 SELECT b FROM testab LIMIT 1;
         ")? {
-            debug1!("Decrypted value: {}", res);
-            if res.value.as_str() == "my first record" { return Ok(()); }
+            info!("Decrypted value: {}", res);
+            if res.value.as_str() == "my PGP test record" { return Ok(()); }
+        } 
+        Err("Should return decrypted string".into()) 
+    } 
+
+    /// Insert a row in the table and then query the encrypted value
+    #[pg_test]
+    fn e08_insert_with_rsa_pub_key()  -> Result<(), Box<dyn Error>> {
+        Spi::run(
+        "
+CREATE TABLE testab ( a SERIAL, b Enigma(3));
+SELECT set_public_key_from_file(3, '../../../test/alice_public.pem'); 
+INSERT INTO testab (b) VALUES ('my RSA test record');
+        ")? ; 
+        if let Some(res) = Spi::get_one::<Enigma>("
+SELECT b FROM testab LIMIT 1;
+        ")? {
+            if res.value.contains("BEGIN RSA ENCRYPTED") { return Ok(()); }
+        } 
+        Err("Should return String with RSA encrypted message".into()) 
+    }
+
+    /// Insert a row in the table, then set private key and then 
+    /// query the decrypted value
+    #[pg_test]
+    fn e09_select_with_rsa_priv_key()  -> Result<(), Box<dyn Error>> {
+        Spi::run(
+        "
+CREATE TABLE testab ( a SERIAL, b Enigma(3));
+SELECT set_public_key_from_file(3, '../../../test/alice_public.pem'); 
+INSERT INTO testab (b) VALUES ('my RSA test record');
+SELECT set_private_key_from_file(3, 
+    '../../../test/alice_private.pem', 'Prueba123!'); 
+        ")? ; 
+        if let Some(res) = Spi::get_one::<Enigma>("
+SELECT b FROM testab LIMIT 1;
+        ")? {
+            info!("Decrypted value: {}", res);
+            if res.value.as_str() == "my RSA test record" { return Ok(()); }
         } 
         Err("Should return decrypted string".into()) 
     } 
@@ -471,13 +468,14 @@ impl FromDatum for Enigma {
             None => return None,
             Some(v) => v
         };
-        debug2!("FromDatum: Encrypted value: {value}");
-        match PRIV_KEYS.decrypt(&value) {
-            Ok(Some(v)) => Some(Enigma { value: v }),
-            Err(e) =>  panic!("FromDatum: Decrypt error: {}", e),
-            _ => Some(Enigma { value: value })
+        let message = EnigmaMsg::try_from(value).expect("Corrupted Enigma");
+        debug2!("FromDatum: Encrypted message: {message}");
+        let decrypted = PRIV_KEYS.decrypt(message)
+                                .expect("FromDatum: Decrypt error");
+        match decrypted {
+            EnigmaMsg::Plain(m) => Some(Enigma{value: m}),
+            _ => Some(Enigma::from(decrypted))
         }
-        
     }
 }
 

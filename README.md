@@ -116,10 +116,10 @@ pg_enigma=# SELECT * FROM testab limit 1;
 CREATE EXTENSION pg_enigma;
 CREATE TABLE testab (
     a SERIAL, 
-    b Enigma
+    b Enigma(3)
 );
 
-SELECT set_public_key_from_file(1, 
+SELECT set_public_key_from_file(3, 
     '../../pg_enigma/test/alice_public.pem'); 
 
 INSERT INTO testab (b) VALUES ('my first record');
@@ -142,7 +142,7 @@ N2E+xKX1xkxgji7vIKx0XXAXC9pQEC1gMtQYHyOBA=
 Now provide the private key using `set_private_key_from_file()` function:
 
 ```sql
-SELECT set_private_key_from_file(1, 
+SELECT set_private_key_from_file(3, 
 	'/path/to/private-key.asc', 'Private key passphrase');
 SELECT * FROM testab limit 1;
 ```
@@ -150,7 +150,7 @@ SELECT * FROM testab limit 1;
 Expected result:
 
 ```sql
-pg_enigma=# SELECT set_private_key_from_file(1, 
+pg_enigma=# SELECT set_private_key_from_file(3, 
     '../../pg_enigma/test/alice_private.pem', 'Prueba123!');
    set_private_key_from_file   
 -------------------------------

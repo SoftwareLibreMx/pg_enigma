@@ -1,13 +1,10 @@
+use crate::functions::get_public_key;
 use crate::message::*;
 use crate::priv_key::PrivKey;
 use crate::pub_key::PubKey;
-//use pgp::Esk::PublicKeyEncryptedSessionKey;
-//use pgp::Deserializable;
-//use pgp::Message;
-//use pgp::Message::Encrypted;
+use crate::traits::{Encrypt,Decrypt};
 use pgrx::info;
 use std::collections::BTreeMap;
-//use std::io::Cursor;
 use std::sync::RwLock;
 
 /********************
@@ -97,33 +94,44 @@ impl PrivKeysMap {
         Ok(Some(key))
     }
 
-    pub fn decrypt(self: &'static PrivKeysMap, value: &String)
-    -> Result<Option<String>, Box<(dyn std::error::Error + 'static)>> {
+    /// Custom decrypt function for `PrivKeysMap`.
+    /// This function is not an implementation of trait `Decrypt`
+    /// Will look for the decryption key in it's key map and call
+    /// the key's decrypt function to decrypt the message.
+    /// If no decrypting key is found, returns the same encrypted message.
+    pub fn decrypt(self: &'static PrivKeysMap, message: EnigmaMsg)
+    -> Result<EnigmaMsg, Box<(dyn std::error::Error + 'static)>> {
         // TODO: key_id map
-        match self.find_encrypting_key(value)? {
+        match self.find_encrypting_key(&message)? {
             Some(sec_key) => {
-                let decrypted = sec_key.decrypt(value)?;
-                Ok(Some(decrypted))
+                sec_key.decrypt(message)
             },
-            None => Ok(None)
+            None => Ok(message)
         }
     }
 
-    pub fn find_encrypting_key(self: &'static PrivKeysMap, value: &String)
+    /// Iterates over each of the message's encrypting keys looking
+    /// for a matching key_id in it's own private keys map
+    pub fn find_encrypting_key(self: &'static PrivKeysMap, msg: &EnigmaMsg)
     -> Result<Option<&'static PrivKey>, 
     Box<(dyn std::error::Error + 'static)>> {
-        let binding = self.keys.read()?;
-        // TODO: message module
-        //let buf = Cursor::new(value);
-        //let (msg, _) = Message::from_armor_single(buf)?;
-        for skey_id in EnigmaMsg::try_from(value)?.encrypting_keys()? {
-            let mkey_id = format!("{:?}", skey_id);
-            for (_,pkey) in binding.iter() {
-                if mkey_id == pkey.key_id() {
-                    info!("KEY_ID: {mkey_id}");
-                    return Ok(Some(pkey));
+        if msg.is_pgp() {
+            // TODO: enigma_key_id from envelope
+            let binding = self.keys.read()?;
+            for skey_id in msg.encrypting_keys()? {
+                let mkey_id = format!("{:?}", skey_id);
+                // TODO: key_id map
+                for (_,pkey) in binding.iter() {
+                    if mkey_id == pkey.key_id() {
+                        info!("KEY_ID: {mkey_id}");
+                        return Ok(Some(pkey));
+                    }
                 }
             }
+            return Ok(None);
+        }
+        if let Ok(id) = msg.enigma_key() {
+            return self.get(id);
         }
         Ok(None)
     }
@@ -211,21 +219,33 @@ impl PubKeysMap {
         let binding = self.keys.read()?;
         let key = match binding.get(&id) {
             Some(k) => k,
-            None => return Ok(None)
+            None => {
+                // TODO: rename to public_ket_from_sql()
+                let armored_key = get_public_key(id)?; // Key from SQL
+                match armored_key {
+                    Some(k) => {
+                        let set_msg = self.set(id, &k)?;
+                        info!("{set_msg}");
+                        // retry get key just being set
+                        match binding.get(&id) {
+                            Some(k) => k,
+                            None => return Ok(None)
+                        }
+                    }
+                    None => return Ok(None)
+                }
+            }
         };
         Ok(Some(key))
     }
 
-    /*pub fn encrypt(self: &'static PubKeysMap, id: i32, value: &String)
-    -> Result<Option<String>, Box<(dyn std::error::Error + 'static)>> {
-        match self.get(id)? {
-            Some(key) => {
-                let encrypted = key.encrypt(value)?;
-                Ok(Some(encrypted))
-            },
-            None => Ok(None)
+    pub fn encrypt(self: &'static PubKeysMap, id: i32, msg: EnigmaMsg) 
+    -> Result<EnigmaMsg, Box<(dyn std::error::Error + 'static)>> {
+        if let Some(pub_key) = self.get(id)? {
+            return pub_key.encrypt(id, msg);
         }
-    }*/
-}
+        Err(format!("No public key with id: {}", id).into())
+    }
 
+}
 
