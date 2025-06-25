@@ -128,8 +128,7 @@ fn init_seed() -> u64 {
                             .unwrap(); // always greater than UNIX_EPOCH
         let secs = dur.as_secs(); 
         let nano = dur.subsec_nanos() as u64;
-        let maxi = (dur.subsec_nanos() as u64) << 32;
-        let seed = secs ^ nano + maxi;
+        let seed = secs ^ nano + nano << 32;
         debug1!("RNG seed: {:x} ones: {} zeros: {}", 
             seed, seed.count_ones(), seed.count_zeros());
         seed
