@@ -3,7 +3,7 @@ use crate::message::*;
 use crate::priv_key::PrivKey;
 use crate::pub_key::PubKey;
 use crate::traits::{Encrypt,Decrypt};
-use pgrx::info;
+use pgrx::{debug1,info};
 use std::collections::BTreeMap;
 use std::sync::RwLock;
 
@@ -219,29 +219,31 @@ impl PubKeysMap {
         let binding = self.keys.read()?;
         let key = match binding.get(&id) {
             Some(k) => k,
-            None => {
-                // TODO: rename to public_ket_from_sql()
-                let armored_key = get_public_key(id)?; // Key from SQL
-                match armored_key {
-                    Some(k) => {
-                        let set_msg = self.set(id, &k)?;
-                        info!("{set_msg}");
-                        // retry get key just being set
-                        match binding.get(&id) {
-                            Some(k) => k,
-                            None => return Ok(None)
-                        }
-                    }
-                    None => return Ok(None)
-                }
-            }
+            None => return Ok(None)
         };
         Ok(Some(key))
+    }
+
+    fn from_sql(self: &'static PubKeysMap, id: i32) 
+    -> Result<Option<&'static PubKey>, 
+    Box<(dyn std::error::Error + 'static)>> {
+        // TODO: rename to public_ket_from_sql()
+        if let Some(armored_key) = get_public_key(id)? { // Key from SQL
+            debug1!("Key with ID {id}:\n{armored_key}");
+            let set_msg = self.set(id, &armored_key)?;
+            info!("{set_msg}");
+        }
+        // retry get key just being set
+        self.get(id)
     }
 
     pub fn encrypt(self: &'static PubKeysMap, id: i32, msg: EnigmaMsg) 
     -> Result<EnigmaMsg, Box<(dyn std::error::Error + 'static)>> {
         if let Some(pub_key) = self.get(id)? {
+            return pub_key.encrypt(id, msg);
+        }
+        // retry from SQL is expected to be needed only once 
+        if let Some(pub_key) = self.from_sql(id)? {
             return pub_key.encrypt(id, msg);
         }
         Err(format!("No public key with id: {}", id).into())
