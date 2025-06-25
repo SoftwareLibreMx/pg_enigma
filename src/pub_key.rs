@@ -1,6 +1,7 @@
 use crate::EnigmaMsg;
 use crate::traits::Encrypt;
 use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use openssl::base64::encode_block;
 use openssl::encrypt::Encrypter;
 use openssl::pkey::{PKey,Public};
@@ -8,10 +9,13 @@ use openssl::rsa::Padding;
 use pgp::{Deserializable,Message,SignedPublicKey};
 use pgp::crypto::sym::SymmetricKeyAlgorithm;
 use pgp::types::PublicKeyTrait;
-use pgrx::info;
-use rand_chacha::ChaCha8Rng;
+use pgrx::{debug1,info};
+use rand_chacha::ChaCha12Rng;
 use rand_chacha::rand_core::SeedableRng;
 use regex::bytes::Regex;
+use std::time::{SystemTime,UNIX_EPOCH};
+
+static SEED: Lazy<u64> = Lazy::new(|| init_seed());
 
 pub enum PubKey {
     /// PGP public key
@@ -97,9 +101,9 @@ fn encrypt_pgp(pub_key: &SignedPublicKey, message: String)
 -> Result<Message, Box<(dyn std::error::Error + 'static)>> {
     let msg = Message::new_literal("none", message.as_str());
     // TODO: use some random seed (nanoseconds or something)
-    let mut rng = ChaCha8Rng::seed_from_u64(0); 
+    let mut rng =  ChaCha12Rng::seed_from_u64(*SEED);
     let new_msg = msg.encrypt_to_keys_seipdv1(
-        &mut rng, SymmetricKeyAlgorithm::AES128, &[&pub_key])?;
+        &mut rng , SymmetricKeyAlgorithm::AES128, &[&pub_key])?;
     Ok(new_msg)
 }
 
@@ -117,4 +121,18 @@ fn encrypt_rsa(pub_key: &PKey<Public>, message: String)
     let encoded = &encoded[..encoded_len];
     Ok(encode_block(encoded))
 }
+
+fn init_seed() -> u64 {
+        let dur = SystemTime::now()
+                            .duration_since(UNIX_EPOCH)
+                            .unwrap(); // always greater than UNIX_EPOCH
+        let secs = dur.as_secs(); 
+        let nano = dur.subsec_nanos() as u64;
+        let maxi = (dur.subsec_nanos() as u64) << 32;
+        let seed = secs ^ nano + maxi;
+        debug1!("RNG seed: {:x} ones: {} zeros: {}", 
+            seed, seed.count_ones(), seed.count_zeros());
+        seed
+}
+
 
