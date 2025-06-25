@@ -82,6 +82,10 @@ impl Decrypt<String> for PrivKey {
     }
 }
 
+/*********************
+ * PRIVATE FUNCTIONS *
+ * *******************/
+
 fn decrypt_pgp(key: &SignedSecretKey, pass: String, message: EnigmaMsg)
 -> Result<EnigmaMsg, Box<(dyn std::error::Error + 'static)>> {
     if let EnigmaMsg::PGP(msg) = message {

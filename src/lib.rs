@@ -1,4 +1,3 @@
-mod functions;
 mod key_map;
 mod message;
 mod priv_key;
@@ -7,8 +6,8 @@ mod traits;
 
 use core::ffi::CStr;
 use crate::message::EnigmaMsg;
-use crate::functions::*;
 use crate::key_map::{PrivKeysMap,PubKeysMap};
+use crate::pub_key::insert_public_key;
 use once_cell::sync::Lazy;
 use pgrx::prelude::*;
 use pgrx::{rust_regtypein, StringInfo};
