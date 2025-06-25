@@ -195,6 +195,10 @@ fn set_public_key_from_file(id: i32, file_path: &str)
 // Create the type manually
 extension_sql!(
     r#"
+        CREATE TABLE IF NOT EXISTS _enigma_public_keys (
+            id INT PRIMARY KEY,
+            public_key TEXT 
+        );
         CREATE TYPE enigma;
     "#,
     name = "shell_type",
@@ -308,7 +312,7 @@ SELECT set_private_key(2, '--- INVALID KEY ---', 'bad pass');
 SELECT set_public_key_from_file(2, '../../../test/public-key.asc'); 
         ")?;
         if let Some(res) = Spi::get_one::<String>("
-SELECT public_key FROM enigma_public_keys WHERE id = 2;
+SELECT public_key FROM _enigma_public_keys WHERE id = 2;
         ")? {
             if res.contains("BEGIN PGP PUBLIC KEY") { return Ok(()); }
         } 
