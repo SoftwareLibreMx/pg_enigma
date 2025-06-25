@@ -1,6 +1,5 @@
 use crate::EnigmaMsg;
 use crate::traits::Encrypt;
-use lazy_static::lazy_static;
 use once_cell::sync::Lazy;
 use openssl::base64::encode_block;
 use openssl::encrypt::Encrypter;
@@ -9,11 +8,16 @@ use openssl::rsa::Padding;
 use pgp::{Deserializable,Message,SignedPublicKey};
 use pgp::crypto::sym::SymmetricKeyAlgorithm;
 use pgp::types::PublicKeyTrait;
-use pgrx::{debug1,info};
+use pgrx::{debug1};
 use rand_chacha::ChaCha12Rng;
 use rand_chacha::rand_core::SeedableRng;
-use regex::bytes::Regex;
 use std::time::{SystemTime,UNIX_EPOCH};
+
+const PGP_BEGIN: &str = "-----BEGIN PGP PUBLIC KEY BLOCK-----";
+const PGP_END: &str = "-----END PGP PUBLIC KEY BLOCK-----";
+// TODO:  Other OpenSSK supported key types (elyptic curves, etc.)
+const SSL_BEGIN: &str = "-----BEGIN PUBLIC KEY-----";
+const SSL_END: &str = "-----END PUBLIC KEY-----";
 
 static SEED: Lazy<u64> = Lazy::new(|| init_seed());
 
@@ -27,36 +31,27 @@ pub enum PubKey {
 impl PubKey {
     /// Creates a `PubKey` struct with the key obtained
     /// from the `armored key`
-    pub fn new(armored_key: &str) 
+    pub fn new(armored: &str) 
     -> Result<Self, Box<(dyn std::error::Error + 'static)>> {
-        // TODO: From<String>
-        lazy_static! {
-            static ref RE_PGP: Regex = 
-                Regex::new(r"BEGIN PGP PUBLIC KEY BLOCK")
-                .expect("failed to compile PGP key regex");
-            static ref RE_RSA: Regex = 
-                Regex::new(r"BEGIN PUBLIC KEY")
-                .expect("failed to compile OpenSSL RSA key regex");
-        }
-        if RE_PGP.captures(armored_key.as_bytes()).is_some() {
+        if armored.contains(PGP_BEGIN) && armored.contains(PGP_END) {
             // https://docs.rs/pgp/latest/pgp/composed/trait.Deserializable.html#method.from_string
-            let (pub_key, _) = SignedPublicKey::from_string(armored_key)?;
+            let (pub_key, _) = SignedPublicKey::from_string(armored)?;
             pub_key.verify()?;
-            Ok(PubKey::PGP(pub_key))
-        } else if RE_RSA.captures(armored_key.as_bytes()).is_some() {
-            let pub_key = PKey::<Public>::public_key_from_pem(
-                armored_key.as_bytes())?;
-           Ok(PubKey::RSA(pub_key))
-        } else {
-            Err("key type not supported".into())
+            return Ok(PubKey::PGP(pub_key));
+        } 
+
+        if armored.contains(SSL_BEGIN) && armored.contains(SSL_END) {
+            let pub_key = 
+                PKey::<Public>::public_key_from_pem(armored.as_bytes())?;
+           return Ok(PubKey::RSA(pub_key));
         }
+
+        Err("Key not recognized".into())
     }
 
-    // TODO: u64
-    pub fn key_id(&self) -> String {
+    pub fn pub_key_id(&self) -> String {
         match self {
             PubKey::PGP(k) => format!("{:x}", k.key_id()),
-            // TODO: hex key ID
             PubKey::RSA(k) => format!("{:?}", k.id())
         }
     }
@@ -66,23 +61,17 @@ impl Encrypt<EnigmaMsg> for PubKey {
     fn encrypt(&self, id: i32, msg: EnigmaMsg) 
     -> Result<EnigmaMsg, Box<(dyn std::error::Error + 'static)>> {
         if msg.is_encrypted() { 
-            let msgid = msg.encrypting_key_as_string()?;
-            let my_id = self.key_id();
-            if msgid == my_id {
-                info!("Already encrypted with key ID {msgid}"); 
-                return  Ok(msg);
-            };
-            return Err("Nested encryption not supported".into());
+             return Err("Nested encryption not supported".into());
         }
 
         match self {
             PubKey::PGP(pub_key) => {
                 let new_msg = encrypt_pgp(pub_key, msg.to_string())?;
-                Ok(EnigmaMsg::pgp(new_msg))
+                Ok(EnigmaMsg::pgp(id, new_msg))
             },
             PubKey::RSA(pub_key) => {
                 let new_msg = encrypt_rsa(pub_key, msg.to_string())?;
-                Ok(EnigmaMsg::rsa(new_msg, id))
+                Ok(EnigmaMsg::rsa(id, new_msg))
             }
         }
     }
@@ -96,6 +85,10 @@ impl Encrypt<String> for PubKey {
         Ok(self.encrypt(id,msg)?.to_string())
     }
 }
+
+/*********************
+ * PRIVATE FUNCTIONS *
+ * *******************/
 
 fn encrypt_pgp(pub_key: &SignedPublicKey, message: String) 
 -> Result<Message, Box<(dyn std::error::Error + 'static)>> {
