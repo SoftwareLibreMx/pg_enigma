@@ -390,6 +390,44 @@ SELECT b FROM testab LIMIT 1;
         Err("Should return decrypted string".into()) 
     } 
 
+    /// This test is just a cast from String to Enigma
+    /// String get through INPUT and then typmod CAST
+    #[pg_test]
+    fn e10_select_string_as_enigma()  -> Result<(), Box<dyn Error>> {
+        Spi::run(
+        "
+SELECT set_public_key_from_file(2, '../../../test/public-key.asc'); 
+        ")? ;  
+        if let Some(res) = Spi::get_one::<Enigma>("
+SELECT 'my CAST test record'::Enigma(2);
+        ")? {
+            info!("Encrypted value: {}", res);
+            if res.value.as_str() != "my CAST test record" { return Ok(()); }
+        } 
+        Err("Should return encrypted string".into()) 
+    } 
+
+    /// This test is just a cast from String to Enigma
+    /// String get through INPUT and then typmod CAST
+    /// Unlike e10, key 2 is delete from PubKeysMap, so it has to be 
+    /// retrieved from public keys table first 
+    #[pg_test]
+    fn e11_pub_keys_from_sql()  -> Result<(), Box<dyn Error>> {
+        Spi::run(
+        "
+SELECT set_public_key_from_file(2, '../../../test/public-key.asc'); 
+-- deletes the key from PubKeysMap to need from_sql
+SELECT forget_public_key(2);
+        ")? ;  
+        if let Some(res) = Spi::get_one::<Enigma>("
+SELECT 'my CAST test record'::Enigma(2);
+        ")? {
+            info!("Encrypted value: {}", res);
+            if res.value.as_str() != "my CAST test record" { return Ok(()); }
+        } 
+        Err("Should return encrypted string".into()) 
+    } 
+
 }
 
 /// This module is required by `cargo pgrx test` invocations.
