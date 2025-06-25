@@ -8,7 +8,7 @@ use openssl::rsa::Padding;
 use pgp::{Deserializable,Message,SignedPublicKey};
 use pgp::crypto::sym::SymmetricKeyAlgorithm;
 use pgp::types::PublicKeyTrait;
-use pgrx::{debug1,info};
+use pgrx::{debug1};
 use rand_chacha::ChaCha12Rng;
 use rand_chacha::rand_core::SeedableRng;
 use std::time::{SystemTime,UNIX_EPOCH};

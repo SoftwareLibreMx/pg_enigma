@@ -250,8 +250,8 @@ impl PubKeysMap {
             return pub_key.encrypt(key_id, msg);
         }
         // retry from SQL is expected to be needed only once 
-        if let Some(pub_key) = self.from_sql(id)? {
-            return pub_key.encrypt(id, msg);
+        if let Some(pub_key) = self.from_sql(key_id)? {
+            return pub_key.encrypt(key_id, msg);
         }
         Err(format!("No public key with key_id: {}", key_id).into())
     }
@@ -260,17 +260,17 @@ impl PubKeysMap {
  * PRIVATE FUNCTIONS *
  * *******************/
 
-    fn from_sql(self: &'static PubKeysMap, id: i32) 
+    fn from_sql(self: &'static PubKeysMap, key_id: i32) 
     -> Result<Option<&'static PubKey>, 
     Box<(dyn std::error::Error + 'static)>> {
         // TODO: rename to public_ket_from_sql()
-        if let Some(armored_key) = get_public_key(id)? { // Key from SQL
-            debug1!("Key with ID {id}:\n{armored_key}");
-            let set_msg = self.set(id, &armored_key)?;
+        if let Some(armored_key) = get_public_key(key_id)? { // Key from SQL
+            debug1!("Key with ID {key_id}:\n{armored_key}");
+            let set_msg = self.set(key_id, &armored_key)?;
             info!("{set_msg}");
         }
         // return the key just been set
-        self.get(id)
+        self.get(key_id)
     }
 
 }
