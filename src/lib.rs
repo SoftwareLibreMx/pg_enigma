@@ -51,6 +51,10 @@ fn enigma_input_with_typmod(input: &CStr, oid: pg_sys::Oid, typmod: i32)
         debug1!("Unknown typmod: {}\noid: {:?}", typmod, oid);
         return Enigma::try_from(msg).unwrap(); // Plain is always Ok()
     }
+    /* TODO: find out where this comes from:
+2025-06-26 06:08:31.720 CST [14207] DEBUG:  enigma_input_with_typmod: ARGUMENTS: Input: *****, OID: 42417,  Typmod: 2
+2025-06-26 06:08:31.720 CST [14207] CONTEXT:  COPY test2, line 1, column b: "KEY:2
+     */
     let key_id = typmod;
     let encrypted = PUB_KEYS.encrypt(key_id, msg) // Result
                             .expect("Encrypt (input)"); // EnigmaMsg
