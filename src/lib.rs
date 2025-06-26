@@ -45,13 +45,14 @@ fn enigma_input_with_typmod(input: &CStr, oid: pg_sys::Oid, typmod: i32)
 			.to_str()
 			.expect("Enigma::input can't convert to str")
 			.to_string();
-    let plain = EnigmaMsg::plain(value);
+    //let plain = EnigmaMsg::plain(value);
+    let msg = EnigmaMsg::try_from(value).expect("Input error");
     if typmod == -1 { // unknown typmod 
         debug1!("Unknown typmod: {}\noid: {:?}", typmod, oid);
-        return Enigma::try_from(plain).unwrap(); // Plain is always Ok()
+        return Enigma::try_from(msg).unwrap(); // Plain is always Ok()
     }
     let key_id = typmod;
-    let encrypted = PUB_KEYS.encrypt(key_id, plain) // Result
+    let encrypted = PUB_KEYS.encrypt(key_id, msg) // Result
                             .expect("Encrypt (input)"); // EnigmaMsg
     Enigma::from(encrypted)
 }
@@ -114,7 +115,10 @@ fn enigma_output(e: Enigma) -> &'static CStr {
     // TODO: workaround double decrypt()
      // if decrypting key is not set, returns the same message
      match PRIV_KEYS.decrypt(message) {
-		Ok(m) => buffer.push_str(m.to_string().as_str()),
+		Ok(m) => {
+            let out = Enigma::from(m);
+            buffer.push_str(out.value.as_str());
+        },
 		Err(e) =>  panic!("Decrypt error: {}", e)
 	}
 
@@ -124,7 +128,11 @@ fn enigma_output(e: Enigma) -> &'static CStr {
 
 #[pg_extern(immutable, parallel_safe, requires = [ "shell_type" ])]
 fn enigma_send(e: Enigma) -> &'static [u8] {
-	enigma_output(e).to_bytes()
+	debug2!("enigma_send: Entering enigma_send");
+	let ret = e.value.clone();
+    let boxed_ret = Box::new(ret);
+    let static_ret: &'static String = Box::leak(boxed_ret);
+    &static_ret.as_bytes()
 }
 
 
