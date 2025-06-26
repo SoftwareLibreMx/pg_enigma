@@ -20,15 +20,11 @@ pg17 = ["pgrx/pg17", "pgrx-tests/pg17" ]
 pg_test = []
 
 [dependencies]
-lazy_static = "*"
 once_cell = "*"
 openssl = "~0.10.64"
 pgp = "~0.15.0"
 pgrx = "~0.14.0"
 rand_chacha = "*"
-rand = "*"
-regex = "1"
-serde = "1.0.202"
 
 [dev-dependencies]
 pgrx-tests = "~0.14.0"
