@@ -12,4 +12,4 @@
 
 ### Problemas conocidos en esta versión
 - El tipo `Enigma` sin typmod no se está cifrando https://git.softwarelibre.mx/SoftwareLibreMx/pg_enigma/issues/4
-- `pg_dump` no está volcando la envoltura completa de https://git.softwarelibre.mx/SoftwareLibreMx/pg_enigma/issues/5
+- `pg_dump` no está volcando la envoltura completa de Enigma https://git.softwarelibre.mx/SoftwareLibreMx/pg_enigma/issues/5
