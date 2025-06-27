@@ -1,7 +1,6 @@
-use crate::functions::get_public_key;
 use crate::message::*;
 use crate::priv_key::PrivKey;
-use crate::pub_key::PubKey;
+use crate::pub_key::{PubKey,get_public_key};
 use crate::traits::{Encrypt,Decrypt};
 use pgrx::{debug1,info};
 use std::collections::BTreeMap;

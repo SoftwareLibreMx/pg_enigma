@@ -8,7 +8,8 @@ use openssl::rsa::Padding;
 use pgp::{Deserializable,Message,SignedPublicKey};
 use pgp::crypto::sym::SymmetricKeyAlgorithm;
 use pgp::types::PublicKeyTrait;
-use pgrx::{debug1};
+use pgrx::datum::DatumWithOid;
+use pgrx::{debug1,PgBuiltInOids,Spi};
 use rand_chacha::ChaCha12Rng;
 use rand_chacha::rand_core::SeedableRng;
 use std::time::{SystemTime,UNIX_EPOCH};
@@ -84,6 +85,44 @@ impl Encrypt<String> for PubKey {
         let msg = EnigmaMsg::try_from(message)?;
         Ok(self.encrypt(id,msg)?.to_string())
     }
+}
+
+/// Get the public key from the keys table
+pub fn get_public_key(id: i32) -> Result<Option<String>, pgrx::spi::Error> {
+    // if ! exists_key_table()? { return Ok(None); }
+    let query = "SELECT public_key FROM _enigma_public_keys WHERE id = $1";
+    let args = unsafe { 
+        [ DatumWithOid::new(id, PgBuiltInOids::INT4OID.value()) ]
+    };
+    Spi::connect(|client| {
+        let tuple_table = client.select(query, Some(1), &args)?;
+        if tuple_table.len() == 0 {
+            Ok(None)
+        } else {
+            tuple_table.first().get_one::<String>()
+        }
+    })
+
+}
+
+/// Inserts the armored public key as text in table _enigma_public_keys
+pub fn insert_public_key(id: i32, key: &str)
+-> Result<Option<String>, pgrx::spi::Error> {
+    // create_key_table()?;
+    let args = unsafe {
+        [
+            DatumWithOid::new(id,  PgBuiltInOids::INT4OID.value()),
+            DatumWithOid::new(key, PgBuiltInOids::TEXTOID.value()),
+        ]
+    };
+    Spi::get_one_with_args(
+        r#"INSERT INTO _enigma_public_keys(id, public_key)
+           VALUES ($1, $2)
+           ON CONFLICT(id)
+           DO UPDATE SET public_key=$2
+           RETURNING 'Public key set'"#,
+         &args
+    )
 }
 
 /*********************
