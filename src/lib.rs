@@ -97,7 +97,12 @@ fn enigma_output(e: Enigma) -> &'static CStr {
     // TODO: workaround double decrypt()
      // if decrypting key is not set, returns the same message
      match PRIV_KEYS.decrypt(message) {
+        // plain message without envelopes
+        // required for SELECT when private key is set
 		Ok(m) if m.is_plain() => buffer.push_str(m.to_string().as_str()),
+        // Encrypted message with Enigam envelopes
+        // required for pg_dump. 
+        // TODO: try to differentiate between pg_dump and SELECT
 		Ok(m) => {
             let out = Enigma::from(m);
             buffer.push_str(out.value.as_str());
