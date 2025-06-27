@@ -1,4 +1,4 @@
-### version 0.1.0
+## Version 0.1.0
 
 ### First public release
 - Encrypts on `INSERT`
@@ -6,7 +6,7 @@
 - Supports different public keys for each column by using different typmod
 - Public keys catalog remains persistent between sessions
 - Private keys are set sesion-specific. 
-    - Different sessions have no access to other sessions' private keys
+    - No session has access to other sessions' private keys
     - Once the connection closes, all private keys are vanished
     - Function `forget_private_key(id)` can be used to forget a private key before connection closes
 
