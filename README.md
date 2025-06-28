@@ -8,12 +8,8 @@ Encrypted postgres data type for fun and profit
 
 Install the Rust toolchain version 1.74 or nwer.
 
-Initialize pgrx. It only works with version 0.12.0-beta.3 and newer
-but cargo will default to non-alpha versions so we need to specify it
-explicitly.
-
 ```bash
-$ cargo install --locked cargo-pgrx@0.12.0-beta.3
+$ cargo install --locked cargo-pgrx
 $ cargo pgrx init
 ```
 
@@ -30,10 +26,10 @@ $ cargo pgrx run
 CREATE EXTENSION pg_enigma;
 CREATE TABLE testab (
     a SERIAL, 
-    b Enigma
+    b Enigma(2)
 );
 
-SELECT set_public_key_from_file(1, '../../pg_enigma/test/public-key.asc'); 
+SELECT set_public_key_from_file(2, '../../pg_enigma/test/public-key.asc'); 
 
 INSERT INTO testab (b) VALUES ('my first record');
 SELECT * FROM testab;
@@ -61,22 +57,22 @@ pg_enigma=# SELECT * FROM testab;
 Now provide the private key using `set_private_key_from_file()` function:
 
 ```sql
-SELECT set_private_key_from_file(1, 
-	'/path/to/private-key.asc', 'Private key passphrase');
-SELECT * FROM testab limit 1;
+SELECT set_private_key_from_file(2, 
+        '../../pg_enigma/test/private-key.asc', 'Prueba123!');
+SELECT * FROM testab;
 ```
 
 Expected result:
 
 ```sql
-pg_enigma=# SELECT set_private_key_from_file(1, 
+pg_enigma=# SELECT set_private_key_from_file(2, 
         '../../pg_enigma/test/private-key.asc', 'Prueba123!');
           set_private_key_from_file          
 ---------------------------------------------
  key 1: secret key CB7D5DA21AF8B860 imported
 (1 row)
 
-pg_enigma=# SELECT * FROM testab limit 1;
+pg_enigma=# SELECT * FROM testab;
  a |        b        
 ---+-----------------
  1 | my first record
@@ -120,10 +116,10 @@ pg_enigma=# SELECT * FROM testab limit 1;
 CREATE EXTENSION pg_enigma;
 CREATE TABLE testab (
     a SERIAL, 
-    b Enigma
+    b Enigma(3)
 );
 
-SELECT set_public_key_from_file(1, 
+SELECT set_public_key_from_file(3, 
     '../../pg_enigma/test/alice_public.pem'); 
 
 INSERT INTO testab (b) VALUES ('my first record');
@@ -146,7 +142,7 @@ N2E+xKX1xkxgji7vIKx0XXAXC9pQEC1gMtQYHyOBA=
 Now provide the private key using `set_private_key_from_file()` function:
 
 ```sql
-SELECT set_private_key_from_file(1, 
+SELECT set_private_key_from_file(3, 
 	'/path/to/private-key.asc', 'Private key passphrase');
 SELECT * FROM testab limit 1;
 ```
@@ -154,7 +150,7 @@ SELECT * FROM testab limit 1;
 Expected result:
 
 ```sql
-pg_enigma=# SELECT set_private_key_from_file(1, 
+pg_enigma=# SELECT set_private_key_from_file(3, 
     '../../pg_enigma/test/alice_private.pem', 'Prueba123!');
    set_private_key_from_file   
 -------------------------------
@@ -199,7 +195,7 @@ N2E+xKX1xkxgji7vIKx0XXAXC9pQEC1gMtQYHyOBA=
 ### Cleanup:
 ```sql
 DROP TABLE testab;
-DROP EXTENSION pg_enigma;
+DROP EXTENSION pg_enigma CASCADE;
 ```
 
 ## Roadmap
@@ -219,3 +215,4 @@ For creating the data type we will use the pgrx framework [1].
 
 1. https://github.com/pgcentralfoundation/pgrx
 2. https://docs.rs/pgp/latest/pgp/index.html
+3. https://docs.rs/openssl/latest/openssl/ssl/index.html
