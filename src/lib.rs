@@ -156,9 +156,10 @@ fn enigma_output(e: Enigma) -> &'static CStr {
 }
 
 #[pg_extern(immutable, parallel_safe, requires = [ "shell_type" ])]
-fn enigma_send(e: Enigma) -> &'static [u8] {
+fn enigma_send(e: Enigma) -> Vec<u8> {
 	debug2!("enigma_send");
-	enigma_output(e).to_bytes()
+    // message is decrypted in FromDatum
+    e.to_string().into_bytes()
 }
 
 
