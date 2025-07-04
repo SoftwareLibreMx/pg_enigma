@@ -32,7 +32,7 @@ impl TryFrom<String> for EnigmaMsg {
     fn try_from(value: String) -> Result<Self, Self::Error> {
         if value.starts_with(PLAIN_BEGIN)
         && value.ends_with(PLAIN_END) {
-            //debug5!{"Plain value: {value}"}
+            debug2!{"Plain value: {value}"}
             return Ok(from_plain_envelope(value));
         }
 

@@ -44,13 +44,17 @@ fn enigma_input_with_typmod(input: &CStr, oid: pg_sys::Oid, typmod: i32)
 			.to_str()
 			.expect("Enigma::input can't convert to str")
 			.to_string();
-    let plain = EnigmaMsg::plain(value);
+    let msg = EnigmaMsg::try_from(value).expect("Input error");
     if typmod == -1 { // unknown typmod 
         debug1!("Unknown typmod: {}\noid: {:?}", typmod, oid);
-        return Enigma::try_from(plain).unwrap(); // Plain is always Ok()
+        return Enigma::try_from(msg).unwrap(); // Plain is always Ok()
     }
+    /* TODO: find out where this comes from:
+2025-06-26 06:08:31.720 CST [14207] DEBUG:  enigma_input_with_typmod: ARGUMENTS: Input: *****, OID: 42417,  Typmod: 2
+2025-06-26 06:08:31.720 CST [14207] CONTEXT:  COPY test2, line 1, column b: "KEY:2
+     */
     let key_id = typmod;
-    let encrypted = PUB_KEYS.encrypt(key_id, plain) // Result
+    let encrypted = PUB_KEYS.encrypt(key_id, msg) // Result
                             .expect("Encrypt (input)"); // EnigmaMsg
     Enigma::from(encrypted)
 }
@@ -93,7 +97,16 @@ fn enigma_output(e: Enigma) -> &'static CStr {
     // TODO: workaround double decrypt()
      // if decrypting key is not set, returns the same message
      match PRIV_KEYS.decrypt(message) {
-		Ok(m) => buffer.push_str(m.to_string().as_str()),
+        // plain message without envelopes
+        // required for SELECT when private key is set
+		Ok(m) if m.is_plain() => buffer.push_str(m.to_string().as_str()),
+        // Encrypted message with Enigam envelopes
+        // required for pg_dump. 
+        // TODO: try to differentiate between pg_dump and SELECT
+		Ok(m) => {
+            let out = Enigma::from(m);
+            buffer.push_str(out.value.as_str());
+        },
 		Err(e) =>  panic!("Decrypt error: {}", e)
 	}
 
