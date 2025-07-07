@@ -15,7 +15,7 @@ use pgrx::pgrx_sql_entity_graph::metadata::{
     ArgumentError, Returns, ReturnsError, SqlMapping, SqlTranslatable,
 };
 use pgrx::callconv::{ArgAbi, BoxRet};
-use pgrx::datum::Datum;
+use pgrx::datum::{Datum,Internal};
 use pgrx::pg_sys::Oid;
 use std::fmt::{Display, Formatter};
 use std::fs;
@@ -83,6 +83,47 @@ fn enigma_cast(original: Enigma, typmod: i32, explicit: bool) -> Enigma {
     Enigma::from(msg)
 }
 
+/** TODO: Receive function for Enigma
+    The optional receive_function converts the type's external binary 
+    representation to the internal representation.
+    The receive function can be declared as taking one argument of type 
+    internal, or as taking three arguments of types internal, oid, integer.
+    The first argument is a pointer to a StringInfo buffer holding the 
+    received byte string; the optional arguments are the same as for the 
+    text input function. 
+    The receive function must return a value of the data type itself. */
+
+#[pg_extern(immutable, parallel_safe, requires = [ "shell_type" ])]
+fn enigma_receive_with_typmod(internal: Internal, oid: Oid, typmod: i32) 
+-> Enigma {
+	//debug2!("enigma_receive");
+    debug2!("enigma_receive_with_typmod: \
+            ARGUMENTS: Input: *****, OID: {:?},  Typmod: {}", oid, typmod);
+    let buf = unsafe { 
+        internal.get_mut::<::pgrx::pg_sys::StringInfoData>().unwrap() 
+    };
+    let mut serialized = ::pgrx::StringInfo::new();
+    serialized.push_bytes(&[0u8; ::pgrx::pg_sys::VARHDRSZ]); // reserve space for the header
+    serialized.push_bytes(unsafe {
+        core::slice::from_raw_parts(
+            buf.data as *const u8,
+            buf.len as usize
+        )
+    });
+
+    let value = serialized.as_str().unwrap().to_string();
+    let plain = EnigmaMsg::plain(value);
+    //Enigma::try_from(plain).unwrap() // Plain is always Ok()
+    if typmod == -1 { // unknown typmod 
+        debug1!("Unknown typmod: {}\noid: {:?}", typmod, oid);
+        return Enigma::try_from(plain).unwrap(); // Plain is always Ok()
+    }
+    let key_id = typmod;
+    let encrypted = PUB_KEYS.encrypt(key_id, plain) // Result
+                            .expect("Encrypt (input)"); // EnigmaMsg
+    Enigma::from(encrypted) 
+} 
+
 
 // Send to postgres
 // TODO check if we can return just StringInfo
@@ -112,6 +153,13 @@ fn enigma_output(e: Enigma) -> &'static CStr {
 
 	//TODO try to avoid this unsafe
 	unsafe { buffer.leak_cstr() }
+}
+
+#[pg_extern(immutable, parallel_safe, requires = [ "shell_type" ])]
+fn enigma_send(e: Enigma) -> Vec<u8> {
+	debug2!("enigma_send");
+    // message is decrypted in FromDatum
+    e.to_string().into_bytes()
 }
 
 
@@ -225,12 +273,14 @@ extension_sql!(
         CREATE TYPE enigma (
             INPUT  = enigma_input_with_typmod,
             OUTPUT = enigma_output,
+            RECEIVE = enigma_receive_with_typmod,
+            SEND = enigma_send,
             TYPMOD_IN = enigma_type_modifier_input
         );
     "#,
     name = "concrete_type",
     creates = [Type(Enigma)],
-    requires = ["shell_type", enigma_input_with_typmod, enigma_output, enigma_type_modifier_input],
+    requires = ["shell_type", enigma_input_with_typmod, enigma_output, enigma_receive_with_typmod, enigma_send, enigma_type_modifier_input],
 );
 
 // Creates the casting function so we can get the key id in the
