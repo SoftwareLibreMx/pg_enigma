@@ -1,3 +1,15 @@
+## Version 0.2.0
+
+### Fixes
+- Dead lock in PubKeysMap::get() 
+- pg_dump not dumping enigma envelope
+
+### Features
+- SEND and RECEIVE functions
+
+### Known issues
+- https://git.softwarelibre.mx/SoftwareLibreMx/pg_enigma/issues/4
+
 ## Version 0.1.0
 
 ### First public release

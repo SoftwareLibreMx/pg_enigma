@@ -1,3 +1,15 @@
+## Versión 0.2.0
+
+### Correcciones
+- Dead lock en PubKeysMap::get()
+- pg_dump no volcaba la envoltura de enigma
+
+### Funcionalidad
+- Funciones SEND y RECEIVE
+
+### Problemas conocidos 
+- https://git.softwarelibre.mx/SoftwareLibreMx/pg_enigma/issues/4
+
 ## Versión 0.1.0
 
 ### Primera liberación pública
