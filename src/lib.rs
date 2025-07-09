@@ -494,6 +494,29 @@ SELECT 'my CAST test record'::Enigma(2);
         Err("Should return encrypted string".into()) 
     } 
 
+    /// Insert a row in the table, then set private key and then 
+    /// query the decrypted value.
+    /// Using `CAST(Enigma AS Text)` will force casting througn the 
+    /// OUTPUT function.
+    #[pg_test]
+    fn e12_select_cast_as_text()  -> Result<(), Box<dyn Error>> {
+        Spi::run(
+        "
+CREATE TABLE testab ( a SERIAL, b Enigma(2));
+SELECT set_public_key_from_file(2, '../../../test/public-key.asc'); 
+INSERT INTO testab (b) VALUES ('my PGP test record');
+SELECT set_private_key_from_file(2, 
+    '../../../test/private-key.asc', 'Prueba123!'); 
+        ")? ; 
+        if let Some(res) = Spi::get_one::<String>("
+SELECT CAST(b AS Text) FROM testab LIMIT 1;
+        ")? {
+            info!("Decrypted value: {}", res);
+            if res.as_str() == "my PGP test record" { return Ok(()); }
+        } 
+        Err("Should return decrypted string".into()) 
+    } 
+
 }
 
 /// This module is required by `cargo pgrx test` invocations.
