@@ -7,14 +7,13 @@
 %define debug_package %{nil}
 
 Name:           %{base_name}-pg%{pgmajorversion}
-Version:        0.1.0
+Version:        0.2.0
 Release:        1%{?dist}
 Summary:        Column level encryption for PostgreSQL
 
 License:        PostgreSQL
 URL:            https://git.softwarelibre.mx/SoftwareLibreMx/%{base_name}
-Source0:        %{url}/archive/v%{version}.tar.gz
-
+Source0:        %{url}/archive/%{base_name}-%{version}.tar.gz
 
 BuildRequires:  postgresql-server-devel
 BuildRequires:  postgresql-private-devel
@@ -62,6 +61,10 @@ install -m 755 %{buildpath}%{pg_sharedir}/extension/%{base_name}--%{version}.sql
 %{pg_sharedir}/extension/%{base_name}*.sql
 
 %changelog
+* Wed Jul 09 2025 Iván Chavero <ichavero@chavero.com.mx> - 0.2.0-1
+- Updated upstream package format
+- Bump version to 0.2.0
+
 * Mon Jul 07 2025 Iván Chavero <ichavero@chavero.com.mx> - 0.1.0-1
 - Initial RPM release.
 
