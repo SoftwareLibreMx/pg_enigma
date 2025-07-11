@@ -631,6 +631,7 @@ impl FromDatum for Enigma {
 
 impl IntoDatum for Enigma {
     fn into_datum(self) -> Option<pg_sys::Datum> {
+        // TODO: if self.value.is_enigma()
         Some(
 			self.value
 				.into_datum()
