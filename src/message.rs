@@ -125,14 +125,14 @@ impl EnigmaMsg {
         Self::Plain(value)
     }
 
-    pub fn pgp(id: i32, value: pgp::Message) -> Self {
+    pub fn pgp(id: u32, value: pgp::Message) -> Self {
         // TODO: u32 key_id
-        Self::PGP(id as u32, value)
+        Self::PGP(id, value)
     }
 
-    pub fn rsa(id: i32, value: String) -> Self {
+    pub fn rsa(id: u32, value: String) -> Self {
         // TODO: u32 key_id
-        Self::RSA(id as u32, value)
+        Self::RSA(id, value)
     }
 
     pub fn is_encrypted(&self) -> bool {
@@ -152,12 +152,12 @@ impl EnigmaMsg {
         matches!(*self, Self::Plain(_))
     }
 
-    pub fn key_id(&self) -> Option<i32> {
+    pub fn key_id(&self) -> Option<u32> {
         match self {
             // TODO: u32 key_id
-            Self::RSA(k,_) => Some(*k as i32),
+            Self::RSA(k,_) => Some(*k),
             // TODO: u32 key_id
-            Self::PGP(k,_) => Some(*k as i32),
+            Self::PGP(k,_) => Some(*k),
             Self::Plain(_) => None
         }
     }

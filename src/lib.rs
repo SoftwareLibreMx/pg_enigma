@@ -193,7 +193,10 @@ pub fn enigma_type_modifier_input(cstrings: pgrx::Array<'_, &CStr>) -> i32 {
 #[pg_extern]
 fn set_private_key(id: i32, key: &str, pass: &str)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
-    PRIV_KEYS.set(id, key, pass)
+    if id < 1 {
+        return Err("Key id must be a positive integer".into());
+    }
+    PRIV_KEYS.set(id as u32, key, pass)
 }   
 
 
@@ -203,8 +206,11 @@ fn set_private_key(id: i32, key: &str, pass: &str)
 #[pg_extern]
 fn set_public_key(id: i32, key: &str)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
+    if id < 1 {
+        return Err("Key id must be a positive integer".into());
+    }
     match insert_public_key(id, key)? {
-        Some(_) => PUB_KEYS.set(id, key),
+        Some(_) => PUB_KEYS.set(id as u32, key),
         None => Err(format!("No key ({}) inserted", id).into())
     }
 }
@@ -213,14 +219,20 @@ fn set_public_key(id: i32, key: &str)
 #[pg_extern]
 fn forget_private_key(id: i32)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
-    PRIV_KEYS.del(id)
+    if id < 1 {
+        return Err("Key id must be a positive integer".into());
+    }
+    PRIV_KEYS.del(id as u32)
 }
 
 /// Delete the public key from memory (PubKeysMap)
 #[pg_extern]
 fn forget_public_key(id: i32)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
-    PUB_KEYS.del(id)
+    if id < 1 {
+        return Err("Key id must be a positive integer".into());
+    }
+    PUB_KEYS.del(id as u32)
 }
 
 /// Sets the private key reading it from a file

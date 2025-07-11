@@ -11,7 +11,7 @@ use std::sync::RwLock;
  * ******************/
 pub struct PrivKeysMap {
     /// each `BTreeMap` entry is a reference to a `PrivKey` structure
-    keys: RwLock<BTreeMap<i32,&'static PrivKey>>,
+    keys: RwLock<BTreeMap<u32,&'static PrivKey>>,
 }
 
 /// Functions for private keys map
@@ -28,7 +28,7 @@ impl PrivKeysMap {
 
     /// Sets the `PrivKeysMap` `id` to the `PrivKey` obtained from the
     /// provides armored key and plain text password
-    pub fn set(&self, id: i32, armored_key: &str, pw: &str)
+    pub fn set(&self, id: u32, armored_key: &str, pw: &str)
     -> Result<String, Box<(dyn std::error::Error + 'static)>> {
         let key = PrivKey::new(armored_key, pw)?; // key with '1 lifetime
         let priv_id = key.priv_key_id();
@@ -61,7 +61,7 @@ impl PrivKeysMap {
     
     /// Removes key from the `PrivKeysMap`. 
     /// Once the key gets out of scope, it's supposed to be dropped.
-    pub fn del(&'static self, id: i32) 
+    pub fn del(&'static self, id: u32) 
     -> Result<String, Box<(dyn std::error::Error + 'static)>> {
         let old = match self.keys.write() {
             Ok(mut m) => {
@@ -84,7 +84,7 @@ impl PrivKeysMap {
     }
 
     /// Gets reference to `PrivKey` from `PrivKeysMap` entry with `id` 
-    pub fn get(self: &'static PrivKeysMap, id: i32) 
+    pub fn get(self: &'static PrivKeysMap, id: u32) 
     -> Result<Option<&'static PrivKey>, 
     Box<(dyn std::error::Error + 'static)>> {
         let binding = self.keys.read()?;
@@ -146,7 +146,7 @@ impl PrivKeysMap {
  * *****************/
 pub struct PubKeysMap {
     /// each `BTreeMap` entry is a reference to a `PubKey` structure
-    keys: RwLock<BTreeMap<i32,&'static PubKey>>,
+    keys: RwLock<BTreeMap<u32,&'static PubKey>>,
 }
 
 /// Functions for private keys map
@@ -163,7 +163,7 @@ impl PubKeysMap {
 
     /// Sets the `PubKeysMap` `id` to the `PubKey` obtained from the
     /// provides armored key and plain text password
-    pub fn set(&self, id: i32, armored_key: &str)
+    pub fn set(&self, id: u32, armored_key: &str)
     -> Result<String, Box<(dyn std::error::Error + 'static)>> {
         let key = PubKey::new(armored_key)?; // key with '1 lifetime
         let pub_id = key.pub_key_id();
@@ -196,7 +196,7 @@ impl PubKeysMap {
 
     /// Removes key from the `PubKeysMap`. 
     /// Once the key gets out of scope, it's supposed to be dropped.
-    pub fn del(&'static self, id: i32) 
+    pub fn del(&'static self, id: u32) 
     -> Result<String, Box<(dyn std::error::Error + 'static)>> {
         let old = match self.keys.write() {
             Ok(mut m) => {
@@ -219,7 +219,7 @@ impl PubKeysMap {
     }
 
     /// Gets reference to `PubKey` from `PubKeysMap` entry with `id` 
-    pub fn get(self: &'static PubKeysMap, id: i32) 
+    pub fn get(self: &'static PubKeysMap, id: u32) 
     -> Result<Option<&'static PubKey>, 
     Box<(dyn std::error::Error + 'static)>> {
         let binding = self.keys.read()?;
@@ -235,8 +235,12 @@ impl PubKeysMap {
     /// Will look for the encryption key in it's key map and call
     /// the key's `encrypt()` function to encrypt the message.
     /// If no encrypting key is found, returns an error message.
-    pub fn encrypt(self: &'static PubKeysMap, key_id: i32, msg: EnigmaMsg) 
+    pub fn encrypt(self: &'static PubKeysMap, id: i32, msg: EnigmaMsg) 
     -> Result<EnigmaMsg, Box<(dyn std::error::Error + 'static)>> {
+        if id < 1 { // TODO: Support Key ID 0
+            return Err("Key id must be a positive integer".into());
+        }
+        let key_id: u32 = id as u32;
         if let Some(msgid) = msg.key_id() { // message is encrypted
             if msgid == key_id {
                 info!("Already encrypted with key ID {msgid}"); 
@@ -259,11 +263,12 @@ impl PubKeysMap {
  * PRIVATE FUNCTIONS *
  * *******************/
 
-    fn from_sql(self: &'static PubKeysMap, key_id: i32) 
+    fn from_sql(self: &'static PubKeysMap, key_id: u32) 
     -> Result<Option<&'static PubKey>, 
     Box<(dyn std::error::Error + 'static)>> {
         // TODO: rename to public_ket_from_sql()
-        if let Some(armored_key) = get_public_key(key_id)? { // Key from SQL
+        // get_public_key() reads Key from SQL
+        if let Some(armored_key) = get_public_key(key_id as i32)? { 
             debug1!("Key with ID {key_id}:\n{armored_key}");
             let set_msg = self.set(key_id, &armored_key)?;
             info!("{set_msg}");
