@@ -4,7 +4,6 @@
 %global pg_libdir %{pginstdir}/lib64/pgsql
 %global pg_sharedir %{pginstdir}/share/pgsql
 %global buildpath %{_builddir}/pg_enigma/target/release/%{name}
-%define debug_package %{nil}
 
 Name:           %{base_name}-pg%{pgmajorversion}
 Version:        0.2.0
