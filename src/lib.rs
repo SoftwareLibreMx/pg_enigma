@@ -94,7 +94,7 @@ fn enigma_cast(original: Enigma, typmod: i32, explicit: bool) -> Enigma {
     The receive function must return a value of the data type itself. */
 
 #[pg_extern(immutable, parallel_safe, requires = [ "shell_type" ])]
-fn enigma_receive_with_typmod(internal: Internal, oid: Oid, typmod: i32) 
+fn enigma_receive_with_typmod(mut internal: Internal, oid: Oid, typmod: i32) 
 -> Enigma {
 	//debug2!("enigma_receive");
     debug2!("enigma_receive_with_typmod: \
@@ -263,36 +263,14 @@ fn set_public_key_from_file(id: i32, file_path: &str)
 **************************************************************************/
 
 
-// Create the type manually
-extension_sql!(
-    r#"
-        CREATE TABLE IF NOT EXISTS _enigma_public_keys (
-            id INT PRIMARY KEY,
-            public_key TEXT 
-        );
-        CREATE TYPE enigma;
-    "#,
-    name = "shell_type",
-    // declare this extension_sql block as the "bootstrap" block 
-    // so it happens first in sql generation
-    bootstrap 
-);
+// Enigma shell_type
+extension_sql_file!("../sql/shell_type.sql", bootstrap);
 
 
 // Create the real type
-extension_sql!(
-    r#"
-        CREATE TYPE enigma (
-            INPUT  = enigma_input_with_typmod,
-            OUTPUT = enigma_output,
-            RECEIVE = enigma_receive_with_typmod,
-            SEND = enigma_send,
-            TYPMOD_IN = enigma_type_modifier_input
-        );
-    "#,
-    name = "concrete_type",
-    creates = [Type(Enigma)],
-    requires = ["shell_type", enigma_input_with_typmod, enigma_output, enigma_receive_with_typmod, enigma_send, enigma_type_modifier_input],
+extension_sql_file!("../sql/concrete_type.sql", creates = [Type(Enigma)],
+    requires = ["shell_type", enigma_input_with_typmod, enigma_output, 
+    enigma_receive_with_typmod, enigma_send, enigma_type_modifier_input],
 );
 
 // Creates the casting function so we can get the key id in the
@@ -300,11 +278,7 @@ extension_sql!(
 // the typmod to the input function.
 // https://stackoverflow.com/questions/40406662/postgres-doc-regaring-input-function-for-create-type-does-not-seem-to-be-correct/74426960#74426960
 // https://www.postgresql.org/message-id/67091D2B.5080002%40acm.org
-extension_sql!(
-    r#"
-    CREATE CAST (enigma AS enigma) WITH FUNCTION enigma_cast AS IMPLICIT;
-    "#,
-    name = "enigma_casts",
+extension_sql_file!("../sql/enigma_casts.sql",
     requires = ["concrete_type", enigma_cast]
 );
 
