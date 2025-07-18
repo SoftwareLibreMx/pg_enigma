@@ -1,0 +1,22 @@
+diff -uri 17.5.orig/src/backend/parser/parse_coerce.c 17.5/src/backend/parser/parse_coerce.c
+--- 17.5.orig/src/backend/parser/parse_coerce.c	2025-05-05 14:28:35.000000000 -0600
++++ 17.5/src/backend/parser/parse_coerce.c	2025-07-18 01:50:59.641806430 -0600
+@@ -276,7 +276,7 @@
+ 		 * or it won't be able to obey the bizarre SQL-spec input rules. (Ugly
+ 		 * as sin, but so is this part of the spec...)
+ 		 */
+-		if (baseTypeId == INTERVALOID)
++		if (baseTypeId == INTERVALOID || baseTypeId >= MINAUTOASSIGNEDOID)
+ 			inputTypeMod = baseTypeMod;
+ 		else
+ 			inputTypeMod = -1;
+diff -uri 17.5.orig/src/include/catalog/pg_type_d.h 17.5/src/include/catalog/pg_type_d.h
+--- 17.5.orig/src/include/catalog/pg_type_d.h	2025-07-17 18:47:52.500935732 -0600
++++ 17.5/src/include/catalog/pg_type_d.h	2025-07-18 01:53:51.539310312 -0600
+@@ -320,5 +320,6 @@
+ #define DATEMULTIRANGEARRAYOID 6155
+ #define INT8MULTIRANGEARRAYOID 6157
+ #define CSTRINGARRAYOID 1263
++#define MINAUTOASSIGNEDOID 16384
+ 
+ #endif							/* PG_TYPE_D_H */
