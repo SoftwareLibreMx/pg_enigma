@@ -94,7 +94,7 @@ fn enigma_cast(original: Enigma, typmod: i32, explicit: bool) -> Enigma {
     The receive function must return a value of the data type itself. */
 
 #[pg_extern(immutable, parallel_safe, requires = [ "shell_type" ])]
-fn enigma_receive_with_typmod(internal: Internal, oid: Oid, typmod: i32) 
+fn enigma_receive_with_typmod(mut internal: Internal, oid: Oid, typmod: i32) 
 -> Enigma {
 	//debug2!("enigma_receive");
     debug2!("enigma_receive_with_typmod: \
