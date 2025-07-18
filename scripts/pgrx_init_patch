@@ -1,0 +1,29 @@
+#!/bin/bash
+
+BASE_PATH=$( readlink -f $( dirname $0)/../ )
+PATCH_13=${BASE_PATH}/postgres/patch/postgres-13_parse_coerce.diff
+PATCH_17=${BASE_PATH}/postgres/patch/postgres-17_parse_coerce.diff
+
+function apply_patch {
+	pushd $1
+	patch -p1 -f < $2
+	make
+	make install
+	popd
+}
+
+for V in {13..16} ; do
+	for P in ~/.pgrx/$V.{0..99} ; do
+		if [[ -d $P ]] ; then
+			apply_patch $P $PATCH_13
+		fi
+	done
+done
+
+V=17
+	for P in ~/.pgrx/$V.{0..99} ; do
+		if [[ -d $P ]] ; then
+			apply_patch $P $PATCH_17
+		fi
+	done
+
