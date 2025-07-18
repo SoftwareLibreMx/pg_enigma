@@ -45,15 +45,15 @@ fn enigma_input_with_typmod(input: &CStr, oid: pg_sys::Oid, typmod: i32)
 			.expect("Enigma::input can't convert to str")
 			.to_string();
     let msg = EnigmaMsg::try_from(value).expect("Input error");
-    if typmod == -1 { // unknown typmod 
-        debug1!("Unknown typmod: {}\noid: {:?}", typmod, oid);
-        return Enigma::try_from(msg).unwrap(); // Plain is always Ok()
+    let key_id;
+
+    if typmod == -1 { // No typmod, use key_id 0
+        key_id = 0;
+    } else if typmod < 0 {
+        panic!("Typmod must be greater than zero");
+    } else {
+        key_id = typmod;
     }
-    /* TODO: find out where this comes from:
-2025-06-26 06:08:31.720 CST [14207] DEBUG:  enigma_input_with_typmod: ARGUMENTS: Input: *****, OID: 42417,  Typmod: 2
-2025-06-26 06:08:31.720 CST [14207] CONTEXT:  COPY test2, line 1, column b: "KEY:2
-     */
-    let key_id = typmod;
     let encrypted = PUB_KEYS.encrypt(key_id, msg) // Result
                             .expect("Encrypt (input)"); // EnigmaMsg
     Enigma::from(encrypted)
@@ -179,7 +179,7 @@ pub fn enigma_type_modifier_input(cstrings: pgrx::Array<'_, &CStr>) -> i32 {
 
     debug2!("enigma_type_modifier_input:: value {}", 
         rust_strings[0].parse::<i32>().unwrap());
-
+    // TODO: Validate typmod > 0
     rust_strings[0]
         .parse::<i32>()
         .expect("Canto convert typmod to integer")
