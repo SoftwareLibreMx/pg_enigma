@@ -16,7 +16,18 @@ Next 8 octets are hex-encoded 32-bit integer corresponding to enigma key_id in *
 
 This fixed size header is for parsing efficiency.
 
-More keys is reserved for future use as hex-encoded 64-bit PGP IDs or a 32-bit enigma key_ids casted as 64-bit integer.
+### More Keys header 
+More Keys header is reserved for future use as hex-encoded 64-bit PGP IDs or a 32-bit enigma key_ids casted as 64-bit integer.
+
+First 8 octets are More Keys tag `0x4D4F52454B455953`. It's value can be verified as 32-bit integer or as string `MOREKEYS`.
+
+Next 8 octets are zero padding `0x3030303030303030` after More Keys tag, forcompleting 16-octet alignment.
+
+Next 16 octets (and so on) are hex-encoded key-id. It's future use is still to be defined.
+
+More Keys header's length is multiple of 16. Any other length not multiple of 16 must be rejected as a corrupt header.
+
+### Separator
 
 Separator `\n` ends Enigma header. All keys in header are hex-encoded, so first non-hex character `\n` is non-ambiguous separator for string handling functions.
 
