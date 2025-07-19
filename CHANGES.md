@@ -1,5 +1,18 @@
 ## Version 0.2.0
 
+### Features
+- RPM spec compiling on Fedora 42
+- Support pgrx 0.15.0
+- Enigma envelope refactor: New Enigma fixed-size header
+- key map index is now `u32`
+- pgrx Tests for `CAST(Enigma AS Text)`
+
+### Known issues
+- https://git.softwarelibre.mx/SoftwareLibreMx/pg_enigma/issues/4 postgresql-typmod-patch provides a patch for Postgres to fix this issue.
+
+
+## Version 0.2.0
+
 ### Fixes
 - Dead lock in PubKeysMap::get() 
 - pg_dump not dumping enigma envelope
@@ -9,6 +22,7 @@
 
 ### Known issues
 - https://git.softwarelibre.mx/SoftwareLibreMx/pg_enigma/issues/4
+
 
 ## Version 0.1.0
 

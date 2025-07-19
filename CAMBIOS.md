@@ -1,3 +1,15 @@
+## Versión 0.3.0
+
+### Funcionalidad
+- spec de RPM compilando en Fedora 42
+- Soporte para pgrx 0.15.0
+- Resiseño de la envoltura de Enigma: Nuevo encabezado de tamaño fijo
+- El índice del mapa de llaves ahora es `u32`
+- Pruebas de pgrx para `CAST(Enigma AS Text)`
+
+### Problemas conocidos 
+- https://git.softwarelibre.mx/SoftwareLibreMx/pg_enigma/issues/4 La rama postgresql-typmod-patch provee un parche para Postgres que resuelve este problema.
+
 ## Versión 0.2.0
 
 ### Correcciones
@@ -9,6 +21,7 @@
 
 ### Problemas conocidos 
 - https://git.softwarelibre.mx/SoftwareLibreMx/pg_enigma/issues/4
+
 
 ## Versión 0.1.0
 
