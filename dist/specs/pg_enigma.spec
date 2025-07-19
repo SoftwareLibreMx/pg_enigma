@@ -2,6 +2,7 @@
 %global buildpath %{_builddir}/pg_enigma/target/release/%{name}-pg%{pg_version}
 %global pg_libdir %{_libdir}/pgsql/
 %global pg_sharedir %{_datadir}/pgsql/extension/
+%global enigma_mirror https://github.com/SoftwareLibreMx/pg_enigma/archive/refs/tags/
 
 Name:           pg_enigma
 Version:        0.2.1
@@ -10,7 +11,8 @@ Summary:        Column level encryption for PostgreSQL
 
 License:        PostgreSQL
 URL:            https://git.softwarelibre.mx/SoftwareLibreMx/%{name}
-Source0:        %{url}/archive/%{name}-%{version}.tar.gz
+# Use github mirror for Source0
+Source0:        %{enigma_mirror}%{name}-%{version}.tar.gz
 
 BuildRequires:  cargo
 # TODO: BuildRequires: cargo-pgrx
@@ -51,13 +53,12 @@ export PGRX_PG_CONFIG_PATH=/usr/bin/pg_config
 cargo pgrx package --no-default-features --features=pg%{pg_version} --verbose
 
 %install
-rm -rf %{buildroot}
 install -d %{buildroot}%{pg_libdir}
 install -d %{buildroot}%{pg_sharedir}
 
-install -m 755 %{buildpath}%{pg_libdir}%{name}.so %{buildroot}%{pg_libdir}%{name}.so
-install -m 755 %{buildpath}%{pg_sharedir}%{name}.control %{buildroot}%{pg_sharedir}%{name}.control
-install -m 755 %{buildpath}%{pg_sharedir}%{name}--%{version}.sql %{buildroot}%{pg_sharedir}%{name}--%{version}.sql
+install -m 755 %{buildpath}%{pg_libdir}%{name}.so %{buildroot}%{pg_libdir}
+install -m 755 %{buildpath}%{pg_sharedir}%{name}.control %{buildroot}%{pg_sharedir}
+install -m 755 %{buildpath}%{pg_sharedir}%{name}--%{version}.sql %{buildroot}%{pg_sharedir}
 
 %files
 %defattr(-,root,root,-)
@@ -68,6 +69,9 @@ install -m 755 %{buildpath}%{pg_sharedir}%{name}--%{version}.sql %{buildroot}%{p
 %{pg_sharedir}%{name}*.sql
 
 %changelog
+* Fri Jul 18 2025 Sandino Araico Sánchez <sandino@sandino.net> - 0.2.1-1
+- Use github mirror for Source0
+
 * Fri Jul 11 2025 Sandino Araico Sánchez <sandino@sandino.net> - 0.2.0-1
 - Fixed pgrx config for pg16
 - Extra parameters for cargo pgrx package
