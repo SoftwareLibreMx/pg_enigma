@@ -5,7 +5,7 @@
 #define debug_package %{nil}
 
 Name:           pg_enigma
-Version:        0.2.0
+Version:        0.2.1
 Release:        1.pg%{pg_version}%{?dist}
 Summary:        Column level encryption for PostgreSQL
 
