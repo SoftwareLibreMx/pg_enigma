@@ -99,7 +99,7 @@ fn decrypt_pgp_string(key: &SignedSecretKey, pass: String, message: String)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
     let buf = Cursor::new(message);
     let (msg, _) = Message::from_armor_single(buf)?;
-    Ok(decrypt_pgp(key, pass, EnigmaMsg::pgp(-1,msg))?.to_string())
+    Ok(decrypt_pgp(key, pass, EnigmaMsg::pgp(0,msg))?.to_string())
 }
 
 fn decrypt_rsa(key: &PKey<Private>, message: EnigmaMsg)
