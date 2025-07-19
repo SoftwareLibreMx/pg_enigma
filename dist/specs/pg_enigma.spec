@@ -2,7 +2,6 @@
 %global buildpath %{_builddir}/pg_enigma/target/release/%{name}-pg%{pg_version}
 %global pg_libdir %{_libdir}/pgsql/
 %global pg_sharedir %{_datadir}/pgsql/extension/
-#define debug_package %{nil}
 
 Name:           pg_enigma
 Version:        0.2.1
