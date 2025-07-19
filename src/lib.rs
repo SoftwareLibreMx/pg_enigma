@@ -44,17 +44,13 @@ fn enigma_input_with_typmod(input: &CStr, oid: pg_sys::Oid, typmod: i32)
 			.to_str()
 			.expect("Enigma::input can't convert to str")
 			.to_string();
-    let msg = EnigmaMsg::try_from(value).expect("Input error");
+    let plain = EnigmaMsg::plain(value); // INPUT value is always plain
     if typmod == -1 { // unknown typmod 
         debug1!("Unknown typmod: {}\noid: {:?}", typmod, oid);
-        return Enigma::try_from(msg).unwrap(); // Plain is always Ok()
+        return Enigma::try_from(plain).unwrap(); // Plain is always Ok()
     }
-    /* TODO: find out where this comes from:
-2025-06-26 06:08:31.720 CST [14207] DEBUG:  enigma_input_with_typmod: ARGUMENTS: Input: *****, OID: 42417,  Typmod: 2
-2025-06-26 06:08:31.720 CST [14207] CONTEXT:  COPY test2, line 1, column b: "KEY:2
-     */
     let key_id = typmod;
-    let encrypted = PUB_KEYS.encrypt(key_id, msg) // Result
+    let encrypted = PUB_KEYS.encrypt(key_id, plain) // Result
                             .expect("Encrypt (input)"); // EnigmaMsg
     Enigma::from(encrypted)
 }
@@ -112,8 +108,7 @@ fn enigma_receive_with_typmod(mut internal: Internal, oid: Oid, typmod: i32)
     });
 
     let value = serialized.as_str().unwrap().to_string();
-    let plain = EnigmaMsg::plain(value);
-    //Enigma::try_from(plain).unwrap() // Plain is always Ok()
+    let plain = EnigmaMsg::plain(value); // RECEIVE value is always plain
     if typmod == -1 { // unknown typmod 
         debug1!("Unknown typmod: {}\noid: {:?}", typmod, oid);
         return Enigma::try_from(plain).unwrap(); // Plain is always Ok()
@@ -295,6 +290,7 @@ extension_sql_file!("../sql/enigma_casts.sql",
 #[pg_schema]
 mod tests {
     use crate::Enigma;
+    use crate::message::EnigmaMsg;
     use pgrx::prelude::*;
     use std::error::Error;
  
@@ -399,7 +395,10 @@ SELECT set_private_key_from_file(2,
 SELECT b FROM testab LIMIT 1;
         ")? {
             info!("Decrypted value: {}", res);
-            if res.value.as_str() == "my PGP test record" { return Ok(()); }
+            let msg = EnigmaMsg::try_from(res)?;
+            if msg.to_string() == String::from("my PGP test record") {
+                return Ok(());
+            }
         } 
         Err("Should return decrypted string".into()) 
     } 
@@ -437,7 +436,10 @@ SELECT set_private_key_from_file(3,
 SELECT b FROM testab LIMIT 1;
         ")? {
             info!("Decrypted value: {}", res);
-            if res.value.as_str() == "my RSA test record" { return Ok(()); }
+            let msg = EnigmaMsg::try_from(res)?;
+            if msg.to_string() == String::from("my RSA test record") {
+                return Ok(());
+            }
         } 
         Err("Should return decrypted string".into()) 
     } 
@@ -608,10 +610,7 @@ impl FromDatum for Enigma {
         let decrypted = PRIV_KEYS.decrypt(message)
                                 .expect("FromDatum: Decrypt error");
         //debug5!("FromDatum: Decrypted message: {:?}", decrypted);
-        match decrypted {
-            EnigmaMsg::Plain(m) => Some(Enigma{value: m}),
-            _ => Some(Enigma::from(decrypted))
-        }
+        Some(Enigma::from(decrypted))
     }
 }
 
