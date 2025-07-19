@@ -5,7 +5,7 @@
 %global enigma_mirror https://github.com/SoftwareLibreMx/pg_enigma/archive/refs/tags/
 
 Name:           pg_enigma
-Version:        0.2.1
+Version:        0.3.0
 Release:        1.pg%{pg_version}%{?dist}
 Summary:        Column level encryption for PostgreSQL
 
