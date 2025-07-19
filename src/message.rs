@@ -54,9 +54,8 @@ impl TryFrom<String> for EnigmaMsg {
             }
         }
 
-        //debug5!("Unmatched: {value}");
-        //unreachable!("Use EnigmaMsg::plain() instead");
-        // FromDatum removes PLAIN_BEGIN and PLAIN_END before enigma_cast()
+        debug2!("Unmatched: {value}");
+        unreachable!("Use EnigmaMsg::plain() instead");
         Ok(Self::plain(value))
     }
 } 
