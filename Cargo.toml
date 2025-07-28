@@ -1,6 +1,6 @@
 [package]
 name = "pg_enigma"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 
 [lib]
@@ -23,11 +23,11 @@ pg_test = []
 once_cell = "*"
 openssl = "~0.10.64"
 pgp = "~0.15.0"
-pgrx = "~0.14.0"
-rand_chacha = "*"
+pgrx = "~0.15.0"
+rand_chacha = "~0.3.1" #TODO: 0.9.0
 
 [dev-dependencies]
-pgrx-tests = "~0.14.0"
+pgrx-tests = "~0.15.0"
 
 [profile.dev]
 panic = "unwind"

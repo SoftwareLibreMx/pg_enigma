@@ -94,7 +94,7 @@ fn enigma_cast(original: Enigma, typmod: i32, explicit: bool) -> Enigma {
     The receive function must return a value of the data type itself. */
 
 #[pg_extern(immutable, parallel_safe, requires = [ "shell_type" ])]
-fn enigma_receive_with_typmod(internal: Internal, oid: Oid, typmod: i32) 
+fn enigma_receive_with_typmod(mut internal: Internal, oid: Oid, typmod: i32) 
 -> Enigma {
 	//debug2!("enigma_receive");
     debug2!("enigma_receive_with_typmod: \
@@ -112,8 +112,7 @@ fn enigma_receive_with_typmod(internal: Internal, oid: Oid, typmod: i32)
     });
 
     let value = serialized.as_str().unwrap().to_string();
-    let plain = EnigmaMsg::plain(value);
-    //Enigma::try_from(plain).unwrap() // Plain is always Ok()
+    let plain = EnigmaMsg::plain(value); // RECEIVE value is always plain
     if typmod == -1 { // unknown typmod 
         debug1!("Unknown typmod: {}\noid: {:?}", typmod, oid);
         return Enigma::try_from(plain).unwrap(); // Plain is always Ok()
@@ -193,7 +192,10 @@ pub fn enigma_type_modifier_input(cstrings: pgrx::Array<'_, &CStr>) -> i32 {
 #[pg_extern]
 fn set_private_key(id: i32, key: &str, pass: &str)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
-    PRIV_KEYS.set(id, key, pass)
+    if id < 1 {
+        return Err("Key id must be a positive integer".into());
+    }
+    PRIV_KEYS.set(id as u32, key, pass)
 }   
 
 
@@ -203,8 +205,11 @@ fn set_private_key(id: i32, key: &str, pass: &str)
 #[pg_extern]
 fn set_public_key(id: i32, key: &str)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
+    if id < 1 {
+        return Err("Key id must be a positive integer".into());
+    }
     match insert_public_key(id, key)? {
-        Some(_) => PUB_KEYS.set(id, key),
+        Some(_) => PUB_KEYS.set(id as u32, key),
         None => Err(format!("No key ({}) inserted", id).into())
     }
 }
@@ -213,14 +218,20 @@ fn set_public_key(id: i32, key: &str)
 #[pg_extern]
 fn forget_private_key(id: i32)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
-    PRIV_KEYS.del(id)
+    if id < 1 {
+        return Err("Key id must be a positive integer".into());
+    }
+    PRIV_KEYS.del(id as u32)
 }
 
 /// Delete the public key from memory (PubKeysMap)
 #[pg_extern]
 fn forget_public_key(id: i32)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
-    PUB_KEYS.del(id)
+    if id < 1 {
+        return Err("Key id must be a positive integer".into());
+    }
+    PUB_KEYS.del(id as u32)
 }
 
 /// Sets the private key reading it from a file
@@ -251,36 +262,14 @@ fn set_public_key_from_file(id: i32, file_path: &str)
 **************************************************************************/
 
 
-// Create the type manually
-extension_sql!(
-    r#"
-        CREATE TABLE IF NOT EXISTS _enigma_public_keys (
-            id INT PRIMARY KEY,
-            public_key TEXT 
-        );
-        CREATE TYPE enigma;
-    "#,
-    name = "shell_type",
-    // declare this extension_sql block as the "bootstrap" block 
-    // so it happens first in sql generation
-    bootstrap 
-);
+// Enigma shell_type
+extension_sql_file!("../sql/shell_type.sql", bootstrap);
 
 
 // Create the real type
-extension_sql!(
-    r#"
-        CREATE TYPE enigma (
-            INPUT  = enigma_input_with_typmod,
-            OUTPUT = enigma_output,
-            RECEIVE = enigma_receive_with_typmod,
-            SEND = enigma_send,
-            TYPMOD_IN = enigma_type_modifier_input
-        );
-    "#,
-    name = "concrete_type",
-    creates = [Type(Enigma)],
-    requires = ["shell_type", enigma_input_with_typmod, enigma_output, enigma_receive_with_typmod, enigma_send, enigma_type_modifier_input],
+extension_sql_file!("../sql/concrete_type.sql", creates = [Type(Enigma)],
+    requires = ["shell_type", enigma_input_with_typmod, enigma_output, 
+    enigma_receive_with_typmod, enigma_send, enigma_type_modifier_input],
 );
 
 // Creates the casting function so we can get the key id in the
@@ -288,11 +277,7 @@ extension_sql!(
 // the typmod to the input function.
 // https://stackoverflow.com/questions/40406662/postgres-doc-regaring-input-function-for-create-type-does-not-seem-to-be-correct/74426960#74426960
 // https://www.postgresql.org/message-id/67091D2B.5080002%40acm.org
-extension_sql!(
-    r#"
-    CREATE CAST (enigma AS enigma) WITH FUNCTION enigma_cast AS IMPLICIT;
-    "#,
-    name = "enigma_casts",
+extension_sql_file!("../sql/enigma_casts.sql",
     requires = ["concrete_type", enigma_cast]
 );
 
@@ -309,6 +294,7 @@ extension_sql!(
 #[pg_schema]
 mod tests {
     use crate::Enigma;
+    use crate::message::EnigmaMsg;
     use pgrx::prelude::*;
     use std::error::Error;
  
@@ -413,7 +399,10 @@ SELECT set_private_key_from_file(2,
 SELECT b FROM testab LIMIT 1;
         ")? {
             info!("Decrypted value: {}", res);
-            if res.value.as_str() == "my PGP test record" { return Ok(()); }
+            let msg = EnigmaMsg::try_from(res)?;
+            if msg.to_string() == String::from("my PGP test record") {
+                return Ok(());
+            }
         } 
         Err("Should return decrypted string".into()) 
     } 
@@ -451,7 +440,10 @@ SELECT set_private_key_from_file(3,
 SELECT b FROM testab LIMIT 1;
         ")? {
             info!("Decrypted value: {}", res);
-            if res.value.as_str() == "my RSA test record" { return Ok(()); }
+            let msg = EnigmaMsg::try_from(res)?;
+            if msg.to_string() == String::from("my RSA test record") {
+                return Ok(());
+            }
         } 
         Err("Should return decrypted string".into()) 
     } 
@@ -622,15 +614,13 @@ impl FromDatum for Enigma {
         let decrypted = PRIV_KEYS.decrypt(message)
                                 .expect("FromDatum: Decrypt error");
         //debug5!("FromDatum: Decrypted message: {:?}", decrypted);
-        match decrypted {
-            EnigmaMsg::Plain(m) => Some(Enigma{value: m}),
-            _ => Some(Enigma::from(decrypted))
-        }
+        Some(Enigma::from(decrypted))
     }
 }
 
 impl IntoDatum for Enigma {
     fn into_datum(self) -> Option<pg_sys::Datum> {
+        // TODO: if self.value.is_enigma()
         Some(
 			self.value
 				.into_datum()

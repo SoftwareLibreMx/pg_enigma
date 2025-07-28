@@ -58,8 +58,8 @@ impl PubKey {
     }
 }
 
-impl Encrypt<EnigmaMsg> for PubKey {
-    fn encrypt(&self, id: i32, msg: EnigmaMsg) 
+impl Encrypt<u32,EnigmaMsg> for PubKey {
+    fn encrypt(&self, id: u32, msg: EnigmaMsg) 
     -> Result<EnigmaMsg, Box<(dyn std::error::Error + 'static)>> {
         if msg.is_encrypted() { 
              return Err("Nested encryption not supported".into());
@@ -78,18 +78,38 @@ impl Encrypt<EnigmaMsg> for PubKey {
     }
 }
 
+impl Encrypt<i32,EnigmaMsg> for PubKey {
+    fn encrypt(&self, id: i32, msg: EnigmaMsg) 
+    -> Result<EnigmaMsg, Box<(dyn std::error::Error + 'static)>> {
+        if id < 1 { // TODO: Support Key ID 0
+            return Err("Key id must be a positive integer".into());
+        }
+        self.encrypt(id as u32, msg)
+    }
+}
 
-impl Encrypt<String> for PubKey {
-    fn encrypt(&self, id: i32, message: String) 
+
+impl Encrypt<u32,String> for PubKey {
+    fn encrypt(&self, id: u32, message: String) 
     -> Result<String, Box<(dyn std::error::Error + 'static)>> {
         let msg = EnigmaMsg::try_from(message)?;
         Ok(self.encrypt(id,msg)?.to_string())
     }
 }
 
+impl Encrypt<i32,String> for PubKey {
+    fn encrypt(&self, id: i32, message: String) 
+    -> Result<String, Box<(dyn std::error::Error + 'static)>> {
+        if id < 1 { // TODO: Support Key ID 0
+            return Err("Key id must be a positive integer".into());
+        }
+        self.encrypt(id as u32, message)
+    }
+}
+
 /// Get the public key from the keys table
+/// id is `i32` because Postgres `integer` is signed integer
 pub fn get_public_key(id: i32) -> Result<Option<String>, pgrx::spi::Error> {
-    // if ! exists_key_table()? { return Ok(None); }
     let query = "SELECT public_key FROM _enigma_public_keys WHERE id = $1";
     let args = unsafe { 
         [ DatumWithOid::new(id, PgBuiltInOids::INT4OID.value()) ]
@@ -106,6 +126,7 @@ pub fn get_public_key(id: i32) -> Result<Option<String>, pgrx::spi::Error> {
 }
 
 /// Inserts the armored public key as text in table _enigma_public_keys
+/// id is `i32` because Postgres `integer` is signed integer
 pub fn insert_public_key(id: i32, key: &str)
 -> Result<Option<String>, pgrx::spi::Error> {
     // create_key_table()?;
