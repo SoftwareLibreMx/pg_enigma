@@ -1,4 +1,4 @@
-use crate::message::*;
+use crate::enigma::*;
 use crate::priv_key::PrivKey;
 use crate::pub_key::{PubKey,get_public_key};
 use crate::traits::{Encrypt,Decrypt};
@@ -100,8 +100,8 @@ impl PrivKeysMap {
     /// Will look for the decryption key in it's key map and call
     /// the key's `decrypt()` function to decrypt the message.
     /// If no decrypting key is found, returns the same encrypted message.
-    pub fn decrypt(self: &'static PrivKeysMap, message: EnigmaMsg)
-    -> Result<EnigmaMsg, Box<(dyn std::error::Error + 'static)>> {
+    pub fn decrypt(self: &'static PrivKeysMap, message: Enigma)
+    -> Result<Enigma, Box<(dyn std::error::Error + 'static)>> {
         let key_id = match message.key_id() {
             Some(k) => k,
             None => return Ok(message) // Not encrypted
@@ -117,7 +117,7 @@ impl PrivKeysMap {
     /* PGP specific functions commented-out for future use
     /// Iterates over each of the message's encrypting keys looking
     /// for a matching key_id in it's own private keys map
-    pub fn find_encrypting_key(self: &'static PrivKeysMap, msg: &EnigmaMsg)
+    pub fn find_encrypting_key(self: &'static PrivKeysMap, msg: &Enigma)
     -> Result<Option<&'static PrivKey>, 
     Box<(dyn std::error::Error + 'static)>> {
         if let Some(id) = msg.key_id() {
@@ -235,8 +235,8 @@ impl PubKeysMap {
     /// Will look for the encryption key in it's key map and call
     /// the key's `encrypt()` function to encrypt the message.
     /// If no encrypting key is found, returns an error message.
-    pub fn encrypt(self: &'static PubKeysMap, id: i32, msg: EnigmaMsg) 
-    -> Result<EnigmaMsg, Box<(dyn std::error::Error + 'static)>> {
+    pub fn encrypt(self: &'static PubKeysMap, id: i32, msg: Enigma) 
+    -> Result<Enigma, Box<(dyn std::error::Error + 'static)>> {
         if id < 1 { // TODO: Support Key ID 0
             return Err("Key id must be a positive integer".into());
         }

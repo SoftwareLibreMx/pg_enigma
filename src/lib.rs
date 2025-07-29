@@ -1,13 +1,13 @@
 mod enigma;
 mod key_map;
-mod message;
+//mod message;
 mod priv_key;
 mod pub_key;
 mod traits;
 
 use core::ffi::CStr;
 use crate::enigma::Enigma;
-use crate::message::EnigmaMsg;
+//use crate::message::EnigmaMsg;
 use crate::key_map::{PrivKeysMap,PubKeysMap};
 use crate::pub_key::insert_public_key;
 use once_cell::sync::Lazy;
@@ -39,15 +39,15 @@ fn enigma_input_with_typmod(input: &CStr, oid: pg_sys::Oid, typmod: i32)
 			.to_str()
 			.expect("Enigma::input can't convert to str")
 			.to_string();
-    let plain = EnigmaMsg::plain(value); // INPUT value is always plain
+    let plain = Enigma::plain(value); // INPUT value is always plain
     if typmod == -1 { // unknown typmod 
         debug1!("Unknown typmod: {}\noid: {:?}", typmod, oid);
-        return Enigma::try_from(plain).unwrap(); // Plain is always Ok()
+        return plain;
     }
     let key_id = typmod;
-    let encrypted = PUB_KEYS.encrypt(key_id, plain) // Result
-                            .expect("Encrypt (input)"); // EnigmaMsg
-    Enigma::from(encrypted)
+    PUB_KEYS.encrypt(key_id, plain) // Result
+            .expect("Encrypt (input)") // Enigma
+    
 }
 
 /// Cast enigma to enigma is called after enigma_input_with_typmod(). 
@@ -61,17 +61,16 @@ fn enigma_cast(original: Enigma, typmod: i32, explicit: bool) -> Enigma {
             typmod, original, explicit);
     }
     //debug5!("Original: {:?}", original);
-    let msg = EnigmaMsg::try_from(original).expect("Corrupted Enigma");
-    if msg.is_plain() {
+    if original.is_plain() {
         let key_id = typmod;
         debug2!("Encrypting plain message with key ID: {key_id}");
-        let encrypted = PUB_KEYS.encrypt(key_id, msg) // Result
-                        .expect("Encrypt (typmod cast)"); // EnigmaMsg
+        let encrypted = PUB_KEYS.encrypt(key_id, original) // Result
+                        .expect("Encrypt (typmod cast)"); // Enigma
         return Enigma::from(encrypted);
     } 
     
-    // TODO: if msg.key_id != key_id {try_reencrypt()} 
-    Enigma::from(msg)
+    // TODO: if original.key_id != key_id {try_reencrypt()} 
+    original
 }
 
 /** TODO: Receive function for Enigma
@@ -103,40 +102,37 @@ fn enigma_receive_with_typmod(mut internal: Internal, oid: Oid, typmod: i32)
     });
 
     let value = serialized.as_str().unwrap().to_string();
-    let plain = EnigmaMsg::plain(value); // RECEIVE value is always plain
+    let plain = Enigma::plain(value); // RECEIVE value is always plain
     if typmod == -1 { // unknown typmod 
         debug1!("Unknown typmod: {}\noid: {:?}", typmod, oid);
-        return Enigma::try_from(plain).unwrap(); // Plain is always Ok()
+        return plain;
     }
     let key_id = typmod;
-    let encrypted = PUB_KEYS.encrypt(key_id, plain) // Result
-                            .expect("Encrypt (input)"); // EnigmaMsg
-    Enigma::from(encrypted) 
+    PUB_KEYS.encrypt(key_id, plain) // Result
+            .expect("Encrypt (input)") // Enigma
 } 
 
 
 // Send to postgres
 // TODO check if we can return just StringInfo
 #[pg_extern(immutable, parallel_safe, requires = [ "shell_type" ])]
-fn enigma_output(e: Enigma) -> &'static CStr {
+fn enigma_output(message: Enigma) -> &'static CStr {
 	debug2!("enigma_output: Entering enigma_output");
 	let mut buffer = StringInfo::new();
-	let message  = EnigmaMsg::try_from(e).expect("Corrupted Enigma");
 
 	// debug3!("enigma_output value: {}", message);
 
     // TODO: workaround double decrypt()
      // if decrypting key is not set, returns the same message
      match PRIV_KEYS.decrypt(message) {
-        // plain message without envelopes
+        /* // plain message without envelopes
         // required for SELECT when private key is set
 		Ok(m) if m.is_plain() => buffer.push_str(m.to_string().as_str()),
         // Encrypted message with Enigam envelopes
         // required for pg_dump. 
-        // TODO: try to differentiate between pg_dump and SELECT
+        // TODO: try to differentiate between pg_dump and SELECT */
 		Ok(m) => {
-            let out = Enigma::from(m);
-            buffer.push_str(out.value.as_str());
+            buffer.push_str(m.to_string().as_str());
         },
 		Err(e) =>  panic!("Decrypt error: {}", e)
 	}
@@ -284,8 +280,8 @@ extension_sql_file!("../sql/enigma_casts.sql",
 #[cfg(any(test, feature = "pg_test"))]
 #[pg_schema]
 mod tests {
-    use crate::Enigma;
-    use crate::message::EnigmaMsg;
+    //use crate::Enigma;
+    use crate::enigma::Enigma;
     use pgrx::prelude::*;
     use std::error::Error;
  
@@ -369,7 +365,7 @@ INSERT INTO testab (b) VALUES ('my PGP test record');
         if let Some(res) = Spi::get_one::<Enigma>("
 SELECT b FROM testab LIMIT 1;
         ")? {
-            if res.value.contains("BEGIN PGP MESSAGE") { return Ok(()); }
+            if res.is_pgp() { return Ok(()); }
         } 
         Err("Should return String with PGP message".into()) 
     }
@@ -390,8 +386,7 @@ SELECT set_private_key_from_file(2,
 SELECT b FROM testab LIMIT 1;
         ")? {
             info!("Decrypted value: {}", res);
-            let msg = EnigmaMsg::try_from(res)?;
-            if msg.to_string() == String::from("my PGP test record") {
+            if res.value() == String::from("my PGP test record") {
                 return Ok(());
             }
         } 
@@ -410,7 +405,7 @@ INSERT INTO testab (b) VALUES ('my RSA test record');
         if let Some(res) = Spi::get_one::<Enigma>("
 SELECT b FROM testab LIMIT 1;
         ")? {
-            if res.value.contains("BEGIN RSA ENCRYPTED") { return Ok(()); }
+            if res.is_rsa() { return Ok(()); }
         } 
         Err("Should return String with RSA encrypted message".into()) 
     }
@@ -431,8 +426,7 @@ SELECT set_private_key_from_file(3,
 SELECT b FROM testab LIMIT 1;
         ")? {
             info!("Decrypted value: {}", res);
-            let msg = EnigmaMsg::try_from(res)?;
-            if msg.to_string() == String::from("my RSA test record") {
+            if res.value() == String::from("my RSA test record") {
                 return Ok(());
             }
         } 
@@ -451,7 +445,7 @@ SELECT set_public_key_from_file(2, '../../../test/public-key.asc');
 SELECT 'my CAST test record'::Enigma(2);
         ")? {
             info!("Encrypted value: {}", res);
-            if res.value.as_str() != "my CAST test record" { return Ok(()); }
+            if res.value().as_str() != "my CAST test record" { return Ok(()); }
         } 
         Err("Should return encrypted string".into()) 
     } 
@@ -472,7 +466,7 @@ SELECT forget_public_key(2);
 SELECT 'my CAST test record'::Enigma(2);
         ")? {
             info!("Encrypted value: {}", res);
-            if res.value.as_str() != "my CAST test record" { return Ok(()); }
+            if res.value().as_str() != "my CAST test record" { return Ok(()); }
         } 
         Err("Should return encrypted string".into()) 
     } 

@@ -1,4 +1,4 @@
-use crate::EnigmaMsg;
+use crate::enigma::Enigma;
 use crate::traits::Decrypt;
 use openssl::base64::decode_block;
 use openssl::encrypt::Decrypter;
@@ -51,9 +51,9 @@ impl PrivKey {
     }
 }
 
-impl Decrypt<EnigmaMsg> for PrivKey {
-    fn decrypt(&self, msg: EnigmaMsg) 
-    -> Result<EnigmaMsg, Box<(dyn std::error::Error + 'static)>> {
+impl Decrypt<Enigma> for PrivKey {
+    fn decrypt(&self, msg: Enigma) 
+    -> Result<Enigma, Box<(dyn std::error::Error + 'static)>> {
         match self {
             PrivKey::PGP(key,pass) => {
                 decrypt_pgp(key, pass.clone(), msg)
@@ -83,14 +83,14 @@ impl Decrypt<String> for PrivKey {
  * PRIVATE FUNCTIONS *
  * *******************/
 
-fn decrypt_pgp(key: &SignedSecretKey, pass: String, message: EnigmaMsg)
--> Result<EnigmaMsg, Box<(dyn std::error::Error + 'static)>> {
-    if let EnigmaMsg::PGP(_,msg) = message {
+fn decrypt_pgp(key: &SignedSecretKey, pass: String, message: Enigma)
+-> Result<Enigma, Box<(dyn std::error::Error + 'static)>> {
+    if let Enigma::PGP(_,msg) = message {
         let (decrypted, _) = msg.decrypt(|| pass.to_string(), &[&key])?;
         // TODO: Should `expect()` instead of `unwrap()`
         let bytes = decrypted.get_content()?.ok_or("No content")?;
         let clear_text = String::from_utf8(bytes)?;
-        return Ok(EnigmaMsg::plain(clear_text));
+        return Ok(Enigma::plain(clear_text));
     }
     Err("Wrong key. Message is not PGP.".into())
 }
@@ -99,15 +99,15 @@ fn decrypt_pgp_string(key: &SignedSecretKey, pass: String, message: String)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
     let buf = Cursor::new(message);
     let (msg, _) = Message::from_armor_single(buf)?;
-    Ok(decrypt_pgp(key, pass, EnigmaMsg::pgp(0,msg))?.to_string())
+    Ok(decrypt_pgp(key, pass, Enigma::pgp(0,msg))?.to_string())
 }
 
-fn decrypt_rsa(key: &PKey<Private>, message: EnigmaMsg)
--> Result<EnigmaMsg, Box<(dyn std::error::Error + 'static)>> {
+fn decrypt_rsa(key: &PKey<Private>, message: Enigma)
+-> Result<Enigma, Box<(dyn std::error::Error + 'static)>> {
     if ! message.is_rsa() { 
         return Err("Wrong key. Message is not RSA encrypted.".into());
     }
-    Ok(EnigmaMsg::plain(decrypt_rsa_string(key, message.to_string())?))
+    Ok(Enigma::plain(decrypt_rsa_string(key, message.to_string())?))
 }
 
 fn decrypt_rsa_string(pkey: &PKey<Private>, message: String)
