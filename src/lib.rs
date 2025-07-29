@@ -1,3 +1,4 @@
+mod enigma;
 mod key_map;
 mod message;
 mod priv_key;
@@ -5,19 +6,20 @@ mod pub_key;
 mod traits;
 
 use core::ffi::CStr;
+use crate::enigma::Enigma;
 use crate::message::EnigmaMsg;
 use crate::key_map::{PrivKeysMap,PubKeysMap};
 use crate::pub_key::insert_public_key;
 use once_cell::sync::Lazy;
 use pgrx::prelude::*;
-use pgrx::{rust_regtypein, StringInfo};
-use pgrx::pgrx_sql_entity_graph::metadata::{
-    ArgumentError, Returns, ReturnsError, SqlMapping, SqlTranslatable,
-};
-use pgrx::callconv::{ArgAbi, BoxRet};
-use pgrx::datum::{Datum,Internal};
+use pgrx::{/*rust_regtypein,*/ StringInfo};
+/* use pgrx::pgrx_sql_entity_graph::metadata::{
+     ArgumentError, Returns, ReturnsError, SqlMapping,  SqlTranslatable,
+}; */
+//use pgrx::callconv::{ArgAbi, BoxRet};
+use pgrx::datum::{/*Datum,*/Internal};
 use pgrx::pg_sys::Oid;
-use std::fmt::{Display, Formatter};
+//use std::fmt::{Display, Formatter};
 use std::fs;
 
 
@@ -25,13 +27,6 @@ pgrx::pg_module_magic!();
 
 static PRIV_KEYS: Lazy<PrivKeysMap> = Lazy::new(|| PrivKeysMap::new());
 static PUB_KEYS: Lazy<PubKeysMap> = Lazy::new(|| PubKeysMap::new());
-
-/// Value stores entcrypted information
-#[repr(transparent)]
-#[derive( Clone, Debug)]
-struct Enigma {
-    value: String,
-}
 
 
 /// Functions for extracting and inserting data
@@ -546,91 +541,4 @@ pub mod pg_test {
 
 
 
-/**************************************************************************
-*                                                                         *
-*                                                                         *
-*                B O I L E R P L A T E  F U N C T I O N S                 *
-*                                                                         *
-*                                                                         *
-**************************************************************************/
 
-// Boilerplate traits for converting type to postgres internals
-// Needed for the FunctionMetadata trait
-unsafe impl SqlTranslatable for Enigma {
-    fn argument_sql() -> Result<SqlMapping, ArgumentError> {
-        // this is what the SQL type is called when used in a function argument position
-        Ok(SqlMapping::As("enigma".into()))
-    }
-
-    fn return_sql() -> Result<Returns, ReturnsError> {
-        // this is what the SQL type is called when used in a function return type position
-        Ok(Returns::One(SqlMapping::As("enigma".into())))
-    }
-}
-
-
-unsafe impl<'fcx> ArgAbi<'fcx> for Enigma
-where
-    Self: 'fcx,
-{
-    unsafe fn unbox_arg_unchecked(arg: ::pgrx::callconv::Arg<'_, 'fcx>) -> Self {
-        unsafe { arg.unbox_arg_using_from_datum().unwrap() }
-    }
-}
-
-
-unsafe impl BoxRet for Enigma {
-    unsafe fn box_into<'fcx>(self, 
-    fcinfo: &mut pgrx::callconv::FcInfo<'fcx>) 
-    -> Datum<'fcx> {
-        fcinfo.return_raw_datum(
-           self.value.into_datum()
-                .expect("Can't convert enigma value into Datum")
-        )
-    }
-}
-
-impl FromDatum for Enigma {
-    unsafe fn from_polymorphic_datum(datum: pg_sys::Datum, 
-    is_null: bool, _: Oid) 
-    -> Option<Self>
-    where
-        Self: Sized,
-    {
-        if is_null {
-            return None;
-        }  
-        let value = match String::from_datum(datum, is_null) {
-            None => return None,
-            Some(v) => v
-        };
-        // debug5!("FromDatum value:\n{value}");
-        let message = EnigmaMsg::try_from(value).expect("Corrupted Enigma");
-        //debug5!("FromDatum: Encrypted message: {:?}", message);
-        let decrypted = PRIV_KEYS.decrypt(message)
-                                .expect("FromDatum: Decrypt error");
-        //debug5!("FromDatum: Decrypted message: {:?}", decrypted);
-        Some(Enigma::from(decrypted))
-    }
-}
-
-impl IntoDatum for Enigma {
-    fn into_datum(self) -> Option<pg_sys::Datum> {
-        // TODO: if self.value.is_enigma()
-        Some(
-			self.value
-				.into_datum()
-				.expect("Can't convert enigma value to Datum!")
-		)
-    }
-
-    fn type_oid() -> Oid {
-        rust_regtypein::<Self>()
-    }
-}
-
-impl Display for Enigma {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.value)
-    }
-}

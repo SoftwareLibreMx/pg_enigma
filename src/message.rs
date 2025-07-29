@@ -1,4 +1,4 @@
-use crate::Enigma;
+use crate::enigma::Enigma;
 use pgp::Deserializable;
 use pgp::Message;
 use pgrx::{debug2};
@@ -56,7 +56,7 @@ impl TryFrom<String> for EnigmaMsg {
 
         debug2!("Unmatched: {value}");
         unreachable!("Use EnigmaMsg::plain() instead");
-        Ok(Self::plain(value))
+        // Ok(Self::plain(value))
     }
 } 
 
