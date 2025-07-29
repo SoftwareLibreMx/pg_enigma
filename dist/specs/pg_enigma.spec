@@ -1,4 +1,21 @@
-%define pg_version %(pg_config --version  | cut -d ' ' -f 2 | cut -d '.' -f 1)
+%if %{undefined pg_version}
+%define get_version %(pg_config --version  | cut -d ' ' -f 2 | cut -d '.' -f 1)
+	%if 0%{get_version} == 0
+		# hardcoded default version
+		%if 0%{?fedora} == 42
+		%global pg_version 16
+		%else
+		# TODO: Support for CentOS/RHEL/Almalinux
+		%global pg_version 17
+		%endif
+	%else
+	%global pg_version %{get_version}
+	%endif
+%endif
+%if 0%{pg_version} < 13 || 0%{pg_version} > 17
+	#TODO: find out how to exit correctly with an error
+	Unsupported Postgres version: %{pg_version} 
+%endif
 %global buildpath %{_builddir}/pg_enigma/target/release/%{name}-pg%{pg_version}
 %global pg_libdir %{_libdir}/pgsql/
 %global pg_sharedir %{_datadir}/pgsql/extension/
@@ -12,16 +29,26 @@ Summary:        Column level encryption for PostgreSQL
 License:        PostgreSQL
 URL:            https://git.softwarelibre.mx/SoftwareLibreMx/%{name}
 # Use github mirror for Source0
-Source0:        %{enigma_mirror}%{name}-%{version}.tar.gz
+Source0:        %{enigma_mirror}%{version}.tar.gz
 
 BuildRequires:  cargo
 # TODO: BuildRequires: cargo-pgrx
-# in the meanwhile, copying ~/.cargo/bin/cargo-pgrx to /usr/local/bin/cargo-pgrx will do the work
+# meanwhile, copying ~/.cargo/bin/cargo-pgrx to /usr/local/bin/cargo-pgrx will do the work
 BuildRequires:  clang
-BuildRequires:  postgresql-server-devel
 BuildRequires:  rustfmt
-
-Requires:       postgresql-server = %{pg_version}
+# Dependency hell because of Fedora's inconsistent package naming
+%if 0%{?fedora} == 42
+	%if 0%{pg_version} == 17
+	BuildRequires:  postgresql17-server-devel 
+	Requires:       postgresql17-server 
+	%elif 0%{pg_version} == 16
+	BuildRequires:  postgresql-server-devel
+	Requires:       postgresql-server 
+	%else
+	#TODO: find out how to exit correctly with an error
+	Only Postgres 16 and 17 are known to be supported in fedora 42
+	%endif
+%endif
 
 %description
 A PostgreSQL extension that adds custom data types to allow column-level encryption. pg_enigma
@@ -29,7 +56,7 @@ enables users, DBAs and developers to protect sensitive data and allow separatio
 using public key cryptography standards such as PGP and RSA.
 
 %prep
-%setup -q -n %{name}
+%setup -q 
 
 #check
 ## Run the test suite provided by pgrx.
@@ -69,6 +96,9 @@ install -m 755 %{buildpath}%{pg_sharedir}%{name}--%{version}.sql %{buildroot}%{p
 %{pg_sharedir}%{name}*.sql
 
 %changelog
+* Mon Jul 28 2025 Sandino Araico Sánchez <sandino@sandino.net> - 0.3.0-1
+- use hardcoded default version when pg_config is not availble
+
 * Fri Jul 18 2025 Sandino Araico Sánchez <sandino@sandino.net> - 0.2.1-1
 - Use github mirror for Source0
 
