@@ -2,7 +2,7 @@ use crate::enigma::*;
 use crate::priv_key::PrivKey;
 use crate::pub_key::{PubKey,get_public_key};
 use crate::traits::{Encrypt,Decrypt};
-use pgrx::{debug1,info};
+use pgrx::{debug1,debug2,info};
 use std::collections::BTreeMap;
 use std::sync::RwLock;
 
@@ -106,8 +106,10 @@ impl PrivKeysMap {
             Some(k) => k,
             None => return Ok(message) // Not encrypted
         };
+        debug2!("Decrypt: Message key_id: {key_id}");
         match self.get(key_id)? {
             Some(sec_key) => {
+                debug2!("Decrypt: got secret key");
                 sec_key.decrypt(message)
             },
             None => Ok(message)

@@ -47,11 +47,13 @@ impl TryFrom<String> for Enigma {
             if tag == ENIGMA_INT {
                 if payload.starts_with(PGP_BEGIN) 
                 && payload.ends_with(PGP_END) {
+                    debug2!("PGP encrypted message");
                     return try_from_pgp_armor(key_id, payload);
                 }
 
                 if payload.starts_with(RSA_BEGIN)
                 && payload.ends_with(RSA_END) {
+                    debug2!("RSA encrypted message");
                     return Ok(from_rsa_envelope(key_id, payload));
                 }
             }
@@ -74,23 +76,20 @@ impl TryFrom<&String> for Enigma {
 impl Display for Enigma {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::PGP(id,m) => {
-                debug2!("PGP({id},message)");
-                let armored = m.to_armored_string(None.into())
-                    .expect("PGP error");
-                let out = armored.trim_start_matches(PGP_BEGIN)
-                    .trim_end_matches(PGP_END);
-                write!(f, "{}", out)
+            Enigma::PGP(key,m) => {
+                let msg = m.to_armored_string(None.into())
+                            .expect("PGP armor");
+                write!(f, "{}{:08X}{}{}", ENIGMA_TAG, key, SEPARATOR, msg)
             },
-            Self::RSA(id,m) => {
-                debug2!("RSA({id},message)");
-                write!(f, "{}", m)
+            Enigma::RSA(key,msg) => {
+                write!(f, "{}{:08X}{}{}{}{}",
+                ENIGMA_TAG, key, SEPARATOR, RSA_BEGIN, msg, RSA_END)
             },
-            Self::Plain(s) => {
-                debug2!("Plain(message)");
+            Enigma::Plain(s) => {
+                //write!(f, "{}{:08X}{}{}", PLAIN_TAG, 0, SEPARATOR, s)
                 write!(f, "{}", s)
             }
-        }
+        }        
     }
 }
 
@@ -113,10 +112,12 @@ impl Enigma {
         !self.is_plain()
     }
 
+    #[allow(dead_code)]
     pub fn is_pgp(&self) -> bool {
         matches!(*self, Self::PGP(_,_))
     }
 
+    #[allow(dead_code)]
     pub fn is_rsa(&self) -> bool {
         matches!(*self, Self::RSA(_,_))
     }
@@ -135,6 +136,7 @@ impl Enigma {
         }
     }
 
+    #[allow(dead_code)]
     pub fn value(&self) -> String {
         self.to_string()
     }
@@ -171,7 +173,6 @@ impl Enigma {
     } */
 }
 
-#[allow(dead_code)]
 pub fn is_enigma_hdr(hdr: &str) -> bool {
     // TODO: optimize: just first [u8; 8] cast to u64
     if let Ok((tag, _)) = split_hdr(hdr) {
@@ -252,7 +253,7 @@ unsafe impl BoxRet for Enigma {
     -> Datum<'fcx> {
         fcinfo.return_raw_datum(
            self.into_datum()
-                .expect("Can't convert enigma value into Datum")
+                .expect("BoxRet IntoDatum error")
         )
     }
 }
@@ -271,7 +272,7 @@ impl FromDatum for Enigma {
             None => return None,
             Some(v) => v
         };
-        //debug2!("FromDatum value:\n{value}");
+        debug2!("FromDatum value:\n{value}");
         let enigma = Enigma::try_from(value).expect("Corrupted Enigma");
         //debug2!("FromDatum: Encrypted message: {:?}", enigma);
         let decrypted = PRIV_KEYS.decrypt(enigma)
@@ -283,6 +284,10 @@ impl FromDatum for Enigma {
 
 impl IntoDatum for Enigma {
     fn into_datum(self) -> Option<pg_sys::Datum> {
+        /* if self.is_plain() {
+            error!("Enigma is not encrypted");
+        } */
+
         let value = match self {
             Enigma::PGP(key,m) => {
                 let msg = m.to_armored_string(None.into())
@@ -297,12 +302,8 @@ impl IntoDatum for Enigma {
                 format!("{}{:08X}{}{}", PLAIN_TAG, 0, SEPARATOR, s)
             }
         };
-        //debug2!("IntoDatum value:\n{value}");
-        Some(
-			value // String
-				.into_datum()
-				.expect("Can't convert enigma value to Datum!")
-		)
+        debug2!("IntoDatum value:\n{value}");
+        Some( value.into_datum().expect("IntoDatum error") )
     }
 
     fn type_oid() -> pg_sys::Oid {

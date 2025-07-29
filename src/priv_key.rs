@@ -6,6 +6,7 @@ use openssl::pkey::{PKey,Private};
 use openssl::rsa::Padding;
 use pgp::{Deserializable,Message,SignedSecretKey};
 use pgp::types::PublicKeyTrait;
+use pgrx::debug2;
 use std::io::Cursor;
 
 const PGP_BEGIN: &str = "-----BEGIN PGP PRIVATE KEY BLOCK-----";
@@ -56,9 +57,11 @@ impl Decrypt<Enigma> for PrivKey {
     -> Result<Enigma, Box<(dyn std::error::Error + 'static)>> {
         match self {
             PrivKey::PGP(key,pass) => {
+                debug2!("Decrypt: PGP key");
                 decrypt_pgp(key, pass.clone(), msg)
             },
             PrivKey::RSA(pkey) => {
+                debug2!("Decrypt: RSA key");
                 decrypt_rsa(pkey, msg)
             }
         }
@@ -104,14 +107,17 @@ fn decrypt_pgp_string(key: &SignedSecretKey, pass: String, message: String)
 
 fn decrypt_rsa(key: &PKey<Private>, message: Enigma)
 -> Result<Enigma, Box<(dyn std::error::Error + 'static)>> {
-    if ! message.is_rsa() { 
-        return Err("Wrong key. Message is not RSA encrypted.".into());
+    if let Enigma::RSA(_,msg) = message {
+        debug2!("Decrypt: RSA Enigma: {msg}");
+        Ok(Enigma::plain(decrypt_rsa_string(key, msg.to_string())?))
+    } else {
+        Err("Wrong key. Message is not RSA encrypted.".into())
     }
-    Ok(Enigma::plain(decrypt_rsa_string(key, message.to_string())?))
 }
 
 fn decrypt_rsa_string(pkey: &PKey<Private>, message: String)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
+    debug2!("Decrypt: RSA string: {message}");
     let input = decode_block(message.as_str())?;
     let mut decrypter = Decrypter::new(&pkey)?;
     decrypter.set_rsa_padding(Padding::PKCS1)?;

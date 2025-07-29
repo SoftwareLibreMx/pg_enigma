@@ -5,7 +5,7 @@ mod pub_key;
 mod traits;
 
 use core::ffi::CStr;
-use crate::enigma::Enigma;
+use crate::enigma::{Enigma,is_enigma_hdr};
 use crate::key_map::{PrivKeysMap,PubKeysMap};
 use crate::pub_key::insert_public_key;
 use once_cell::sync::Lazy;
@@ -32,6 +32,9 @@ fn enigma_input_with_typmod(input: &CStr, oid: pg_sys::Oid, typmod: i32)
 			.to_str()
 			.expect("Enigma::input can't convert to str")
 			.to_string();
+    if is_enigma_hdr(&value) {
+        return Enigma::try_from(value).expect("INPUT: Corrupted Enigma");
+    }
     let plain = Enigma::plain(value); // INPUT value is always plain
     if typmod == -1 { // unknown typmod 
         debug1!("Unknown typmod: {}\noid: {:?}", typmod, oid);
@@ -94,6 +97,9 @@ fn enigma_receive_with_typmod(mut internal: Internal, oid: Oid, typmod: i32)
     });
 
     let value = serialized.as_str().unwrap().to_string();
+    if is_enigma_hdr(&value) {
+        return Enigma::try_from(value).expect("RECEIVE: Corrupted Enigma");
+    }
     let plain = Enigma::plain(value); // RECEIVE value is always plain
     if typmod == -1 { // unknown typmod 
         debug1!("Unknown typmod: {}\noid: {:?}", typmod, oid);
@@ -112,7 +118,7 @@ fn enigma_output(message: Enigma) -> &'static CStr {
 	debug2!("enigma_output: Entering enigma_output");
 	let mut buffer = StringInfo::new();
 
-	// debug2!("enigma_output value: {}", message);
+	debug2!("enigma_output value: {}", message);
 
     // TODO: workaround double decrypt()
      // if decrypting key is not set, returns the same message
