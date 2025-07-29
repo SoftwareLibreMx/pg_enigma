@@ -1,23 +1,18 @@
+mod enigma;
 mod key_map;
-mod message;
 mod priv_key;
 mod pub_key;
 mod traits;
 
 use core::ffi::CStr;
-use crate::message::EnigmaMsg;
+use crate::enigma::{Enigma,is_enigma_hdr};
 use crate::key_map::{PrivKeysMap,PubKeysMap};
 use crate::pub_key::insert_public_key;
 use once_cell::sync::Lazy;
 use pgrx::prelude::*;
-use pgrx::{rust_regtypein, StringInfo};
-use pgrx::pgrx_sql_entity_graph::metadata::{
-    ArgumentError, Returns, ReturnsError, SqlMapping, SqlTranslatable,
-};
-use pgrx::callconv::{ArgAbi, BoxRet};
-use pgrx::datum::{Datum,Internal};
+use pgrx::StringInfo;
+use pgrx::datum::Internal;
 use pgrx::pg_sys::Oid;
-use std::fmt::{Display, Formatter};
 use std::fs;
 
 
@@ -25,13 +20,6 @@ pgrx::pg_module_magic!();
 
 static PRIV_KEYS: Lazy<PrivKeysMap> = Lazy::new(|| PrivKeysMap::new());
 static PUB_KEYS: Lazy<PubKeysMap> = Lazy::new(|| PubKeysMap::new());
-
-/// Value stores entcrypted information
-#[repr(transparent)]
-#[derive( Clone, Debug)]
-struct Enigma {
-    value: String,
-}
 
 
 /// Functions for extracting and inserting data
@@ -44,15 +32,18 @@ fn enigma_input_with_typmod(input: &CStr, oid: pg_sys::Oid, typmod: i32)
 			.to_str()
 			.expect("Enigma::input can't convert to str")
 			.to_string();
-    let plain = EnigmaMsg::plain(value); // INPUT value is always plain
+    if is_enigma_hdr(&value) {
+        return Enigma::try_from(value).expect("INPUT: Corrupted Enigma");
+    }
+    let plain = Enigma::plain(value); // INPUT value is always plain
     if typmod == -1 { // unknown typmod 
         debug1!("Unknown typmod: {}\noid: {:?}", typmod, oid);
-        return Enigma::try_from(plain).unwrap(); // Plain is always Ok()
+        return plain;
     }
     let key_id = typmod;
-    let encrypted = PUB_KEYS.encrypt(key_id, plain) // Result
-                            .expect("Encrypt (input)"); // EnigmaMsg
-    Enigma::from(encrypted)
+    PUB_KEYS.encrypt(key_id, plain) // Result
+            .expect("Encrypt (input)") // Enigma
+    
 }
 
 /// Cast enigma to enigma is called after enigma_input_with_typmod(). 
@@ -65,18 +56,16 @@ fn enigma_cast(original: Enigma, typmod: i32, explicit: bool) -> Enigma {
         panic!("Unknown typmod: {}\noriginal: {:?}\nexplicit: {}", 
             typmod, original, explicit);
     }
-    //debug5!("Original: {:?}", original);
-    let msg = EnigmaMsg::try_from(original).expect("Corrupted Enigma");
-    if msg.is_plain() {
+    //debug2!("Original: {:?}", original);
+    if original.is_plain() {
         let key_id = typmod;
         debug2!("Encrypting plain message with key ID: {key_id}");
-        let encrypted = PUB_KEYS.encrypt(key_id, msg) // Result
-                        .expect("Encrypt (typmod cast)"); // EnigmaMsg
-        return Enigma::from(encrypted);
+        return PUB_KEYS.encrypt(key_id, original) // Result
+                        .expect("Encrypt (typmod cast)"); // Enigma
     } 
     
-    // TODO: if msg.key_id != key_id {try_reencrypt()} 
-    Enigma::from(msg)
+    // TODO: if original.key_id != key_id {try_reencrypt()} 
+    original
 }
 
 /** TODO: Receive function for Enigma
@@ -92,14 +81,14 @@ fn enigma_cast(original: Enigma, typmod: i32, explicit: bool) -> Enigma {
 #[pg_extern(immutable, parallel_safe, requires = [ "shell_type" ])]
 fn enigma_receive_with_typmod(mut internal: Internal, oid: Oid, typmod: i32) 
 -> Enigma {
-	//debug2!("enigma_receive");
     debug2!("enigma_receive_with_typmod: \
             ARGUMENTS: Input: *****, OID: {:?},  Typmod: {}", oid, typmod);
     let buf = unsafe { 
         internal.get_mut::<::pgrx::pg_sys::StringInfoData>().unwrap() 
     };
     let mut serialized = ::pgrx::StringInfo::new();
-    serialized.push_bytes(&[0u8; ::pgrx::pg_sys::VARHDRSZ]); // reserve space for the header
+    // reserve space for the header
+    serialized.push_bytes(&[0u8; ::pgrx::pg_sys::VARHDRSZ]); 
     serialized.push_bytes(unsafe {
         core::slice::from_raw_parts(
             buf.data as *const u8,
@@ -108,40 +97,40 @@ fn enigma_receive_with_typmod(mut internal: Internal, oid: Oid, typmod: i32)
     });
 
     let value = serialized.as_str().unwrap().to_string();
-    let plain = EnigmaMsg::plain(value); // RECEIVE value is always plain
+    if is_enigma_hdr(&value) {
+        return Enigma::try_from(value).expect("RECEIVE: Corrupted Enigma");
+    }
+    let plain = Enigma::plain(value); // RECEIVE value is always plain
     if typmod == -1 { // unknown typmod 
         debug1!("Unknown typmod: {}\noid: {:?}", typmod, oid);
-        return Enigma::try_from(plain).unwrap(); // Plain is always Ok()
+        return plain;
     }
     let key_id = typmod;
-    let encrypted = PUB_KEYS.encrypt(key_id, plain) // Result
-                            .expect("Encrypt (input)"); // EnigmaMsg
-    Enigma::from(encrypted) 
+    PUB_KEYS.encrypt(key_id, plain) // Result
+            .expect("Encrypt (input)") // Enigma
 } 
 
 
 // Send to postgres
 // TODO check if we can return just StringInfo
 #[pg_extern(immutable, parallel_safe, requires = [ "shell_type" ])]
-fn enigma_output(e: Enigma) -> &'static CStr {
+fn enigma_output(message: Enigma) -> &'static CStr {
 	debug2!("enigma_output: Entering enigma_output");
 	let mut buffer = StringInfo::new();
-	let message  = EnigmaMsg::try_from(e).expect("Corrupted Enigma");
 
-	// debug3!("enigma_output value: {}", message);
+	debug2!("enigma_output value: {}", message);
 
     // TODO: workaround double decrypt()
      // if decrypting key is not set, returns the same message
      match PRIV_KEYS.decrypt(message) {
-        // plain message without envelopes
+        /* // plain message without envelopes
         // required for SELECT when private key is set
 		Ok(m) if m.is_plain() => buffer.push_str(m.to_string().as_str()),
         // Encrypted message with Enigam envelopes
         // required for pg_dump. 
-        // TODO: try to differentiate between pg_dump and SELECT
+        // TODO: try to differentiate between pg_dump and SELECT */
 		Ok(m) => {
-            let out = Enigma::from(m);
-            buffer.push_str(out.value.as_str());
+            buffer.push_str(m.to_string().as_str());
         },
 		Err(e) =>  panic!("Decrypt error: {}", e)
 	}
@@ -289,8 +278,8 @@ extension_sql_file!("../sql/enigma_casts.sql",
 #[cfg(any(test, feature = "pg_test"))]
 #[pg_schema]
 mod tests {
-    use crate::Enigma;
-    use crate::message::EnigmaMsg;
+    //use crate::Enigma;
+    use crate::enigma::Enigma;
     use pgrx::prelude::*;
     use std::error::Error;
  
@@ -374,7 +363,7 @@ INSERT INTO testab (b) VALUES ('my PGP test record');
         if let Some(res) = Spi::get_one::<Enigma>("
 SELECT b FROM testab LIMIT 1;
         ")? {
-            if res.value.contains("BEGIN PGP MESSAGE") { return Ok(()); }
+            if res.is_pgp() { return Ok(()); }
         } 
         Err("Should return String with PGP message".into()) 
     }
@@ -395,8 +384,7 @@ SELECT set_private_key_from_file(2,
 SELECT b FROM testab LIMIT 1;
         ")? {
             info!("Decrypted value: {}", res);
-            let msg = EnigmaMsg::try_from(res)?;
-            if msg.to_string() == String::from("my PGP test record") {
+            if res.value() == String::from("my PGP test record") {
                 return Ok(());
             }
         } 
@@ -415,7 +403,7 @@ INSERT INTO testab (b) VALUES ('my RSA test record');
         if let Some(res) = Spi::get_one::<Enigma>("
 SELECT b FROM testab LIMIT 1;
         ")? {
-            if res.value.contains("BEGIN RSA ENCRYPTED") { return Ok(()); }
+            if res.is_rsa() { return Ok(()); }
         } 
         Err("Should return String with RSA encrypted message".into()) 
     }
@@ -436,8 +424,7 @@ SELECT set_private_key_from_file(3,
 SELECT b FROM testab LIMIT 1;
         ")? {
             info!("Decrypted value: {}", res);
-            let msg = EnigmaMsg::try_from(res)?;
-            if msg.to_string() == String::from("my RSA test record") {
+            if res.value() == String::from("my RSA test record") {
                 return Ok(());
             }
         } 
@@ -456,7 +443,7 @@ SELECT set_public_key_from_file(2, '../../../test/public-key.asc');
 SELECT 'my CAST test record'::Enigma(2);
         ")? {
             info!("Encrypted value: {}", res);
-            if res.value.as_str() != "my CAST test record" { return Ok(()); }
+            if res.value().as_str() != "my CAST test record" { return Ok(()); }
         } 
         Err("Should return encrypted string".into()) 
     } 
@@ -477,7 +464,7 @@ SELECT forget_public_key(2);
 SELECT 'my CAST test record'::Enigma(2);
         ")? {
             info!("Encrypted value: {}", res);
-            if res.value.as_str() != "my CAST test record" { return Ok(()); }
+            if res.value().as_str() != "my CAST test record" { return Ok(()); }
         } 
         Err("Should return encrypted string".into()) 
     } 
@@ -546,91 +533,4 @@ pub mod pg_test {
 
 
 
-/**************************************************************************
-*                                                                         *
-*                                                                         *
-*                B O I L E R P L A T E  F U N C T I O N S                 *
-*                                                                         *
-*                                                                         *
-**************************************************************************/
 
-// Boilerplate traits for converting type to postgres internals
-// Needed for the FunctionMetadata trait
-unsafe impl SqlTranslatable for Enigma {
-    fn argument_sql() -> Result<SqlMapping, ArgumentError> {
-        // this is what the SQL type is called when used in a function argument position
-        Ok(SqlMapping::As("enigma".into()))
-    }
-
-    fn return_sql() -> Result<Returns, ReturnsError> {
-        // this is what the SQL type is called when used in a function return type position
-        Ok(Returns::One(SqlMapping::As("enigma".into())))
-    }
-}
-
-
-unsafe impl<'fcx> ArgAbi<'fcx> for Enigma
-where
-    Self: 'fcx,
-{
-    unsafe fn unbox_arg_unchecked(arg: ::pgrx::callconv::Arg<'_, 'fcx>) -> Self {
-        unsafe { arg.unbox_arg_using_from_datum().unwrap() }
-    }
-}
-
-
-unsafe impl BoxRet for Enigma {
-    unsafe fn box_into<'fcx>(self, 
-    fcinfo: &mut pgrx::callconv::FcInfo<'fcx>) 
-    -> Datum<'fcx> {
-        fcinfo.return_raw_datum(
-           self.value.into_datum()
-                .expect("Can't convert enigma value into Datum")
-        )
-    }
-}
-
-impl FromDatum for Enigma {
-    unsafe fn from_polymorphic_datum(datum: pg_sys::Datum, 
-    is_null: bool, _: Oid) 
-    -> Option<Self>
-    where
-        Self: Sized,
-    {
-        if is_null {
-            return None;
-        }  
-        let value = match String::from_datum(datum, is_null) {
-            None => return None,
-            Some(v) => v
-        };
-        // debug5!("FromDatum value:\n{value}");
-        let message = EnigmaMsg::try_from(value).expect("Corrupted Enigma");
-        //debug5!("FromDatum: Encrypted message: {:?}", message);
-        let decrypted = PRIV_KEYS.decrypt(message)
-                                .expect("FromDatum: Decrypt error");
-        //debug5!("FromDatum: Decrypted message: {:?}", decrypted);
-        Some(Enigma::from(decrypted))
-    }
-}
-
-impl IntoDatum for Enigma {
-    fn into_datum(self) -> Option<pg_sys::Datum> {
-        // TODO: if self.value.is_enigma()
-        Some(
-			self.value
-				.into_datum()
-				.expect("Can't convert enigma value to Datum!")
-		)
-    }
-
-    fn type_oid() -> Oid {
-        rust_regtypein::<Self>()
-    }
-}
-
-impl Display for Enigma {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.value)
-    }
-}
