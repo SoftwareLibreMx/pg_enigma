@@ -5,22 +5,25 @@ use pgrx::{debug2};
 use std::fmt::{Display, Formatter};
 use std::io::Cursor;
 
-const PLAIN_BEGIN: &str = "-----BEGIN PLAIN NOT ENCRYPTED MESSAGE-----\n";
-const PLAIN_END: &str = "\n-----END PLAIN NOT ENCRYPTED MESSAGE-----";
+//const PLAIN_BEGIN: &str = "-----BEGIN PLAIN NOT ENCRYPTED MESSAGE-----\n";
+//const PLAIN_END: &str = "\n-----END PLAIN NOT ENCRYPTED MESSAGE-----";
 const PGP_BEGIN: &str = "-----BEGIN PGP MESSAGE-----\n";
 const PGP_END: &str = "-----END PGP MESSAGE-----\n";
 const RSA_BEGIN: &str = "-----BEGIN RSA ENCRYPTED-----\n";
 const RSA_END: &str = "\n-----END RSA ENCRYPTED-----";
-const KEY_TAG: &str = "KEY:";
-const SEPARATOR: &str = "\n";
+const ENIGMA_TAG: &str = "ENIGMAv1"; // 0x454E49474D417631
+const ENIGMA_INT: u64  = 0x454E49474D417631; // "ENIGMAv1"
+const PLAIN_TAG: &str  = "PLAINMSG"; // 0x504C41494E4D5347
+const PLAIN_INT: u64   = 0x504C41494E4D5347; // "PLAINMSG"
+const SEPARATOR: char = '\n';
 
 // TODO: KEY ID in envelope header
 #[derive( Clone, Debug)]
 pub enum EnigmaMsg {
     /// PGP message
-    PGP(i32,pgp::Message),
+    PGP(u32,pgp::Message),
     /// OpenSSL RSA encrypted message
-    RSA(i32,String), 
+    RSA(u32,String), 
     /// Plain unencrypted message
     Plain(String)
 }
@@ -30,32 +33,29 @@ impl TryFrom<String> for EnigmaMsg {
     type Error = Box<(dyn std::error::Error + 'static)>;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        if value.starts_with(PLAIN_BEGIN)
-        && value.ends_with(PLAIN_END) {
-            debug2!{"Plain value: {value}"}
-            return Ok(from_plain_envelope(value));
-        }
+        if let Some((header, payload)) = value.split_once(SEPARATOR) {
+            let (tag,key_id) = split_hdr(header)?;
 
-        if value.starts_with(KEY_TAG) {
-            let (key_hdr, encrypted) = value
-                                    .split_once(SEPARATOR)
-                                    .ok_or("Malformed Enigma envelope")?;
-            let key_id = try_key_id_from(key_hdr)?;
-
-            if encrypted.starts_with(PGP_BEGIN) 
-            && encrypted.ends_with(PGP_END) {
-                return try_from_pgp_armor(key_id, encrypted);
+            if tag == PLAIN_INT {
+                debug2!{"Plain payload: {payload}"}
+                return Ok(Self::plain(payload.to_string()));
             }
 
-            if encrypted.starts_with(RSA_BEGIN)
-            && encrypted.ends_with(RSA_END) {
-                return Ok(from_rsa_envelope(key_id, encrypted));
+            if tag == ENIGMA_INT {
+                if payload.starts_with(PGP_BEGIN) 
+                && payload.ends_with(PGP_END) {
+                    return try_from_pgp_armor(key_id, payload);
+                }
+
+                if payload.starts_with(RSA_BEGIN)
+                && payload.ends_with(RSA_END) {
+                    return Ok(from_rsa_envelope(key_id, payload));
+                }
             }
         }
 
-        //debug5!("Unmatched: {value}");
-        //unreachable!("Use EnigmaMsg::plain() instead");
-        // FromDatum removes PLAIN_BEGIN and PLAIN_END before enigma_cast()
+        debug2!("Unmatched: {value}");
+        unreachable!("Use EnigmaMsg::plain() instead");
         Ok(Self::plain(value))
     }
 } 
@@ -82,14 +82,14 @@ impl From<EnigmaMsg> for Enigma {
             EnigmaMsg::PGP(key,m) => {
                 let msg = m.to_armored_string(None.into())
                             .expect("PGP armor");
-                format!("{}{}{}{}", KEY_TAG, key, SEPARATOR, msg)
+                format!("{}{:08X}{}{}", ENIGMA_TAG, key, SEPARATOR, msg)
             },
             EnigmaMsg::RSA(key,msg) => {
-                format!("{}{}{}{}{}{}",
-                    KEY_TAG, key, SEPARATOR, RSA_BEGIN, msg, RSA_END)
+                format!("{}{:08X}{}{}{}{}",
+                    ENIGMA_TAG, key, SEPARATOR, RSA_BEGIN, msg, RSA_END)
             },
             EnigmaMsg::Plain(s) => {
-                format!("{}{}{}", PLAIN_BEGIN, s, PLAIN_END)
+                format!("{}{:08X}{}{}", PLAIN_TAG, 0, SEPARATOR, s)
             }
         };
         Enigma{ value: value }
@@ -124,11 +124,13 @@ impl EnigmaMsg {
         Self::Plain(value)
     }
 
-    pub fn pgp(id: i32, value: pgp::Message) -> Self {
+    pub fn pgp(id: u32, value: pgp::Message) -> Self {
+        // TODO: u32 key_id
         Self::PGP(id, value)
     }
 
-    pub fn rsa(id: i32, value: String) -> Self {
+    pub fn rsa(id: u32, value: String) -> Self {
+        // TODO: u32 key_id
         Self::RSA(id, value)
     }
 
@@ -149,9 +151,11 @@ impl EnigmaMsg {
         matches!(*self, Self::Plain(_))
     }
 
-    pub fn key_id(&self) -> Option<i32> {
+    pub fn key_id(&self) -> Option<u32> {
         match self {
+            // TODO: u32 key_id
             Self::RSA(k,_) => Some(*k),
+            // TODO: u32 key_id
             Self::PGP(k,_) => Some(*k),
             Self::Plain(_) => None
         }
@@ -189,34 +193,44 @@ impl EnigmaMsg {
     } */
 }
 
+#[allow(dead_code)]
+pub fn is_enigma_hdr(hdr: &str) -> bool {
+    // TODO: optimize: just first [u8; 8] cast to u64
+    if let Ok((tag, _)) = split_hdr(hdr) {
+        if tag == ENIGMA_INT {
+            return true;
+        }
+    }
+    false
+}
+
 /*********************
  * PRIVATE FUNCTIONS *
  * *******************/
 
-fn try_key_id_from(key_hdr: &str)
--> Result<i32, Box<(dyn std::error::Error + 'static)>> {
-    //key_hdr.trim_start_matches(KEY_TAG).parse::<i32>()
-    Ok(key_hdr.trim_start_matches(KEY_TAG).parse()?)
+fn split_hdr(full_header: &str) 
+-> Result<(u64,u32), Box<(dyn std::error::Error + 'static)>> {
+    if full_header.len() < 16 {
+        return Err("Wrong header".into());
+    }
+    let (hdr,_) = full_header.split_at(16);
+    let (stag, skey) = hdr.split_at(8);
+    let tag = u64::from_be_bytes(stag.as_bytes().try_into()?);
+    let key = u32::from_str_radix(skey, 16)?;
+    Ok((tag,key))
 }
 
-fn try_from_pgp_armor(key_id: i32, value: &str) 
+fn try_from_pgp_armor(key_id: u32, value: &str) 
 -> Result<EnigmaMsg, Box<(dyn std::error::Error + 'static)>> {
     let buf = Cursor::new(value);
     let (msg, _) = Message::from_armor_single(buf)?;
     Ok(EnigmaMsg::PGP(key_id, msg))
 }
 
-fn from_rsa_envelope(key_id: i32, value: &str) -> EnigmaMsg {
+fn from_rsa_envelope(key_id: u32, value: &str) -> EnigmaMsg {
     EnigmaMsg::RSA(key_id, value
         .trim_start_matches(RSA_BEGIN)
         .trim_end_matches(RSA_END)
-        .to_string() )
-}
-
-fn from_plain_envelope(value: String) -> EnigmaMsg {
-    EnigmaMsg::Plain(value
-        .trim_start_matches(PLAIN_BEGIN)
-        .trim_end_matches(PLAIN_END)
         .to_string() )
 }
 
