@@ -1,9 +1,8 @@
-//use crate::EnigmaMsg;
 use crate::PRIV_KEYS;
 use pgp::Deserializable;
 use pgp::Message;
 use pgrx::callconv::{ArgAbi, BoxRet};
-use pgrx::datum::{Datum/*,Internal*/};
+use pgrx::datum::Datum;
 use pgrx::debug2;
 use pgrx::{FromDatum,IntoDatum,pg_sys,rust_regtypein};
 use pgrx::pgrx_sql_entity_graph::metadata::{
@@ -23,7 +22,6 @@ const PLAIN_INT: u64   = 0x504C41494E4D5347; // "PLAINMSG"
 const SEPARATOR: char = '\n';
 
 /// Value stores entcrypted information
-//#[repr(transparent)]
 #[derive( Clone, Debug)]
 pub enum Enigma {
     /// PGP message
@@ -60,8 +58,8 @@ impl TryFrom<String> for Enigma {
         }
 
         debug2!("Unmatched: {value}");
-        //unreachable!("Use Enigma::plain() instead");
-        Ok(Self::plain(value))
+        unreachable!("Use Enigma::plain() instead");
+        //Ok(Self::plain(value))
     }
 } 
 
@@ -72,35 +70,6 @@ impl TryFrom<&String> for Enigma {
         Self::try_from(value.clone())
     }
 }
-
-/* impl TryFrom<Enigma> for EnigmaMsg {
-    type Error = Box<(dyn std::error::Error + 'static)>;
-
-    fn try_from(enigma: Enigma) -> Result<Self, Self::Error> {
-        Self::try_from(enigma.value)
-    }
-} */
-
-/* TODO: IntoDatum
- * impl From<EnigmaMsg> for Enigma {
-    fn from(msg: EnigmaMsg) -> Self {
-        let value = match msg {
-            EnigmaMsg::PGP(key,m) => {
-                let msg = m.to_armored_string(None.into())
-                            .expect("PGP armor");
-                format!("{}{:08X}{}{}", ENIGMA_TAG, key, SEPARATOR, msg)
-            },
-            EnigmaMsg::RSA(key,msg) => {
-                format!("{}{:08X}{}{}{}{}",
-                    ENIGMA_TAG, key, SEPARATOR, RSA_BEGIN, msg, RSA_END)
-            },
-            EnigmaMsg::Plain(s) => {
-                format!("{}{:08X}{}{}", PLAIN_TAG, 0, SEPARATOR, s)
-            }
-        };
-        Enigma{ value: value }
-    }
-} */
 
 impl Display for Enigma {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -302,12 +271,12 @@ impl FromDatum for Enigma {
             None => return None,
             Some(v) => v
         };
-        debug2!("FromDatum value:\n{value}");
+        //debug2!("FromDatum value:\n{value}");
         let enigma = Enigma::try_from(value).expect("Corrupted Enigma");
-        //debug5!("FromDatum: Encrypted message: {:?}", enigma);
+        //debug2!("FromDatum: Encrypted message: {:?}", enigma);
         let decrypted = PRIV_KEYS.decrypt(enigma)
                                 .expect("FromDatum: Decrypt error");
-        //debug5!("FromDatum: Decrypted message: {:?}", decrypted);
+        //debug2!("FromDatum: Decrypted message: {:?}", decrypted);
         Some(decrypted)
     }
 }
@@ -328,7 +297,7 @@ impl IntoDatum for Enigma {
                 format!("{}{:08X}{}{}", PLAIN_TAG, 0, SEPARATOR, s)
             }
         };
-        debug2!("IntoDatum value:\n{value}");
+        //debug2!("IntoDatum value:\n{value}");
         Some(
 			value // String
 				.into_datum()

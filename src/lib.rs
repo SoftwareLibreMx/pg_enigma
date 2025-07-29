@@ -1,25 +1,18 @@
 mod enigma;
 mod key_map;
-//mod message;
 mod priv_key;
 mod pub_key;
 mod traits;
 
 use core::ffi::CStr;
 use crate::enigma::Enigma;
-//use crate::message::EnigmaMsg;
 use crate::key_map::{PrivKeysMap,PubKeysMap};
 use crate::pub_key::insert_public_key;
 use once_cell::sync::Lazy;
 use pgrx::prelude::*;
-use pgrx::{/*rust_regtypein,*/ StringInfo};
-/* use pgrx::pgrx_sql_entity_graph::metadata::{
-     ArgumentError, Returns, ReturnsError, SqlMapping,  SqlTranslatable,
-}; */
-//use pgrx::callconv::{ArgAbi, BoxRet};
-use pgrx::datum::{/*Datum,*/Internal};
+use pgrx::StringInfo;
+use pgrx::datum::Internal;
 use pgrx::pg_sys::Oid;
-//use std::fmt::{Display, Formatter};
 use std::fs;
 
 
@@ -60,13 +53,12 @@ fn enigma_cast(original: Enigma, typmod: i32, explicit: bool) -> Enigma {
         panic!("Unknown typmod: {}\noriginal: {:?}\nexplicit: {}", 
             typmod, original, explicit);
     }
-    //debug5!("Original: {:?}", original);
+    //debug2!("Original: {:?}", original);
     if original.is_plain() {
         let key_id = typmod;
         debug2!("Encrypting plain message with key ID: {key_id}");
-        let encrypted = PUB_KEYS.encrypt(key_id, original) // Result
+        return PUB_KEYS.encrypt(key_id, original) // Result
                         .expect("Encrypt (typmod cast)"); // Enigma
-        return Enigma::from(encrypted);
     } 
     
     // TODO: if original.key_id != key_id {try_reencrypt()} 
@@ -86,14 +78,14 @@ fn enigma_cast(original: Enigma, typmod: i32, explicit: bool) -> Enigma {
 #[pg_extern(immutable, parallel_safe, requires = [ "shell_type" ])]
 fn enigma_receive_with_typmod(mut internal: Internal, oid: Oid, typmod: i32) 
 -> Enigma {
-	//debug2!("enigma_receive");
     debug2!("enigma_receive_with_typmod: \
             ARGUMENTS: Input: *****, OID: {:?},  Typmod: {}", oid, typmod);
     let buf = unsafe { 
         internal.get_mut::<::pgrx::pg_sys::StringInfoData>().unwrap() 
     };
     let mut serialized = ::pgrx::StringInfo::new();
-    serialized.push_bytes(&[0u8; ::pgrx::pg_sys::VARHDRSZ]); // reserve space for the header
+    // reserve space for the header
+    serialized.push_bytes(&[0u8; ::pgrx::pg_sys::VARHDRSZ]); 
     serialized.push_bytes(unsafe {
         core::slice::from_raw_parts(
             buf.data as *const u8,
@@ -120,7 +112,7 @@ fn enigma_output(message: Enigma) -> &'static CStr {
 	debug2!("enigma_output: Entering enigma_output");
 	let mut buffer = StringInfo::new();
 
-	// debug3!("enigma_output value: {}", message);
+	// debug2!("enigma_output value: {}", message);
 
     // TODO: workaround double decrypt()
      // if decrypting key is not set, returns the same message
