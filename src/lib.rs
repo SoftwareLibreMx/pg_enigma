@@ -44,7 +44,7 @@ fn enigma_input_with_typmod(input: &CStr, oid: pg_sys::Oid, typmod: i32)
 			.to_str()
 			.expect("Enigma::input can't convert to str")
 			.to_string();
-    let msg = EnigmaMsg::try_from(value).expect("Input error");
+    let plain = EnigmaMsg::plain(value); // INPUT value is always plain
     let key_id;
 
     if typmod == -1 { // No typmod, use key_id 0
@@ -54,7 +54,7 @@ fn enigma_input_with_typmod(input: &CStr, oid: pg_sys::Oid, typmod: i32)
     } else {
         key_id = typmod;
     }
-    let encrypted = PUB_KEYS.encrypt(key_id, msg) // Result
+    let encrypted = PUB_KEYS.encrypt(key_id, plain) // Result
                             .expect("Encrypt (input)"); // EnigmaMsg
     Enigma::from(encrypted)
 }
