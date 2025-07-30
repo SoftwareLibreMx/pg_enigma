@@ -1,9 +1,9 @@
-use crate::PRIV_KEYS;
+use crate::{PRIV_KEYS,PUB_KEYS};
 use pgp::Deserializable;
 use pgp::Message;
 use pgrx::callconv::{ArgAbi, BoxRet};
 use pgrx::datum::Datum;
-use pgrx::debug2;
+use pgrx::{debug1,debug2};
 use pgrx::{FromDatum,IntoDatum,pg_sys,rust_regtypein};
 use pgrx::pgrx_sql_entity_graph::metadata::{
     ArgumentError, Returns, ReturnsError, SqlMapping, SqlTranslatable,
@@ -64,6 +64,23 @@ impl TryFrom<String> for Enigma {
         //Ok(Self::plain(value))
     }
 } 
+
+/// TryFrom with key_id and value returns encrypted Enigma
+impl TryFrom<(i32,String)> for Enigma {
+    type Error = Box<(dyn std::error::Error + 'static)>;
+
+    fn try_from((typmod,value): (i32,String)) -> Result<Self, Self::Error> {
+        if is_enigma_hdr(&value) {
+            return Enigma::try_from(value);
+        }
+        let plain = Enigma::plain(value);
+        if typmod == -1 { // unknown typmod 
+            debug1!("Unknown typmod: {typmod}");
+            return Ok(plain);
+        }
+        PUB_KEYS.encrypt(typmod, plain)
+    }
+}
 
 impl TryFrom<&String> for Enigma {
     type Error = Box<(dyn std::error::Error + 'static)>;
