@@ -1,4 +1,4 @@
-use crate::PRIV_KEYS;
+use crate::{PRIV_KEYS,PUB_KEYS};
 use pgp::Deserializable;
 use pgp::Message;
 use pgrx::callconv::{ArgAbi, BoxRet};
@@ -64,6 +64,22 @@ impl TryFrom<String> for Enigma {
         //Ok(Self::plain(value))
     }
 } 
+
+impl TryFrom<(i32,String)> for Enigma {
+    type Error = Box<(dyn std::error::Error + 'static)>;
+
+    fn try_from((typmod,value): (i32,String)) -> Result<Self, Self::Error> {
+        if is_enigma_hdr(&value) {
+            return Enigma::try_from(value);
+        }
+        let plain = Enigma::plain(value); 
+        let key_id = match typmod {
+            -1 => 0, // No typmod, use key_id 0
+            _ => typmod
+        };        
+        PUB_KEYS.encrypt(key_id, plain)
+    }
+}
 
 impl TryFrom<&String> for Enigma {
     type Error = Box<(dyn std::error::Error + 'static)>;
@@ -299,7 +315,8 @@ impl IntoDatum for Enigma {
                 ENIGMA_TAG, key, SEPARATOR, RSA_BEGIN, msg, RSA_END)
             },
             Enigma::Plain(s) => {
-                format!("{}{:08X}{}{}", PLAIN_TAG, 0, SEPARATOR, s)
+                //format!("{}{:08X}{}{}", PLAIN_TAG, 0, SEPARATOR, s)
+                panic!("IntoDatum: Enigma is not encrypted");
             }
         };
         debug2!("IntoDatum value:\n{value}");
