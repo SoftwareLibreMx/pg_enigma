@@ -46,15 +46,14 @@ fn enigma_cast(original: Enigma, typmod: i32, explicit: bool) -> Enigma {
             typmod, original, explicit);
     }
     //debug2!("Original: {:?}", original);
-    if original.is_plain() {
-        let key_id = typmod;
-        debug2!("Encrypting plain message with key ID: {key_id}");
-        return PUB_KEYS.encrypt(key_id, original) // Result
-                        .expect("Encrypt (typmod cast)"); // Enigma
+    if original.is_encrypted() {
+        // TODO: if original.key_id != key_id {try_reencrypt()} 
+        return original;
     } 
-    
-    // TODO: if original.key_id != key_id {try_reencrypt()} 
-    original
+    let key_id = typmod;
+    debug2!("Encrypting plain message with key ID: {key_id}");
+    PUB_KEYS.encrypt(key_id, original) // Result
+            .expect("Encrypt (typmod cast)") // Enigma
 }
 
 /** TODO: Receive function for Enigma
