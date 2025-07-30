@@ -5,7 +5,7 @@ mod pub_key;
 mod traits;
 
 use core::ffi::CStr;
-use crate::enigma::{Enigma,is_enigma_hdr};
+use crate::enigma::Enigma;
 use crate::key_map::{PrivKeysMap,PubKeysMap};
 use crate::pub_key::insert_public_key;
 use once_cell::sync::Lazy;
@@ -32,18 +32,7 @@ fn enigma_input_with_typmod(input: &CStr, oid: pg_sys::Oid, typmod: i32)
 			.to_str()
 			.expect("Enigma::input can't convert to str")
 			.to_string();
-    if is_enigma_hdr(&value) {
-        return Enigma::try_from(value).expect("INPUT: Corrupted Enigma");
-    }
-    let plain = Enigma::plain(value); // INPUT value is always plain
-    if typmod == -1 { // unknown typmod 
-        debug1!("Unknown typmod: {}\noid: {:?}", typmod, oid);
-        return plain;
-    }
-    let key_id = typmod;
-    PUB_KEYS.encrypt(key_id, plain) // Result
-            .expect("Encrypt (input)") // Enigma
-    
+    Enigma::try_from((typmod,value)).expect("INPUT: Enigma")
 }
 
 /// Cast enigma to enigma is called after enigma_input_with_typmod(). 
@@ -57,15 +46,14 @@ fn enigma_cast(original: Enigma, typmod: i32, explicit: bool) -> Enigma {
             typmod, original, explicit);
     }
     //debug2!("Original: {:?}", original);
-    if original.is_plain() {
-        let key_id = typmod;
-        debug2!("Encrypting plain message with key ID: {key_id}");
-        return PUB_KEYS.encrypt(key_id, original) // Result
-                        .expect("Encrypt (typmod cast)"); // Enigma
+    if original.is_encrypted() {
+        // TODO: if original.key_id != key_id {try_reencrypt()} 
+        return original;
     } 
-    
-    // TODO: if original.key_id != key_id {try_reencrypt()} 
-    original
+    let key_id = typmod;
+    debug2!("Encrypting plain message with key ID: {key_id}");
+    PUB_KEYS.encrypt(key_id, original) // Result
+            .expect("Encrypt (typmod cast)") // Enigma
 }
 
 /** TODO: Receive function for Enigma
@@ -97,17 +85,7 @@ fn enigma_receive_with_typmod(mut internal: Internal, oid: Oid, typmod: i32)
     });
 
     let value = serialized.as_str().unwrap().to_string();
-    if is_enigma_hdr(&value) {
-        return Enigma::try_from(value).expect("RECEIVE: Corrupted Enigma");
-    }
-    let plain = Enigma::plain(value); // RECEIVE value is always plain
-    if typmod == -1 { // unknown typmod 
-        debug1!("Unknown typmod: {}\noid: {:?}", typmod, oid);
-        return plain;
-    }
-    let key_id = typmod;
-    PUB_KEYS.encrypt(key_id, plain) // Result
-            .expect("Encrypt (input)") // Enigma
+    Enigma::try_from((typmod,value)).expect("RECEIVE: Enigma")
 } 
 
 
