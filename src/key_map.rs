@@ -239,8 +239,8 @@ impl PubKeysMap {
     /// If no encrypting key is found, returns an error message.
     pub fn encrypt(self: &'static PubKeysMap, id: i32, msg: Enigma) 
     -> Result<Enigma, Box<(dyn std::error::Error + 'static)>> {
-        if id < 1 { // TODO: Support Key ID 0
-            return Err("Key id must be a positive integer".into());
+        if id < 0 {
+            return Err("Key id must be zero or greater".into());
         }
         let key_id: u32 = id as u32;
         if let Some(msgid) = msg.key_id() { // message is encrypted

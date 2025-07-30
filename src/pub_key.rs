@@ -81,8 +81,8 @@ impl Encrypt<u32,Enigma> for PubKey {
 impl Encrypt<i32,Enigma> for PubKey {
     fn encrypt(&self, id: i32, msg: Enigma) 
     -> Result<Enigma, Box<(dyn std::error::Error + 'static)>> {
-        if id < 1 { // TODO: Support Key ID 0
-            return Err("Key id must be a positive integer".into());
+        if id < 0 { 
+            return Err("Key id must be xero or greater".into());
         }
         self.encrypt(id as u32, msg)
     }
@@ -100,8 +100,8 @@ impl Encrypt<u32,String> for PubKey {
 impl Encrypt<i32,String> for PubKey {
     fn encrypt(&self, id: i32, message: String) 
     -> Result<String, Box<(dyn std::error::Error + 'static)>> {
-        if id < 1 { // TODO: Support Key ID 0
-            return Err("Key id must be a positive integer".into());
+        if id < 0 {
+            return Err("Key id must be zero or greater".into());
         }
         self.encrypt(id as u32, message)
     }

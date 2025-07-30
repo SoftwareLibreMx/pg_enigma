@@ -38,15 +38,10 @@ fn enigma_input_with_typmod(input: &CStr, oid: pg_sys::Oid, typmod: i32)
     }
 
     let plain = Enigma::plain(value); 
-    let key_id;
-    if typmod == -1 { // No typmod, use key_id 0
-        key_id = 0;
-    } else if typmod >= 0 {
-        key_id = typmod;
-    } else {
-        panic!("Typmod must be greater than zero");
-    }
-
+    let key_id = match typmod {
+        -1 => 0, // No typmod, use key_id 0
+        _ => typmod
+    };
     PUB_KEYS.encrypt(key_id, plain) // Result
             .expect("Encrypt (input)") // Enigma
 }
@@ -63,8 +58,11 @@ fn enigma_cast(original: Enigma, typmod: i32, explicit: bool) -> Enigma {
     }
     //debug2!("Original: {:?}", original);
     if original.is_plain() {
-        let key_id = typmod;
-        debug2!("Encrypting plain message with key ID: {key_id}");
+        let key_id = match typmod {
+            -1 => 0, // No typmod, use key_id 0
+            _ => typmod
+        };
+        //debug2!("Encrypting plain message with key ID: {key_id}");
         return PUB_KEYS.encrypt(key_id, original) // Result
                         .expect("Encrypt (typmod cast)"); // Enigma
     } 
@@ -108,15 +106,10 @@ fn enigma_receive_with_typmod(mut internal: Internal, oid: Oid, typmod: i32)
     }
 
     let plain = Enigma::plain(value); // RECEIVE value is always plain
-    let key_id;
-    if typmod == -1 { // No typmod, use key_id 0
-        key_id = 0;
-    } else if typmod >= 0 {
-        key_id = typmod;
-    } else {
-        panic!("Typmod must be greater than zero");
-    }
-
+    let key_id = match typmod {
+        -1 => 0, // No typmod, use key_id 0
+        _ => typmod
+    };
     PUB_KEYS.encrypt(key_id, plain) // Result
             .expect("Encrypt (input)") // Enigma
 } 
