@@ -96,7 +96,7 @@ fn enigma_output(message: Enigma) -> &'static CStr {
 	debug2!("enigma_output: Entering enigma_output");
 	let mut buffer = StringInfo::new();
 
-	debug2!("enigma_output value: {}", message);
+	//debug2!("enigma_output value: {}", message);
 
     // TODO: workaround double decrypt()
      // if decrypting key is not set, returns the same message
