@@ -32,18 +32,7 @@ fn enigma_input_with_typmod(input: &CStr, oid: pg_sys::Oid, typmod: i32)
 			.to_str()
 			.expect("Enigma::input can't convert to str")
 			.to_string();
-    // TODO: Enigma::from((typmod,value))
-/*     if is_enigma_hdr(&value) {
-        return Enigma::try_from(value).expect("INPUT: Corrupted Enigma");
-    }
 
-    let plain = Enigma::plain(value); 
-    let key_id = match typmod {
-        -1 => 0, // No typmod, use key_id 0
-        _ => typmod
-    };
-    PUB_KEYS.encrypt(key_id, plain) // Result
-            .expect("Encrypt (input)") // Enigma */
     Enigma::try_from((typmod,value)).expect("INPUT: Enigma")
 }
 
@@ -53,23 +42,19 @@ fn enigma_input_with_typmod(input: &CStr, oid: pg_sys::Oid, typmod: i32)
 fn enigma_cast(original: Enigma, typmod: i32, explicit: bool) -> Enigma {
     debug2!("enigma_cast: \
         ARGUMENTS: explicit: {},  Typmod: {}", explicit, typmod);
-    if typmod == -1 {
-        panic!("Unknown typmod: {}\noriginal: {:?}\nexplicit: {}", 
-            typmod, original, explicit);
-    }
     //debug2!("Original: {:?}", original);
-    if original.is_plain() {
-        let key_id = match typmod {
-            -1 => 0, // No typmod, use key_id 0
-            _ => typmod
-        };
-        //debug2!("Encrypting plain message with key ID: {key_id}");
-        return PUB_KEYS.encrypt(key_id, original) // Result
-                        .expect("Encrypt (typmod cast)"); // Enigma
+    if original.is_encrypted() {
+        // TODO: if original.key_id != key_id {try_reencrypt()} 
+        return original;
     } 
-    
-    // TODO: if original.key_id != key_id {try_reencrypt()} 
-    original
+
+    let key_id = match typmod {
+        -1 => 0, // No typmod, use key_id 0
+        _ => typmod
+    };
+    //debug2!("Encrypting plain message with key ID: {key_id}");
+    PUB_KEYS.encrypt(key_id, original) // Result
+            .expect("Encrypt (typmod cast)") // Enigma
 }
 
 /** TODO: Receive function for Enigma
@@ -99,21 +84,9 @@ fn enigma_receive_with_typmod(mut internal: Internal, oid: Oid, typmod: i32)
             buf.len as usize
         )
     });
-
     let value = serialized.as_str().unwrap().to_string();
-    // TODO: Enigma::from((typmod,value))
-    /* if is_enigma_hdr(&value) {
-        return Enigma::try_from(value).expect("RECEIVE: Corrupted Enigma");
-    }
 
-    let plain = Enigma::plain(value); // RECEIVE value is always plain
-    let key_id = match typmod {
-        -1 => 0, // No typmod, use key_id 0
-        _ => typmod
-    };
-    PUB_KEYS.encrypt(key_id, plain) // Result
-            .expect("Encrypt (input)") // Enigma */
-    Enigma::try_from((typmod,value)).expect("INPUT: Enigma")
+    Enigma::try_from((typmod,value)).expect("RECEIVE: Enigma")
 } 
 
 
@@ -124,7 +97,7 @@ fn enigma_output(message: Enigma) -> &'static CStr {
 	debug2!("enigma_output: Entering enigma_output");
 	let mut buffer = StringInfo::new();
 
-	debug2!("enigma_output value: {}", message);
+	//debug2!("enigma_output value: {}", message);
 
     // TODO: workaround double decrypt()
      // if decrypting key is not set, returns the same message

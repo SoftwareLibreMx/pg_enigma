@@ -40,20 +40,20 @@ impl TryFrom<String> for Enigma {
             let (tag,key_id) = split_hdr(header)?;
 
             if tag == PLAIN_INT {
-                debug2!{"Plain payload: {payload}"}
+                //debug2!{"Plain payload: {payload}"}
                 return Ok(Self::plain(payload.to_string()));
             }
 
             if tag == ENIGMA_INT {
                 if payload.starts_with(PGP_BEGIN) 
                 && payload.ends_with(PGP_END) {
-                    debug2!("PGP encrypted message");
+                    //debug2!("PGP encrypted message");
                     return try_from_pgp_armor(key_id, payload);
                 }
 
                 if payload.starts_with(RSA_BEGIN)
                 && payload.ends_with(RSA_END) {
-                    debug2!("RSA encrypted message");
+                    //debug2!("RSA encrypted message");
                     return Ok(from_rsa_envelope(key_id, payload));
                 }
             }
@@ -288,7 +288,7 @@ impl FromDatum for Enigma {
             None => return None,
             Some(v) => v
         };
-        debug2!("FromDatum value:\n{value}");
+        //debug2!("FromDatum value:\n{value}");
         let enigma = Enigma::try_from(value).expect("Corrupted Enigma");
         //debug2!("FromDatum: Encrypted message: {:?}", enigma);
         let decrypted = PRIV_KEYS.decrypt(enigma)
@@ -300,10 +300,6 @@ impl FromDatum for Enigma {
 
 impl IntoDatum for Enigma {
     fn into_datum(self) -> Option<pg_sys::Datum> {
-        /* if self.is_plain() {
-            error!("Enigma is not encrypted");
-        } */
-
         let value = match self {
             Enigma::PGP(key,m) => {
                 let msg = m.to_armored_string(None.into())
@@ -315,11 +311,10 @@ impl IntoDatum for Enigma {
                 ENIGMA_TAG, key, SEPARATOR, RSA_BEGIN, msg, RSA_END)
             },
             Enigma::Plain(s) => {
-                //format!("{}{:08X}{}{}", PLAIN_TAG, 0, SEPARATOR, s)
-                panic!("IntoDatum: Enigma is not encrypted");
+                error!("IntoDatum: Enigma is not encrypted");
             }
         };
-        debug2!("IntoDatum value:\n{value}");
+        //debug2!("IntoDatum value:\n{value}");
         Some( value.into_datum().expect("IntoDatum error") )
     }
 
