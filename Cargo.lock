@@ -1926,7 +1926,7 @@ dependencies = [
 
 [[package]]
 name = "pg_enigma"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "once_cell",
  "openssl",

@@ -83,7 +83,7 @@ pg_enigma=# SELECT * FROM testab;
 Now delete the private key using `forget_private_key()` function:
 
 ```sql
-SELECT forget_private_key(1);
+SELECT forget_private_key(2);
 SELECT * FROM testab limit 1;
 ```
 Expected result: 
@@ -143,7 +143,7 @@ Now provide the private key using `set_private_key_from_file()` function:
 
 ```sql
 SELECT set_private_key_from_file(3, 
-	'/path/to/private-key.asc', 'Private key passphrase');
+    '../../pg_enigma/test/alice_private.pem', 'Prueba123!');
 SELECT * FROM testab limit 1;
 ```
 
