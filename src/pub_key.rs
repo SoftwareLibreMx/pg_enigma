@@ -6,9 +6,11 @@ use openssl::base64::encode_block;
 use openssl::encrypt::Encrypter;
 use openssl::pkey::{PKey,Public};
 use openssl::rsa::Padding;
-use pgp::composed::{ArmorOptions,Deserializable,MessageBuilder,SignedPublicKey};
+use pgp::composed::{
+    ArmorOptions, Deserializable, MessageBuilder, SignedPublicKey
+};
 use pgp::crypto::sym::SymmetricKeyAlgorithm;
-use pgp::types::{KeyDetails,PublicKeyTrait};
+use pgp::types::{KeyDetails};
 use pgrx::datum::DatumWithOid;
 use pgrx::{debug1,PgBuiltInOids,Spi};
 use rand_chacha::ChaCha12Rng;
@@ -17,7 +19,7 @@ use std::time::{SystemTime,UNIX_EPOCH};
 
 const PGP_BEGIN: &str = "-----BEGIN PGP PUBLIC KEY BLOCK-----";
 const PGP_END: &str = "-----END PGP PUBLIC KEY BLOCK-----";
-// TODO:  Other OpenSSK supported key types (elyptic curves, etc.)
+// TODO:  Other OpenSSL supported key types (elyptic curves, etc.)
 const SSL_BEGIN: &str = "-----BEGIN PUBLIC KEY-----";
 const SSL_END: &str = "-----END PUBLIC KEY-----";
 
@@ -153,16 +155,12 @@ pub fn insert_public_key(id: i32, key: &str)
 
 fn encrypt_pgp(pub_key: &SignedPublicKey, message: String) 
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
-/*    //let msg = Message::new_literal("none", message.as_str());
-    let msg = MessageBuilder::from(message);
-    let mut rng =  ChaCha12Rng::seed_from_u64(*SEED);
-    let new_msg = msg.encrypt_to_key( &mut rng , &pub_key)?;
-    new_msg.to_armored_string(rng, None.into()) */
     let mut rng =  ChaCha12Rng::seed_from_u64(*SEED);
     let mut builder = MessageBuilder::from_bytes("", message)
         .seipd_v1(&mut rng, SymmetricKeyAlgorithm::AES256);
     builder.encrypt_to_key(&mut rng, &pub_key)?;
-    Ok(builder.to_armored_string(rng,ArmorOptions::default())?)
+    let encrypted = builder.to_armored_string(rng,ArmorOptions::default())?;
+    Ok(encrypted)
 }
 
 fn encrypt_rsa(pub_key: &PKey<Public>, message: String) 

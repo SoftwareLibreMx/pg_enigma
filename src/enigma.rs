@@ -1,14 +1,12 @@
 use crate::{PRIV_KEYS,PUB_KEYS};
-use pgp::composed::{Deserializable,Message};
 use pgrx::callconv::{ArgAbi, BoxRet};
 use pgrx::datum::Datum;
 use pgrx::{debug1,debug2};
 use pgrx::{FromDatum,IntoDatum,pg_sys,rust_regtypein};
 use pgrx::pgrx_sql_entity_graph::metadata::{
-    ArgumentError, Returns, ReturnsError, SqlMapping, SqlTranslatable,
+    ArgumentError, Returns, ReturnsError, SqlMapping, SqlTranslatable
 };
 use std::fmt::{Display, Formatter};
-use std::io::Cursor;
 
 const PGP_BEGIN: &str = "-----BEGIN PGP MESSAGE-----\n";
 const PGP_END: &str = "-----END PGP MESSAGE-----\n";
@@ -91,6 +89,7 @@ impl TryFrom<&String> for Enigma {
 
 impl Display for Enigma {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        // TODO: Specific PGP or RSA Enigma tags to remove _BEGIN and _END
         match self {
             Enigma::PGP(key,msg) => {
                 write!(f, "{}{:08X}{}{}{}{}", 
@@ -114,12 +113,10 @@ impl Enigma {
     }
 
     pub fn pgp(id: u32, value: String) -> Self {
-        // TODO: u32 key_id
         Self::PGP(id, value)
     }
 
     pub fn rsa(id: u32, value: String) -> Self {
-        // TODO: u32 key_id
         Self::RSA(id, value)
     }
 
@@ -143,9 +140,7 @@ impl Enigma {
 
     pub fn key_id(&self) -> Option<u32> {
         match self {
-            // TODO: u32 key_id
             Self::RSA(k,_) => Some(*k),
-            // TODO: u32 key_id
             Self::PGP(k,_) => Some(*k),
             Self::Plain(_) => None
         }
@@ -215,8 +210,6 @@ fn split_hdr(full_header: &str)
 }
 
 fn from_pgp_armor(key_id: u32, value: &str) -> Enigma {
-    //let buf = Cursor::new(value);
-    //let (msg, _) = Message::from_armor_single(buf)?;
     Enigma::PGP(key_id, value
         .trim_start_matches(PGP_BEGIN)
         .trim_end_matches(PGP_END)
@@ -305,6 +298,7 @@ impl IntoDatum for Enigma {
             error!("Enigma is not encrypted");
         } */
 
+        // TODO: Specific PGP or RSA Enigma tags to remove _BEGIN and _END
         let value = match self {
             Enigma::PGP(key,msg) => {
                 format!("{}{:08X}{}{}{}{}", 

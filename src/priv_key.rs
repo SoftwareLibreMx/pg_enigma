@@ -6,16 +6,15 @@ use openssl::encrypt::Decrypter;
 use openssl::pkey::{PKey,Private};
 use openssl::rsa::Padding;
 use pgp::composed::{Deserializable,Message,SignedSecretKey};
-use pgp::types::{KeyDetails,Password,PublicKeyTrait};
+use pgp::types::{KeyDetails,Password};
 use pgrx::debug2;
 use std::io::Cursor;
-use std::io::Read;
 
 const PGP_BEGIN: &str = "-----BEGIN PGP MESSAGE-----\n";
 const PGP_END: &str = "-----END PGP MESSAGE-----\n";
 const PGPKEY_BEGIN: &str = "-----BEGIN PGP PRIVATE KEY BLOCK-----";
 const PGPKEY_END: &str = "-----END PGP PRIVATE KEY BLOCK-----";
-// TODO:  Other OpenSSK supported key types (elyptic curves, etc.)
+// TODO:  Other OpenSSL supported key types (elyptic curves, etc.)
 const SSL_BEGIN: &str = "-----BEGIN ENCRYPTED PRIVATE KEY-----";
 const SSL_END: &str = "-----END ENCRYPTED PRIVATE KEY-----";
 
@@ -93,14 +92,8 @@ impl Decrypt<String> for PrivKey {
 fn decrypt_pgp(key: &SignedSecretKey, pass: String, message: Enigma)
 -> Result<Enigma, Box<(dyn std::error::Error + 'static)>> {
     if let Enigma::PGP(_,msg) = message {
-        /* let (decrypted, _) = msg.decrypt(|| pass.to_string(), &[&key])?;
-        // TODO: Should `expect()` instead of `unwrap()`
-        let bytes = decrypted.get_content()?.ok_or("No content")?;
-        let clear_text = String::from_utf8(bytes)?;
-        return Ok(Enigma::plain(clear_text)); */
         debug2!("Decrypt: PGP Enigma: {msg}");
         return Ok(Enigma::plain(decrypt_pgp_string(key, pass, msg)?));
-
     }
     Err("Wrong key. Message is not PGP.".into())
 }
@@ -109,12 +102,8 @@ fn decrypt_pgp_string(key: &SignedSecretKey, pass: String, message: String)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
     let buf = Cursor::new(format!("{}{}{}",PGP_BEGIN,message,PGP_END));
     let (msg, _) = Message::from_armor(buf)?;
-    //Ok(decrypt_pgp(key, pass, Enigma::pgp(0,msg))?.to_string())
     let pw = Password::from(pass);
     let mut decrypted = msg.decrypt(&pw, &key)?;
-    //let bytes = decrypted.get_content()?.ok_or("No content")?;
-    //let clear_text = String::from_utf8(bytes)?;
-    //decrypted.read_to_string(&mut clear_text);
     let clear_text = decrypted.as_data_string()?;
     return Ok(clear_text);
 }
