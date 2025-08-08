@@ -35,6 +35,35 @@ fn enigma_input_with_typmod(input: &CStr, oid: pg_sys::Oid, typmod: i32)
     Enigma::try_from((typmod,value)).expect("INPUT: Enigma")
 }
 
+/// Assignment cast is called before the INPUT function.
+#[pg_extern]
+fn enigma_assignment_cast(original: String, typmod: i32, explicit: bool) 
+-> Enigma {
+    debug2!("enigma_assignment_cast: \
+        ARGUMENTS: explicit: {},  Typmod: {}", explicit, typmod);
+    if typmod == -1 {
+        panic!("Unknown typmod: {}\noriginal: {:?}\nexplicit: {}", 
+            typmod, original, explicit);
+    }
+    Enigma::try_from((typmod,original)).expect("ASSIGNMENT CAST: Enigma")
+
+}
+
+#[pg_extern]
+fn char_as_enigma<'fcx>(original: &'fcx str, typmod: i32, explicit: bool) 
+-> Enigma {
+    debug2!("enigma_assignment_cast: \
+        ARGUMENTS: explicit: {},  Typmod: {}", explicit, typmod);
+    if typmod == -1 {
+        panic!("Unknown typmod: {}\noriginal: {:?}\nexplicit: {}", 
+            typmod, original, explicit);
+    }
+    
+    let value = String::from(original);
+    Enigma::try_from((typmod,value)).expect("ASSIGNMENT CAST: Enigma")
+
+}
+
 /// Cast enigma to enigma is called after enigma_input_with_typmod(). 
 /// This function is passed the correct known typmod argument.
 #[pg_extern]
