@@ -113,7 +113,10 @@ impl Enigma {
     }
 
     pub fn pgp(id: u32, value: String) -> Self {
-        Self::PGP(id, value)
+        Self::PGP(id, value
+                    .trim_start_matches(PGP_BEGIN)
+                    .trim_end_matches(PGP_END)
+                    .to_string())
     }
 
     pub fn rsa(id: u32, value: String) -> Self {

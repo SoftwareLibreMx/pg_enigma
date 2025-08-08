@@ -159,7 +159,11 @@ fn encrypt_pgp(pub_key: &SignedPublicKey, message: String)
     let mut builder = MessageBuilder::from_bytes("", message)
         .seipd_v1(&mut rng, SymmetricKeyAlgorithm::AES256);
     builder.encrypt_to_key(&mut rng, &pub_key)?;
-    let encrypted = builder.to_armored_string(rng,ArmorOptions::default())?;
+    let encrypted = builder
+                    .to_armored_string(rng,ArmorOptions::default())?
+                    .trim_start_matches(PGP_BEGIN)
+                    .trim_end_matches(PGP_END)
+                    .to_string();
     Ok(encrypted)
 }
 
