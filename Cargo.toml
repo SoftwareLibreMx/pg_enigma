@@ -21,6 +21,7 @@ pg_test = []
 
 [dependencies]
 once_cell = "*"
+hex = "*"
 openssl = "~0.10.64"
 pgp = "~0.16.0"
 pgrx = "~0.15.0"

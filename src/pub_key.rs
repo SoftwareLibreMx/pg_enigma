@@ -1,13 +1,14 @@
 use crate::enigma::Enigma;
 use crate::traits::Encrypt;
+use hex::ToHex;
 use once_cell::sync::Lazy;
 use openssl::base64::encode_block;
 use openssl::encrypt::Encrypter;
 use openssl::pkey::{PKey,Public};
 use openssl::rsa::Padding;
-use pgp::{Deserializable,Message,SignedPublicKey};
+use pgp::composed::{ArmorOptions,Deserializable,MessageBuilder,SignedPublicKey};
 use pgp::crypto::sym::SymmetricKeyAlgorithm;
-use pgp::types::PublicKeyTrait;
+use pgp::types::{KeyDetails,PublicKeyTrait};
 use pgrx::datum::DatumWithOid;
 use pgrx::{debug1,PgBuiltInOids,Spi};
 use rand_chacha::ChaCha12Rng;
@@ -52,7 +53,7 @@ impl PubKey {
 
     pub fn pub_key_id(&self) -> String {
         match self {
-            PubKey::PGP(k) => format!("{:x}", k.key_id()),
+            PubKey::PGP(k) => k.key_id().encode_hex(),
             PubKey::RSA(k) => format!("{:?}", k.id())
         }
     }
@@ -151,13 +152,17 @@ pub fn insert_public_key(id: i32, key: &str)
  * *******************/
 
 fn encrypt_pgp(pub_key: &SignedPublicKey, message: String) 
--> Result<Message, Box<(dyn std::error::Error + 'static)>> {
-    let msg = Message::new_literal("none", message.as_str());
-    // TODO: use some random seed (nanoseconds or something)
+-> Result<String, Box<(dyn std::error::Error + 'static)>> {
+/*    //let msg = Message::new_literal("none", message.as_str());
+    let msg = MessageBuilder::from(message);
     let mut rng =  ChaCha12Rng::seed_from_u64(*SEED);
-    let new_msg = msg.encrypt_to_keys_seipdv1(
-        &mut rng , SymmetricKeyAlgorithm::AES128, &[&pub_key])?;
-    Ok(new_msg)
+    let new_msg = msg.encrypt_to_key( &mut rng , &pub_key)?;
+    new_msg.to_armored_string(rng, None.into()) */
+    let mut rng =  ChaCha12Rng::seed_from_u64(*SEED);
+    let mut builder = MessageBuilder::from_bytes("", message)
+        .seipd_v1(&mut rng, SymmetricKeyAlgorithm::AES256);
+    builder.encrypt_to_key(&mut rng, &pub_key)?;
+    Ok(builder.to_armored_string(rng,ArmorOptions::default())?)
 }
 
 fn encrypt_rsa(pub_key: &PKey<Public>, message: String) 
