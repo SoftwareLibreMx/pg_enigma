@@ -57,22 +57,24 @@ fn enigma_cast(original: Enigma, typmod: i32, explicit: bool) -> Enigma {
 }
 
 /** Cast Text to Enigma is called when inserting a Text value into Enigma. 
-Example:
+Examples:
 ```sql
 INSERT INTO testab (b) VALUES ( 'hola ' || 'mundo' );
+-- other example
+INSERT INTO testab (b) VALUES ('my first record'::Text);
 ```
   */
 #[pg_extern]
-fn cast_text_as_enigma(orig: String, typmod: i32, explicit: bool) 
+fn cast_text_as_enigma(original: String, typmod: i32, explicit: bool) 
 -> Enigma {
     debug2!("cast_text_as_enigma: \
         ARGUMENTS: explicit: {},  Typmod: {}", explicit, typmod);
     if typmod == -1 {
-        panic!("Unknown typmod: {}\norig: {:?}\nexplicit: {}", 
-            typmod, orig, explicit);
+        panic!("Unknown typmod: {}\noriginal: {:?}\nexplicit: {}", 
+            typmod, original, explicit);
     }
-    //debug2!("Original: {:?}", orig);
-    Enigma::try_from((typmod,orig))
+    //debug2!("Original: {:?}", original);
+    Enigma::try_from((typmod,original))
             .expect("CAST Text AS Enigma: Enigma")
 }
 
