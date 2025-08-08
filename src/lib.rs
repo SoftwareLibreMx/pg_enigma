@@ -48,6 +48,7 @@ fn string_as_enigma(original: String, typmod: i32, explicit: bool)
     Enigma::try_from((typmod,original)).expect("ASSIGNMENT CAST: String")
 }
 
+/*
 #[pg_extern]
 fn str_as_enigma<'fcx>(original: &'fcx str, typmod: i32, explicit: bool) 
 -> Enigma {
@@ -61,6 +62,21 @@ fn str_as_enigma<'fcx>(original: &'fcx str, typmod: i32, explicit: bool)
     let value = String::from(original);
     Enigma::try_from((typmod,value)).expect("ASSIGNMENT CAST: &str")
 }
+
+#[pg_extern]
+fn u8_as_enigma<'fcx>(original: &'fcx [u8], typmod: i32, explicit: bool) 
+-> Enigma {
+    debug2!("u8_as_enigma: \
+        ARGUMENTS: explicit: {},  Typmod: {}", explicit, typmod);
+    if typmod == -1 {
+        panic!("Unknown typmod: {}\noriginal: {:?}\nexplicit: {}", 
+            typmod, original, explicit);
+    }
+    
+    let value = String::from_utf8(original.to_vec()).expect("from_utf8");
+    Enigma::try_from((typmod,value)).expect("ASSIGNMENT CAST: &[u8]")
+}
+*/
 
 /// Cast enigma to enigma is called after enigma_input_with_typmod(). 
 /// This function is passed the correct known typmod argument.
