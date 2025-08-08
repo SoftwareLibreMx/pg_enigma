@@ -37,22 +37,21 @@ fn enigma_input_with_typmod(input: &CStr, oid: pg_sys::Oid, typmod: i32)
 
 /// Assignment cast is called before the INPUT function.
 #[pg_extern]
-fn enigma_assignment_cast(original: String, typmod: i32, explicit: bool) 
+fn string_as_enigma(original: String, typmod: i32, explicit: bool) 
 -> Enigma {
-    debug2!("enigma_assignment_cast: \
+    debug2!("string_as_enigma: \
         ARGUMENTS: explicit: {},  Typmod: {}", explicit, typmod);
     if typmod == -1 {
         panic!("Unknown typmod: {}\noriginal: {:?}\nexplicit: {}", 
             typmod, original, explicit);
     }
-    Enigma::try_from((typmod,original)).expect("ASSIGNMENT CAST: Enigma")
-
+    Enigma::try_from((typmod,original)).expect("ASSIGNMENT CAST: String")
 }
 
 #[pg_extern]
-fn char_as_enigma<'fcx>(original: &'fcx str, typmod: i32, explicit: bool) 
+fn str_as_enigma<'fcx>(original: &'fcx str, typmod: i32, explicit: bool) 
 -> Enigma {
-    debug2!("enigma_assignment_cast: \
+    debug2!("str_as_enigma: \
         ARGUMENTS: explicit: {},  Typmod: {}", explicit, typmod);
     if typmod == -1 {
         panic!("Unknown typmod: {}\noriginal: {:?}\nexplicit: {}", 
@@ -60,14 +59,13 @@ fn char_as_enigma<'fcx>(original: &'fcx str, typmod: i32, explicit: bool)
     }
     
     let value = String::from(original);
-    Enigma::try_from((typmod,value)).expect("ASSIGNMENT CAST: Enigma")
-
+    Enigma::try_from((typmod,value)).expect("ASSIGNMENT CAST: &str")
 }
 
 /// Cast enigma to enigma is called after enigma_input_with_typmod(). 
 /// This function is passed the correct known typmod argument.
 #[pg_extern]
-fn enigma_cast(original: Enigma, typmod: i32, explicit: bool) -> Enigma {
+fn enigma_as_enigma(original: Enigma, typmod: i32, explicit: bool) -> Enigma {
     debug2!("enigma_cast: \
         ARGUMENTS: explicit: {},  Typmod: {}", explicit, typmod);
     if typmod == -1 {
@@ -270,7 +268,7 @@ extension_sql_file!("../sql/concrete_type.sql", creates = [Type(Enigma)],
 // https://stackoverflow.com/questions/40406662/postgres-doc-regaring-input-function-for-create-type-does-not-seem-to-be-correct/74426960#74426960
 // https://www.postgresql.org/message-id/67091D2B.5080002%40acm.org
 extension_sql_file!("../sql/enigma_casts.sql",
-    requires = ["concrete_type", enigma_cast]
+    requires = ["concrete_type", enigma_as_enigma, string_as_enigma]
 );
 
 
