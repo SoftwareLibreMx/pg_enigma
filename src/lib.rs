@@ -37,22 +37,22 @@ fn enigma_input(input: &CStr, oid: pg_sys::Oid, typmod: i32)
 /// Cast enigma to enigma is called after enigma_input_with_typmod(). 
 /// This function is passed the correct known typmod argument.
 #[pg_extern]
-fn enigma_cast(original: Enigma, typmod: i32, explicit: bool) -> Enigma {
-    debug2!("enigma_cast: \
+fn enigma_as_enigma(original: Enigma, typmod: i32, explicit: bool) 
+-> Result<Enigma, Box<(dyn std::error::Error + 'static)>> {
+    debug2!("CAST(Enigma AS Enigma): \
         ARGUMENTS: explicit: {},  Typmod: {}", explicit, typmod);
     if typmod == -1 {
-        panic!("Unknown typmod: {}\noriginal: {:?}\nexplicit: {}", 
+        error!("Unknown typmod: {}\noriginal: {:?}\nexplicit: {}", 
             typmod, original, explicit);
     }
-    //debug2!("Original: {:?}", original);
+    debug5!("Original: {:?}", original);
     if original.is_encrypted() {
         // TODO: if original.key_id != key_id {try_reencrypt()} 
-        return original;
+        return Ok(original);
     } 
     let key_id = typmod;
     debug2!("Encrypting plain message with key ID: {key_id}");
-    PUB_KEYS.encrypt(key_id, original) // Result
-            .expect("Encrypt (typmod cast)") // Enigma
+    PUB_KEYS.encrypt(key_id, original)
 }
 
 /** TODO: Receive function for Enigma
@@ -228,7 +228,7 @@ extension_sql_file!("../sql/concrete_type.sql", creates = [Type(Enigma)],
 // https://stackoverflow.com/questions/40406662/postgres-doc-regaring-input-function-for-create-type-does-not-seem-to-be-correct/74426960#74426960
 // https://www.postgresql.org/message-id/67091D2B.5080002%40acm.org
 extension_sql_file!("../sql/enigma_casts.sql",
-    requires = ["concrete_type", enigma_cast]
+    requires = ["concrete_type", enigma_as_enigma]
 );
 
 
