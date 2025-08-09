@@ -112,14 +112,17 @@ fn enigma_typmod_in(input: Array<&CStr>)
     if input.len() != 1 {
         error!("Enigma type modifier must be a single integer value");
     }
-    let ret = input.iter() // iterator
+    let typmod = input.iter() // iterator
     .next() // Option<Item>
     .ok_or("No Item")? // Item
     .ok_or("Null item")? // &Cstr
     .to_str()? //&str
     .parse::<i32>()?; // i32
-    debug1!("typmod_in({ret})");
-    Ok(ret)
+    debug1!("typmod_in({typmod})");
+    if typmod < 0 {
+        error!("Enigma type modifier must be a positive integer");
+    }
+    Ok(typmod)
 }
 
 
