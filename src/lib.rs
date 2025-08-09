@@ -87,8 +87,8 @@ fn enigma_receive(mut internal: Internal, oid: Oid, typmod: i32)
 } 
 
 
-// Send to postgres
-// TODO check if we can return just StringInfo
+/// Enigma OUTPUT function
+/// Sends Enigma to Postgres converted to `&Cstr`
 #[pg_extern(immutable, parallel_safe, requires = [ "shell_type" ])]
 fn enigma_output(enigma: Enigma) 
 -> Result<&'static CStr, Box<(dyn std::error::Error + 'static)>> {
@@ -112,26 +112,23 @@ fn enigma_send(enigma: Enigma)
 }
 
 
-/// Needed for managing keys for each column
-/// We mark this function as `immutable` because its output depends ONLY on its inputs.
-/// This is required for functions used as a `TYPMOD_IN`, as the planner needs
-/// to rely on its output being consistent.
-#[pg_extern(immutable, name = "enigma_type_modifier_input", requires = [ "shell_type" ])]
-pub fn enigma_type_modifier_input(cstrings: pgrx::Array<'_, &CStr>) -> i32 {
-
-    // TODO: enigma_typmod_in() from KBrown/TypmodInOutFuncs is simpler
-    let rust_strings: Vec<&str> = cstrings
-        .iter()
-        .flatten()
-        .map(|cstr| cstr.to_str().unwrap_or_default())
-        .collect();
-
-    debug2!("enigma_type_modifier_input:: value {}", 
-        rust_strings[0].parse::<i32>().unwrap());
-
-    rust_strings[0]
-        .parse::<i32>()
-        .expect("Canto convert typmod to integer")
+/// Enigma TYPMOD_IN function.
+/// converts typmod from cstring to i32
+#[pg_extern(immutable, parallel_safe, requires = [ "shell_type" ])]
+fn enigma_typmod_in(input: Array<&CStr>) 
+-> Result<i32, Box<(dyn std::error::Error + 'static)>> {
+	debug2!("TYPMOD_IN");
+    if input.len() != 1 {
+        error!("Enigma type modifier must be a single integer value");
+    }
+    let ret = input.iter() // iterator
+    .next() // Option<Item>
+    .ok_or("No Item")? // Item
+    .ok_or("Null item")? // &Cstr
+    .to_str()? //&str
+    .parse::<i32>()?; // i32
+    debug1!("typmod_in({ret})");
+    Ok(ret)
 }
 
 
@@ -219,7 +216,7 @@ extension_sql_file!("../sql/shell_type.sql", bootstrap);
 // Create the real type
 extension_sql_file!("../sql/concrete_type.sql", creates = [Type(Enigma)],
     requires = ["shell_type", enigma_input, enigma_output, 
-    enigma_receive, enigma_send, enigma_type_modifier_input],
+    enigma_receive, enigma_send, enigma_typmod_in],
 );
 
 // Creates the casting function so we can get the key id in the

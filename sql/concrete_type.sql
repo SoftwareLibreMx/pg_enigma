@@ -3,6 +3,6 @@ CREATE TYPE enigma (
 	OUTPUT = enigma_output,
 	RECEIVE = enigma_receive,
 	SEND = enigma_send,
-	TYPMOD_IN = enigma_type_modifier_input
+	TYPMOD_IN = enigma_typmod_in
 );
 
