@@ -23,7 +23,7 @@ static PUB_KEYS: Lazy<PubKeysMap> = Lazy::new(|| PubKeysMap::new());
 
 
 /// Functions for extracting and inserting data
-#[pg_extern(immutable, parallel_safe, requires = [ "shell_type" ])]
+#[pg_extern(stable, parallel_safe, requires = [ "shell_type" ])]
 fn enigma_input(input: &CStr, oid: pg_sys::Oid, typmod: i32) 
 -> Result<Enigma, Box<(dyn std::error::Error + 'static)>> {
 	//debug2!("INPUT: OID: {:?},  Typmod: {}", oid, typmod);
@@ -36,7 +36,7 @@ fn enigma_input(input: &CStr, oid: pg_sys::Oid, typmod: i32)
 
 /// Cast enigma to enigma is called after enigma_input_with_typmod(). 
 /// This function is passed the correct known typmod argument.
-#[pg_extern]
+#[pg_extern(stable, parallel_safe)]
 fn enigma_as_enigma(original: Enigma, typmod: i32, explicit: bool) 
 -> Result<Enigma, Box<(dyn std::error::Error + 'static)>> {
     debug2!("CAST(Enigma AS Enigma): \
@@ -65,7 +65,7 @@ fn enigma_as_enigma(original: Enigma, typmod: i32, explicit: bool)
     text input function. 
     The receive function must return a value of the data type itself. */
 
-#[pg_extern(immutable, parallel_safe, requires = [ "shell_type" ])]
+#[pg_extern(stable, parallel_safe, requires = [ "shell_type" ])]
 fn enigma_receive(mut internal: Internal, oid: Oid, typmod: i32) 
 -> Result<Enigma, Box<(dyn std::error::Error + 'static)>> {
     debug2!("RECEIVE: OID: {:?},  Typmod: {}", oid, typmod);
@@ -89,7 +89,7 @@ fn enigma_receive(mut internal: Internal, oid: Oid, typmod: i32)
 
 /// Enigma OUTPUT function
 /// Sends Enigma to Postgres converted to `&Cstr`
-#[pg_extern(immutable, parallel_safe, requires = [ "shell_type" ])]
+#[pg_extern(stable, parallel_safe, requires = [ "shell_type" ])]
 fn enigma_output(enigma: Enigma) 
 -> Result<&'static CStr, Box<(dyn std::error::Error + 'static)>> {
 	//debug2!("OUTPUT");
@@ -102,7 +102,7 @@ fn enigma_output(enigma: Enigma)
     Ok(ret)
 }
 
-#[pg_extern(immutable, parallel_safe, requires = [ "shell_type" ])]
+#[pg_extern(stable, parallel_safe, requires = [ "shell_type" ])]
 fn enigma_send(enigma: Enigma) 
 -> Result<Vec<u8>, Box<(dyn std::error::Error + 'static)>> {
 	//debug2!("SEND");
@@ -136,7 +136,7 @@ fn enigma_typmod_in(input: Array<&CStr>)
 /// SQL function for setting private key in memory (PrivKeysMap)
 /// All in-memory private keys will be lost when session is closed
 /// and postgres sessionprocess ends.
-#[pg_extern]
+#[pg_extern(stable)]
 fn set_private_key(id: i32, key: &str, pass: &str)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
     if id < 1 {
@@ -149,7 +149,7 @@ fn set_private_key(id: i32, key: &str, pass: &str)
 /// SQL function for setting public key in memory (PubKeysMap)
 /// Also inserts provided public key into enigma public keys table, 
 /// making it available for other sessions.
-#[pg_extern]
+#[pg_extern(volatile, requires = [ "shell_type" ])]
 fn set_public_key(id: i32, key: &str)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
     if id < 1 {
@@ -162,7 +162,7 @@ fn set_public_key(id: i32, key: &str)
 }
 
 /// Delete the private key from memory (PrivKeysMap)
-#[pg_extern]
+#[pg_extern(stable)]
 fn forget_private_key(id: i32)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
     if id < 1 {
@@ -172,7 +172,7 @@ fn forget_private_key(id: i32)
 }
 
 /// Delete the public key from memory (PubKeysMap)
-#[pg_extern]
+#[pg_extern(stable)]
 fn forget_public_key(id: i32)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
     if id < 1 {
@@ -182,7 +182,7 @@ fn forget_public_key(id: i32)
 }
 
 /// Sets the private key reading it from a file
-#[pg_extern]
+#[pg_extern(stable)]
 fn set_private_key_from_file(id: i32, file_path: &str, pass: &str)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
     let contents = fs::read_to_string(file_path)
@@ -191,7 +191,7 @@ fn set_private_key_from_file(id: i32, file_path: &str, pass: &str)
 }
 
 /// Sets the public key reading it from a file
-#[pg_extern]
+#[pg_extern(stable)]
 fn set_public_key_from_file(id: i32, file_path: &str)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
     let contents = fs::read_to_string(file_path)
