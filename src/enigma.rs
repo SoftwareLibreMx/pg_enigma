@@ -3,7 +3,7 @@ use pgp::Deserializable;
 use pgp::Message;
 use pgrx::callconv::{ArgAbi, BoxRet};
 use pgrx::datum::Datum;
-use pgrx::{debug1,debug2};
+use pgrx::{debug2,error};
 use pgrx::{FromDatum,IntoDatum,pg_sys,rust_regtypein};
 use pgrx::pgrx_sql_entity_graph::metadata::{
     ArgumentError, Returns, ReturnsError, SqlMapping, SqlTranslatable,
@@ -17,7 +17,7 @@ const RSA_BEGIN: &str = "-----BEGIN RSA ENCRYPTED-----\n";
 const RSA_END: &str = "\n-----END RSA ENCRYPTED-----";
 const ENIGMA_TAG: &str = "ENIGMAv1"; // 0x454E49474D417631
 const ENIGMA_INT: u64  = 0x454E49474D417631; // "ENIGMAv1"
-const PLAIN_TAG: &str  = "PLAINMSG"; // 0x504C41494E4D5347
+//const PLAIN_TAG: &str  = "PLAINMSG"; // 0x504C41494E4D5347
 const PLAIN_INT: u64   = 0x504C41494E4D5347; // "PLAINMSG"
 const SEPARATOR: char = '\n';
 
@@ -311,7 +311,7 @@ impl IntoDatum for Enigma {
                 format!("{}{:08X}{}{}{}{}",
                 ENIGMA_TAG, key, SEPARATOR, RSA_BEGIN, msg, RSA_END)
             },
-            Enigma::Plain(s) => {
+            Enigma::Plain(_) => {
                 error!("IntoDatum: Enigma is not encrypted");
             }
         };
