@@ -24,15 +24,14 @@ static PUB_KEYS: Lazy<PubKeysMap> = Lazy::new(|| PubKeysMap::new());
 
 /// Functions for extracting and inserting data
 #[pg_extern(immutable, parallel_safe, requires = [ "shell_type" ])]
-fn enigma_input_with_typmod(input: &CStr, oid: pg_sys::Oid, typmod: i32) 
--> Enigma {
-	debug2!("enigma_input_with_typmod: \
-            ARGUMENTS: Input: *****, OID: {:?},  Typmod: {}", oid, typmod);
-	let value: String = input
-			.to_str()
-			.expect("Enigma::input can't convert to str")
-			.to_string();
-    Enigma::try_from((typmod,value)).expect("INPUT: Enigma")
+fn enigma_input(input: &CStr, oid: pg_sys::Oid, typmod: i32) 
+-> Result<Enigma, Box<(dyn std::error::Error + 'static)>> {
+	//debug2!("INPUT: OID: {:?},  Typmod: {}", oid, typmod);
+	debug5!("INPUT: ARGUMENTS: \
+            Input: {:?}, OID: {:?},  Typmod: {}", input, oid, typmod);
+	let value: String = input.to_str()?.to_string();
+    // TODO: Enigma:: Encrypy(typmod,value)
+    Enigma::try_from((typmod,value))
 }
 
 /// Cast enigma to enigma is called after enigma_input_with_typmod(). 
@@ -67,10 +66,9 @@ fn enigma_cast(original: Enigma, typmod: i32, explicit: bool) -> Enigma {
     The receive function must return a value of the data type itself. */
 
 #[pg_extern(immutable, parallel_safe, requires = [ "shell_type" ])]
-fn enigma_receive_with_typmod(mut internal: Internal, oid: Oid, typmod: i32) 
--> Enigma {
-    debug2!("enigma_receive_with_typmod: \
-            ARGUMENTS: Input: *****, OID: {:?},  Typmod: {}", oid, typmod);
+fn enigma_receive(mut internal: Internal, oid: Oid, typmod: i32) 
+-> Result<Enigma, Box<(dyn std::error::Error + 'static)>> {
+    debug2!("RECEIVE: OID: {:?},  Typmod: {}", oid, typmod);
     let buf = unsafe { 
         internal.get_mut::<::pgrx::pg_sys::StringInfoData>().unwrap() 
     };
@@ -80,48 +78,37 @@ fn enigma_receive_with_typmod(mut internal: Internal, oid: Oid, typmod: i32)
     serialized.push_bytes(unsafe {
         core::slice::from_raw_parts(
             buf.data as *const u8,
-            buf.len as usize
-        )
+            buf.len as usize )
     });
-
-    let value = serialized.as_str().unwrap().to_string();
-    Enigma::try_from((typmod,value)).expect("RECEIVE: Enigma")
+    let value = serialized.as_str()?.to_string();
+	debug5!("RECEIVE value: {value}");
+    // TODO: Enigma:: Encrypy(typmod,value)
+    Enigma::try_from((typmod,value))
 } 
 
 
 // Send to postgres
 // TODO check if we can return just StringInfo
 #[pg_extern(immutable, parallel_safe, requires = [ "shell_type" ])]
-fn enigma_output(message: Enigma) -> &'static CStr {
-	debug2!("enigma_output: Entering enigma_output");
+fn enigma_output(enigma: Enigma) 
+-> Result<&'static CStr, Box<(dyn std::error::Error + 'static)>> {
+	//debug2!("OUTPUT");
+	debug5!("OUTPUT: {}", enigma);
+    let decrypted = PRIV_KEYS.decrypt(enigma)?;
 	let mut buffer = StringInfo::new();
-
-	debug2!("enigma_output value: {}", message);
-
-    // TODO: workaround double decrypt()
-     // if decrypting key is not set, returns the same message
-     match PRIV_KEYS.decrypt(message) {
-        /* // plain message without envelopes
-        // required for SELECT when private key is set
-		Ok(m) if m.is_plain() => buffer.push_str(m.to_string().as_str()),
-        // Encrypted message with Enigam envelopes
-        // required for pg_dump. 
-        // TODO: try to differentiate between pg_dump and SELECT */
-		Ok(m) => {
-            buffer.push_str(m.to_string().as_str());
-        },
-		Err(e) =>  panic!("Decrypt error: {}", e)
-	}
-
+    buffer.push_str(decrypted.to_string().as_str());
 	//TODO try to avoid this unsafe
-	unsafe { buffer.leak_cstr() }
+	let ret = unsafe { buffer.leak_cstr() };
+    Ok(ret)
 }
 
 #[pg_extern(immutable, parallel_safe, requires = [ "shell_type" ])]
-fn enigma_send(e: Enigma) -> Vec<u8> {
-	debug2!("enigma_send");
-    // message is decrypted in FromDatum
-    e.to_string().into_bytes()
+fn enigma_send(enigma: Enigma) 
+-> Result<Vec<u8>, Box<(dyn std::error::Error + 'static)>> {
+	//debug2!("SEND");
+	debug5!("SEND: {}", enigma);
+    let decrypted = PRIV_KEYS.decrypt(enigma)?;
+    Ok(decrypted.to_string().into_bytes())
 }
 
 
@@ -231,8 +218,8 @@ extension_sql_file!("../sql/shell_type.sql", bootstrap);
 
 // Create the real type
 extension_sql_file!("../sql/concrete_type.sql", creates = [Type(Enigma)],
-    requires = ["shell_type", enigma_input_with_typmod, enigma_output, 
-    enigma_receive_with_typmod, enigma_send, enigma_type_modifier_input],
+    requires = ["shell_type", enigma_input, enigma_output, 
+    enigma_receive, enigma_send, enigma_type_modifier_input],
 );
 
 // Creates the casting function so we can get the key id in the
