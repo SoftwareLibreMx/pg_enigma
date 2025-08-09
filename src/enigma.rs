@@ -3,7 +3,7 @@ use pgp::Deserializable;
 use pgp::Message;
 use pgrx::callconv::{ArgAbi, BoxRet};
 use pgrx::datum::Datum;
-use pgrx::debug2;
+use pgrx::{debug1,debug2};
 use pgrx::{FromDatum,IntoDatum,pg_sys,rust_regtypein};
 use pgrx::pgrx_sql_entity_graph::metadata::{
     ArgumentError, Returns, ReturnsError, SqlMapping, SqlTranslatable,
@@ -65,6 +65,7 @@ impl TryFrom<String> for Enigma {
     }
 } 
 
+/// TryFrom with key_id and value returns encrypted Enigma
 impl TryFrom<(i32,String)> for Enigma {
     type Error = Box<(dyn std::error::Error + 'static)>;
 
