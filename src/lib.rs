@@ -55,16 +55,7 @@ fn enigma_as_enigma(original: Enigma, typmod: i32, explicit: bool)
     PUB_KEYS.encrypt(key_id, original)
 }
 
-/** TODO: Receive function for Enigma
-    The optional receive_function converts the type's external binary 
-    representation to the internal representation.
-    The receive function can be declared as taking one argument of type 
-    internal, or as taking three arguments of types internal, oid, integer.
-    The first argument is a pointer to a StringInfo buffer holding the 
-    received byte string; the optional arguments are the same as for the 
-    text input function. 
-    The receive function must return a value of the data type itself. */
-
+/// Enigma RECEIVE function
 #[pg_extern(stable, parallel_safe, requires = [ "shell_type" ])]
 fn enigma_receive(mut internal: Internal, oid: Oid, typmod: i32) 
 -> Result<Enigma, Box<(dyn std::error::Error + 'static)>> {
@@ -86,7 +77,6 @@ fn enigma_receive(mut internal: Internal, oid: Oid, typmod: i32)
     Enigma::try_from((typmod,value))
 } 
 
-
 /// Enigma OUTPUT function
 /// Sends Enigma to Postgres converted to `&Cstr`
 #[pg_extern(stable, parallel_safe, requires = [ "shell_type" ])]
@@ -102,6 +92,7 @@ fn enigma_output(enigma: Enigma)
     Ok(ret)
 }
 
+/// Enigma SEND function
 #[pg_extern(stable, parallel_safe, requires = [ "shell_type" ])]
 fn enigma_send(enigma: Enigma) 
 -> Result<Vec<u8>, Box<(dyn std::error::Error + 'static)>> {
@@ -143,7 +134,10 @@ fn set_private_key(id: i32, key: &str, pass: &str)
         return Err("Key id must be a positive integer".into());
     }
     PRIV_KEYS.set(id as u32, key, pass)
-}   
+}
+
+// TODO: polymorphic set_private_key() without pass
+// TODO: polymorphic set_private_key() without typmod (key_id 0)
 
 
 /// SQL function for setting public key in memory (PubKeysMap)
@@ -160,6 +154,9 @@ fn set_public_key(id: i32, key: &str)
         None => Err(format!("No key ({}) inserted", id).into())
     }
 }
+
+// TODO: polymorphic set_public_key() without typmod (key_id 0)
+// TODO: insert_public_key() Postgres function
 
 /// Delete the private key from memory (PrivKeysMap)
 #[pg_extern(stable)]
@@ -180,6 +177,8 @@ fn forget_public_key(id: i32)
     }
     PUB_KEYS.del(id as u32)
 }
+
+// TODO: delete_public_key() Postgres function
 
 /// Sets the private key reading it from a file
 #[pg_extern(stable)]
