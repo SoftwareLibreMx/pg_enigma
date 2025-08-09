@@ -42,8 +42,9 @@ fn enigma_as_enigma(original: Enigma, typmod: i32, explicit: bool)
     debug2!("CAST(Enigma AS Enigma): \
         ARGUMENTS: explicit: {},  Typmod: {}", explicit, typmod);
     if typmod == -1 {
-        error!("Unknown typmod: {}\noriginal: {:?}\nexplicit: {}", 
-            typmod, original, explicit);
+        return Err(
+            format!("Unknown typmod: {}\noriginal: {:?}\nexplicit: {}", 
+                typmod, original, explicit).into());
     }
     debug5!("Original: {:?}", original);
     if original.is_encrypted() {
@@ -110,7 +111,8 @@ fn enigma_typmod_in(input: Array<&CStr>)
 -> Result<i32, Box<(dyn std::error::Error + 'static)>> {
 	debug2!("TYPMOD_IN");
     if input.len() != 1 {
-        error!("Enigma type modifier must be a single integer value");
+        return Err(
+            "Enigma type modifier must be a single integer value".into());
     }
     let typmod = input.iter() // iterator
     .next() // Option<Item>
@@ -120,7 +122,8 @@ fn enigma_typmod_in(input: Array<&CStr>)
     .parse::<i32>()?; // i32
     debug1!("typmod_in({typmod})");
     if typmod < 0 {
-        error!("Enigma type modifier must be a positive integer");
+        return Err(
+            "Enigma type modifier must be a positive integer".into());
     }
     Ok(typmod)
 }
