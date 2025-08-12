@@ -1,6 +1,5 @@
 use core::ffi::CStr;
 use crate::{PRIV_KEYS,PUB_KEYS};
-use crate::traits::Encrypt;
 use pgrx::callconv::{ArgAbi, BoxRet};
 use pgrx::datum::Datum;
 use pgrx::{debug2,info};
