@@ -29,9 +29,13 @@ fn enigma_input(input: &CStr, oid: pg_sys::Oid, typmod: i32)
 	//debug2!("INPUT: OID: {:?},  Typmod: {}", oid, typmod);
 	debug5!("INPUT: ARGUMENTS: \
             Input: {:?}, OID: {:?},  Typmod: {}", input, oid, typmod);
-	let value: String = input.to_str()?.to_string();
-    // TODO: Enigma:: Encrypy(typmod,value)
-    Enigma::try_from((typmod,value))
+	//let value = input.to_str()?;
+    let enigma =  Enigma::try_from(input)?;
+    if typmod == -1 { // unknown typmod 
+        debug1!("Unknown typmod: {typmod}");
+        return Ok(enigma);
+    }
+    enigma.encrypt(typmod)
 }
 
 /// Cast enigma to enigma is called after enigma_input_with_typmod(). 
@@ -53,7 +57,7 @@ fn enigma_as_enigma(original: Enigma, typmod: i32, explicit: bool)
     } 
     let key_id = typmod;
     debug2!("Encrypting plain message with key ID: {key_id}");
-    PUB_KEYS.encrypt(key_id, original)
+    original.encrypt(key_id)
 }
 
 /// Enigma RECEIVE function
@@ -72,10 +76,9 @@ fn enigma_receive(mut internal: Internal, oid: Oid, typmod: i32)
             buf.data as *const u8,
             buf.len as usize )
     });
-    let value = serialized.as_str()?.to_string();
-	debug5!("RECEIVE value: {value}");
-    // TODO: Enigma:: Encrypy(typmod,value)
-    Enigma::try_from((typmod,value))
+    //let value = serialized.as_str()?;
+	debug5!("RECEIVE value: {}", serialized);
+    Enigma::try_from(&serialized)?.encrypt(typmod)
 } 
 
 /// Enigma OUTPUT function

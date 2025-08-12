@@ -1,3 +1,4 @@
+use core::ffi::CStr;
 use crate::{PRIV_KEYS,PUB_KEYS};
 use pgrx::callconv::{ArgAbi, BoxRet};
 use pgrx::datum::Datum;
@@ -6,6 +7,7 @@ use pgrx::{FromDatum,IntoDatum,pg_sys,rust_regtypein};
 use pgrx::pgrx_sql_entity_graph::metadata::{
     ArgumentError, Returns, ReturnsError, SqlMapping, SqlTranslatable
 };
+use pgrx::StringInfo;
 use std::fmt::{Display, Formatter};
 
 const PGP_BEGIN: &str = "-----BEGIN PGP MESSAGE-----\n";
@@ -29,10 +31,10 @@ pub enum Enigma {
     Plain(String)
 }
 
-impl TryFrom<String> for Enigma {
+impl TryFrom<&str> for Enigma {
     type Error = Box<(dyn std::error::Error + 'static)>;
 
-    fn try_from(value: String) -> Result<Self, Self::Error> {
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
         if let Some((header, payload)) = value.split_once(SEPARATOR) {
             let (tag,key_id) = split_hdr(header)?;
 
@@ -57,11 +59,12 @@ impl TryFrom<String> for Enigma {
         }
 
         debug2!("Unmatched: {value}");
-        unreachable!("Use Enigma::plain() instead");
-        //Ok(Self::plain(value))
+        //unreachable!("Use Enigma::plain() instead");
+        Ok(Self::plain(value.to_string()))
     }
 } 
 
+/* This is abuse of polymorphism. Let's simplify 
 /// TryFrom with key_id and value returns encrypted Enigma
 impl TryFrom<(i32,String)> for Enigma {
     type Error = Box<(dyn std::error::Error + 'static)>;
@@ -77,13 +80,37 @@ impl TryFrom<(i32,String)> for Enigma {
         }
         PUB_KEYS.encrypt(typmod, plain)
     }
+} */
+
+impl TryFrom<String> for Enigma {
+    type Error = Box<(dyn std::error::Error + 'static)>;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::try_from(value.as_str())
+    }
 }
 
 impl TryFrom<&String> for Enigma {
     type Error = Box<(dyn std::error::Error + 'static)>;
 
     fn try_from(value: &String) -> Result<Self, Self::Error> {
-        Self::try_from(value.clone())
+        Self::try_from(value.as_str())
+    }
+}
+
+impl TryFrom<&StringInfo> for Enigma {
+    type Error = Box<(dyn std::error::Error + 'static)>;
+
+    fn try_from(value: &StringInfo) -> Result<Self, Self::Error> {
+        Self::try_from(value.as_str()?)
+    }
+}
+
+impl TryFrom<&CStr> for Enigma {
+    type Error = Box<(dyn std::error::Error + 'static)>;
+
+    fn try_from(value: &CStr) -> Result<Self, Self::Error> {
+        Self::try_from(value.to_str()?)
     }
 }
 
@@ -184,8 +211,20 @@ impl Enigma {
         let pgp_id = self.pgp_encrypting_key()?;
         Ok(format!("{:x}", pgp_id))
     } */
+
+    pub fn encrypt(self, typmod: i32) 
+    -> Result<Self, Box<(dyn std::error::Error + 'static)>> {
+        if typmod == -1 { // unknown typmod 
+            debug1!("Unknown typmod: {typmod}");
+            return Ok(self);
+        }
+        //let key_id: u32 = typmod as u32;
+        PUB_KEYS.encrypt(typmod, self)
+        
+    }
 }
 
+/* not being used
 pub fn is_enigma_hdr(hdr: &str) -> bool {
     // TODO: optimize: just first [u8; 8] cast to u64
     if let Ok((tag, _)) = split_hdr(hdr) {
@@ -194,7 +233,7 @@ pub fn is_enigma_hdr(hdr: &str) -> bool {
         }
     }
     false
-}
+} */
 
 /*********************
  * PRIVATE FUNCTIONS *
