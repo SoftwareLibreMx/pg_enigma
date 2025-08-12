@@ -41,14 +41,15 @@ fn enigma_input(input: &CStr, oid: pg_sys::Oid, typmod: i32)
 /// Assignment cast is called before the INPUT function.
 #[pg_extern]
 fn string_as_enigma(original: String, typmod: i32, explicit: bool) 
--> Enigma {
+-> Result<Enigma, Box<(dyn std::error::Error + 'static)>> {
     debug2!("string_as_enigma: \
         ARGUMENTS: explicit: {},  Typmod: {}", explicit, typmod);
     if typmod == -1 {
-        panic!("Unknown typmod: {}\noriginal: {:?}\nexplicit: {}", 
-            typmod, original, explicit);
+        return Err(
+            format!("Unknown typmod: {}\noriginal: {:?}\nexplicit: {}", 
+            typmod, original, explicit).into());
     }
-    Enigma::try_from((typmod,original)).expect("ASSIGNMENT CAST: String")
+    Enigma::try_from(original)?.encrypt(typmod,)
 }
 
 /*
