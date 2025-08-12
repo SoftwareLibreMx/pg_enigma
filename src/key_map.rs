@@ -1,7 +1,7 @@
 use crate::enigma::*;
 use crate::priv_key::PrivKey;
 use crate::pub_key::{PubKey,get_public_key};
-use crate::traits::{Encrypt,Decrypt};
+use crate::traits::{Decrypt};
 use pgrx::{debug1,debug2,info};
 use std::collections::BTreeMap;
 use std::mem::drop;
@@ -243,35 +243,6 @@ impl PubKeysMap {
             }
         };
         Ok(Some(key))
-    }
-
-    /// Custom encrypt function for `PubKeysMap`.
-    /// This function is not an implementation of trait `Decrypt`
-    /// Will look for the encryption key in it's key map and call
-    /// the key's `encrypt()` function to encrypt the message.
-    /// If no encrypting key is found, returns an error message.
-    pub fn encrypt(self: &'static PubKeysMap, id: i32, msg: Enigma) 
-    -> Result<Enigma, Box<(dyn std::error::Error + 'static)>> {
-        if id < 1 { // TODO: Support Key ID 0
-            return Err("Key id must be a positive integer".into());
-        }
-        let key_id: u32 = id as u32;
-        if let Some(msgid) = msg.key_id() { // message is encrypted
-            if msgid == key_id {
-                info!("Already encrypted with key ID {msgid}"); 
-                return  Ok(msg);
-            };
-            // TODO: try to decrypt
-            return Err("Nested encryption not supported".into());
-        }
-        if let Some(pub_key) = self.get(key_id)? {
-            return pub_key.encrypt(key_id, msg);
-        }
-        // retry from SQL is expected to be needed only once 
-        /* if let Some(pub_key) = self.from_sql(key_id)? {
-            return pub_key.encrypt(key_id, msg);
-        } */
-        Err(format!("No public key with key_id: {}", key_id).into())
     }
 
 /*********************

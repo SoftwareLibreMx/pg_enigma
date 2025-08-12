@@ -29,7 +29,6 @@ fn enigma_input(input: &CStr, oid: pg_sys::Oid, typmod: i32)
 	//debug2!("INPUT: OID: {:?},  Typmod: {}", oid, typmod);
 	debug5!("INPUT: ARGUMENTS: \
             Input: {:?}, OID: {:?},  Typmod: {}", input, oid, typmod);
-	//let value = input.to_str()?;
     let enigma =  Enigma::try_from(input)?;
     if typmod == -1 { // unknown typmod 
         debug1!("Unknown typmod: {typmod}");
@@ -120,9 +119,13 @@ fn enigma_receive(mut internal: Internal, oid: Oid, typmod: i32)
             buf.data as *const u8,
             buf.len as usize )
     });
-    //let value = serialized.as_str()?;
 	debug5!("RECEIVE value: {}", serialized);
-    Enigma::try_from(&serialized)?.encrypt(typmod)
+    let enigma =  Enigma::try_from(serialized)?;
+    if typmod == -1 { // unknown typmod 
+        debug1!("Unknown typmod: {typmod}");
+        return Ok(enigma);
+    }
+    enigma.encrypt(typmod)
 } 
 
 /// Enigma OUTPUT function

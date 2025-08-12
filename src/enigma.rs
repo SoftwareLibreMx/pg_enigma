@@ -1,8 +1,9 @@
 use core::ffi::CStr;
 use crate::{PRIV_KEYS,PUB_KEYS};
+use crate::traits::Encrypt;
 use pgrx::callconv::{ArgAbi, BoxRet};
 use pgrx::datum::Datum;
-use pgrx::{debug1,debug2};
+use pgrx::{debug2,info};
 use pgrx::{FromDatum,IntoDatum,pg_sys,rust_regtypein};
 use pgrx::pgrx_sql_entity_graph::metadata::{
     ArgumentError, Returns, ReturnsError, SqlMapping, SqlTranslatable
@@ -98,10 +99,10 @@ impl TryFrom<&String> for Enigma {
     }
 }
 
-impl TryFrom<&StringInfo> for Enigma {
+impl TryFrom<StringInfo> for Enigma {
     type Error = Box<(dyn std::error::Error + 'static)>;
 
-    fn try_from(value: &StringInfo) -> Result<Self, Self::Error> {
+    fn try_from(value: StringInfo) -> Result<Self, Self::Error> {
         Self::try_from(value.as_str()?)
     }
 }
@@ -212,15 +213,27 @@ impl Enigma {
         Ok(format!("{:x}", pgp_id))
     } */
 
-    pub fn encrypt(self, typmod: i32) 
+    /// Will look for the encryption key in it's key map and call
+    /// the key's `encrypt()` function to encrypt the message.
+    /// If no encrypting key is found, returns an error message.
+    pub fn encrypt(self, id: i32) 
     -> Result<Self, Box<(dyn std::error::Error + 'static)>> {
-        if typmod == -1 { // unknown typmod 
-            debug1!("Unknown typmod: {typmod}");
-            return Ok(self);
+        if id < 1 { // TODO: Support Key ID 0
+            return Err("Key id must be a positive integer".into());
         }
-        //let key_id: u32 = typmod as u32;
-        PUB_KEYS.encrypt(typmod, self)
-        
+        let key_id: u32 = id as u32;
+        if let Some(msgid) = self.key_id() { // message is encrypted
+            if msgid == key_id {
+                info!("Already encrypted with key ID {msgid}"); 
+                return  Ok(self);
+            };
+            // TODO: try to decrypt
+            return Err("Nested encryption not supported".into());
+        }
+        if let Some(pub_key) = PUB_KEYS.get(key_id)? {
+            return pub_key.encrypt(key_id, self);
+        }
+        Err(format!("No public key with key_id: {}", key_id).into())
     }
 }
 
