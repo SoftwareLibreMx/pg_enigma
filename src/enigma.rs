@@ -1,5 +1,6 @@
 use core::ffi::CStr;
 use crate::{PRIV_KEYS,PUB_KEYS};
+use crate::traits::Decrypt;
 use pgrx::callconv::{ArgAbi, BoxRet};
 use pgrx::datum::Datum;
 use pgrx::{debug2,info};
@@ -234,6 +235,25 @@ impl Enigma {
         }
         Err(format!("No public key with key_id: {}", key_id).into())
     }
+
+    /// Will look for the decryption key in it's key map and call
+    /// the key's `decrypt()` function to decrypt the message.
+    /// If no decrypting key is found, returns the same encrypted message.
+    pub fn decrypt(self)
+    -> Result<Enigma, Box<(dyn std::error::Error + 'static)>> {
+        let key_id = match self.key_id() {
+            Some(k) => k,
+            None => return Ok(self) // Not encrypted
+        };
+        debug2!("Decrypt: Message key_id: {key_id}");
+        match PRIV_KEYS.get(key_id)? {
+            Some(sec_key) => {
+                debug2!("Decrypt: got secret key");
+                sec_key.decrypt(self)
+            },
+            None => Ok(self)
+        }
+    }
 }
 
 /* not being used
@@ -339,7 +359,7 @@ impl FromDatum for Enigma {
         debug2!("FromDatum value:\n{value}");
         let enigma = Enigma::try_from(value).expect("Corrupted Enigma");
         //debug2!("FromDatum: Encrypted message: {:?}", enigma);
-        let decrypted = PRIV_KEYS.decrypt(enigma)
+        let decrypted = enigma.decrypt()
                                 .expect("FromDatum: Decrypt error");
         //debug2!("FromDatum: Decrypted message: {:?}", decrypted);
         Some(decrypted)

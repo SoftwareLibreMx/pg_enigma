@@ -135,7 +135,7 @@ fn enigma_output(enigma: Enigma)
 -> Result<&'static CStr, Box<(dyn std::error::Error + 'static)>> {
 	//debug2!("OUTPUT");
 	debug5!("OUTPUT: {}", enigma);
-    let decrypted = PRIV_KEYS.decrypt(enigma)?;
+    let decrypted = enigma.decrypt()?;
 	let mut buffer = StringInfo::new();
     buffer.push_str(decrypted.to_string().as_str());
 	//TODO try to avoid this unsafe
@@ -149,7 +149,7 @@ fn enigma_send(enigma: Enigma)
 -> Result<Vec<u8>, Box<(dyn std::error::Error + 'static)>> {
 	//debug2!("SEND");
 	debug5!("SEND: {}", enigma);
-    let decrypted = PRIV_KEYS.decrypt(enigma)?;
+    let decrypted = enigma.decrypt()?;
     Ok(decrypted.to_string().into_bytes())
 }
 
