@@ -64,24 +64,6 @@ impl TryFrom<&str> for Enigma {
     }
 } 
 
-/* This is abuse of polymorphism. Let's simplify 
-/// TryFrom with key_id and value returns encrypted Enigma
-impl TryFrom<(i32,String)> for Enigma {
-    type Error = Box<(dyn std::error::Error + 'static)>;
-
-    fn try_from((typmod,value): (i32,String)) -> Result<Self, Self::Error> {
-        if is_enigma_hdr(&value) {
-            return Enigma::try_from(value);
-        }
-        let plain = Enigma::plain(value);
-        if typmod == -1 { // unknown typmod 
-            debug1!("Unknown typmod: {typmod}");
-            return Ok(plain);
-        }
-        PUB_KEYS.encrypt(typmod, plain)
-    }
-} */
-
 impl TryFrom<String> for Enigma {
     type Error = Box<(dyn std::error::Error + 'static)>;
 
