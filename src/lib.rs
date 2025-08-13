@@ -2,7 +2,6 @@ mod enigma;
 mod key_map;
 mod priv_key;
 mod pub_key;
-mod traits;
 
 use core::ffi::CStr;
 use crate::enigma::Enigma;
