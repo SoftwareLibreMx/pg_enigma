@@ -1,5 +1,4 @@
 use crate::enigma::Enigma;
-use crate::traits::Encrypt;
 use hex::ToHex;
 use once_cell::sync::Lazy;
 use openssl::base64::encode_block;
@@ -59,10 +58,8 @@ impl PubKey {
             PubKey::RSA(k) => format!("{:?}", k.id())
         }
     }
-}
 
-impl Encrypt<u32,Enigma> for PubKey {
-    fn encrypt(&self, id: u32, msg: Enigma) 
+    pub fn encrypt(&self, id: u32, msg: Enigma) 
     -> Result<Enigma, Box<(dyn std::error::Error + 'static)>> {
         if msg.is_encrypted() { 
              return Err("Nested encryption not supported".into());
@@ -78,35 +75,6 @@ impl Encrypt<u32,Enigma> for PubKey {
                 Ok(Enigma::rsa(id, new_msg))
             }
         }
-    }
-}
-
-impl Encrypt<i32,Enigma> for PubKey {
-    fn encrypt(&self, id: i32, msg: Enigma) 
-    -> Result<Enigma, Box<(dyn std::error::Error + 'static)>> {
-        if id < 1 { // TODO: Support Key ID 0
-            return Err("Key id must be a positive integer".into());
-        }
-        self.encrypt(id as u32, msg)
-    }
-}
-
-
-impl Encrypt<u32,String> for PubKey {
-    fn encrypt(&self, id: u32, message: String) 
-    -> Result<String, Box<(dyn std::error::Error + 'static)>> {
-        let msg = Enigma::try_from(message)?;
-        Ok(self.encrypt(id,msg)?.to_string())
-    }
-}
-
-impl Encrypt<i32,String> for PubKey {
-    fn encrypt(&self, id: i32, message: String) 
-    -> Result<String, Box<(dyn std::error::Error + 'static)>> {
-        if id < 1 { // TODO: Support Key ID 0
-            return Err("Key id must be a positive integer".into());
-        }
-        self.encrypt(id as u32, message)
     }
 }
 

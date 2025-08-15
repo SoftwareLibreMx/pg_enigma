@@ -1,11 +1,13 @@
+use core::ffi::CStr;
 use crate::{PRIV_KEYS,PUB_KEYS};
 use pgrx::callconv::{ArgAbi, BoxRet};
 use pgrx::datum::Datum;
-use pgrx::{debug1,debug2};
+use pgrx::{debug2,info};
 use pgrx::{FromDatum,IntoDatum,pg_sys,rust_regtypein};
 use pgrx::pgrx_sql_entity_graph::metadata::{
     ArgumentError, Returns, ReturnsError, SqlMapping, SqlTranslatable
 };
+use pgrx::StringInfo;
 use std::fmt::{Display, Formatter};
 
 const PGP_BEGIN: &str = "-----BEGIN PGP MESSAGE-----\n";
@@ -29,10 +31,10 @@ pub enum Enigma {
     Plain(String)
 }
 
-impl TryFrom<String> for Enigma {
+impl TryFrom<&str> for Enigma {
     type Error = Box<(dyn std::error::Error + 'static)>;
 
-    fn try_from(value: String) -> Result<Self, Self::Error> {
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
         if let Some((header, payload)) = value.split_once(SEPARATOR) {
             let (tag,key_id) = split_hdr(header)?;
 
@@ -57,25 +59,16 @@ impl TryFrom<String> for Enigma {
         }
 
         debug2!("Unmatched: {value}");
-        unreachable!("Use Enigma::plain() instead");
-        //Ok(Self::plain(value))
+        //unreachable!("Use Enigma::plain() instead");
+        Ok(Self::plain(value.to_string()))
     }
 } 
 
-/// TryFrom with key_id and value returns encrypted Enigma
-impl TryFrom<(i32,String)> for Enigma {
+impl TryFrom<String> for Enigma {
     type Error = Box<(dyn std::error::Error + 'static)>;
 
-    fn try_from((typmod,value): (i32,String)) -> Result<Self, Self::Error> {
-        if is_enigma_hdr(&value) {
-            return Enigma::try_from(value);
-        }
-        let plain = Enigma::plain(value);
-        if typmod == -1 { // unknown typmod 
-            debug1!("Unknown typmod: {typmod}");
-            return Ok(plain);
-        }
-        PUB_KEYS.encrypt(typmod, plain)
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::try_from(value.as_str())
     }
 }
 
@@ -83,7 +76,23 @@ impl TryFrom<&String> for Enigma {
     type Error = Box<(dyn std::error::Error + 'static)>;
 
     fn try_from(value: &String) -> Result<Self, Self::Error> {
-        Self::try_from(value.clone())
+        Self::try_from(value.as_str())
+    }
+}
+
+impl TryFrom<StringInfo> for Enigma {
+    type Error = Box<(dyn std::error::Error + 'static)>;
+
+    fn try_from(value: StringInfo) -> Result<Self, Self::Error> {
+        Self::try_from(value.as_str()?)
+    }
+}
+
+impl TryFrom<&CStr> for Enigma {
+    type Error = Box<(dyn std::error::Error + 'static)>;
+
+    fn try_from(value: &CStr) -> Result<Self, Self::Error> {
+        Self::try_from(value.to_str()?)
     }
 }
 
@@ -184,8 +193,51 @@ impl Enigma {
         let pgp_id = self.pgp_encrypting_key()?;
         Ok(format!("{:x}", pgp_id))
     } */
+
+    /// Will look for the encryption key in it's key map and call
+    /// the key's `encrypt()` function to encrypt the message.
+    /// If no encrypting key is found, returns an error message.
+    pub fn encrypt(self, id: i32) 
+    -> Result<Self, Box<(dyn std::error::Error + 'static)>> {
+        if id < 1 { // TODO: Support Key ID 0
+            return Err("Key id must be a positive integer".into());
+        }
+        let key_id: u32 = id as u32;
+        if let Some(msgid) = self.key_id() { // message is encrypted
+            if msgid == key_id {
+                info!("Already encrypted with key ID {msgid}"); 
+                return  Ok(self);
+            };
+            // TODO: try to decrypt
+            return Err("Nested encryption not supported".into());
+        }
+        if let Some(pub_key) = PUB_KEYS.get(key_id)? {
+            return pub_key.encrypt(key_id, self);
+        }
+        Err(format!("No public key with key_id: {}", key_id).into())
+    }
+
+    /// Will look for the decryption key in it's key map and call
+    /// the key's `decrypt()` function to decrypt the message.
+    /// If no decrypting key is found, returns the same encrypted message.
+    pub fn decrypt(self)
+    -> Result<Enigma, Box<(dyn std::error::Error + 'static)>> {
+        let key_id = match self.key_id() {
+            Some(k) => k,
+            None => return Ok(self) // Not encrypted
+        };
+        debug2!("Decrypt: Message key_id: {key_id}");
+        match PRIV_KEYS.get(key_id)? {
+            Some(sec_key) => {
+                debug2!("Decrypt: got secret key");
+                sec_key.decrypt(self)
+            },
+            None => Ok(self)
+        }
+    }
 }
 
+/* not being used
 pub fn is_enigma_hdr(hdr: &str) -> bool {
     // TODO: optimize: just first [u8; 8] cast to u64
     if let Ok((tag, _)) = split_hdr(hdr) {
@@ -194,7 +246,7 @@ pub fn is_enigma_hdr(hdr: &str) -> bool {
         }
     }
     false
-}
+} */
 
 /*********************
  * PRIVATE FUNCTIONS *
@@ -288,7 +340,7 @@ impl FromDatum for Enigma {
         debug2!("FromDatum value:\n{value}");
         let enigma = Enigma::try_from(value).expect("Corrupted Enigma");
         //debug2!("FromDatum: Encrypted message: {:?}", enigma);
-        let decrypted = PRIV_KEYS.decrypt(enigma)
+        let decrypted = enigma.decrypt()
                                 .expect("FromDatum: Decrypt error");
         //debug2!("FromDatum: Decrypted message: {:?}", decrypted);
         Some(decrypted)

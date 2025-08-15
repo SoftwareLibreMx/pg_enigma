@@ -1,5 +1,4 @@
 use crate::enigma::Enigma;
-use crate::traits::Decrypt;
 use hex::ToHex;
 use openssl::base64::decode_block;
 use openssl::encrypt::Decrypter;
@@ -53,10 +52,8 @@ impl PrivKey {
             PrivKey::RSA(k) => format!("{:?}", k.id())
         }
     }
-}
 
-impl Decrypt<Enigma> for PrivKey {
-    fn decrypt(&self, msg: Enigma) 
+    pub fn decrypt(&self, msg: Enigma) 
     -> Result<Enigma, Box<(dyn std::error::Error + 'static)>> {
         match self {
             PrivKey::PGP(key,pass) => {
@@ -71,68 +68,44 @@ impl Decrypt<Enigma> for PrivKey {
     }
 }
 
-impl Decrypt<String> for PrivKey {
-    fn decrypt(&self, message: String) 
-    -> Result<String, Box<(dyn std::error::Error + 'static)>> {
-        match self {
-            PrivKey::PGP(key,pass) => {
-                decrypt_pgp_string(key, pass.clone(), message)
-            },
-            PrivKey::RSA(pkey) => {
-                decrypt_rsa_string(pkey, message)
-            }
-        }
-    }
-}
 
 /*********************
  * PRIVATE FUNCTIONS *
  * *******************/
 
-fn decrypt_pgp(key: &SignedSecretKey, pass: String, message: Enigma)
+fn decrypt_pgp(key: &SignedSecretKey, pass: String, enigma: Enigma)
 -> Result<Enigma, Box<(dyn std::error::Error + 'static)>> {
-    if let Enigma::PGP(_,msg) = message {
-        debug2!("Decrypt: PGP Enigma: {msg}");
-        return Ok(Enigma::plain(decrypt_pgp_string(key, pass, msg)?));
+    if let Enigma::PGP(_,message) = enigma {
+        debug2!("Decrypt: PGP Enigma: {message}");
+        let buf = Cursor::new(format!("{}{}{}",PGP_BEGIN,message,PGP_END));
+        let (msg, _) = Message::from_armor(buf)?;
+        let pw = Password::from(pass);
+        let mut decrypted = msg.decrypt(&pw, key)?;
+        let clear_text = decrypted.as_data_string()?;
+        return Ok(Enigma::plain(clear_text));
     }
     Err("Wrong key. Message is not PGP.".into())
 }
 
-fn decrypt_pgp_string(key: &SignedSecretKey, pass: String, message: String)
--> Result<String, Box<(dyn std::error::Error + 'static)>> {
-    let buf = Cursor::new(format!("{}{}{}",PGP_BEGIN,message,PGP_END));
-    let (msg, _) = Message::from_armor(buf)?;
-    let pw = Password::from(pass);
-    let mut decrypted = msg.decrypt(&pw, &key)?;
-    let clear_text = decrypted.as_data_string()?;
-    return Ok(clear_text);
-}
 
-fn decrypt_rsa(key: &PKey<Private>, message: Enigma)
+fn decrypt_rsa(key: &PKey<Private>, enigma: Enigma)
 -> Result<Enigma, Box<(dyn std::error::Error + 'static)>> {
-    if let Enigma::RSA(_,msg) = message {
-        debug2!("Decrypt: RSA Enigma: {msg}");
-        Ok(Enigma::plain(decrypt_rsa_string(key, msg.to_string())?))
+    if let Enigma::RSA(_,message) = enigma {
+        debug2!("Decrypt: RSA Enigma: {message}");
+        let input = decode_block(message.as_str())?;
+        let mut decrypter = Decrypter::new(key)?;
+        decrypter.set_rsa_padding(Padding::PKCS1)?;
+        // Get the length of the output buffer
+        let buffer_len = decrypter.decrypt_len(&input)?;
+        let mut decoded = vec![0u8; buffer_len];
+        // Decrypt the data and get its length
+        let decoded_len = decrypter.decrypt(&input, &mut decoded)?;
+        // Use only the part of the buffer with the decrypted data
+        let decoded = &decoded[..decoded_len];
+        let clear_text = String::from_utf8(decoded.to_vec())?;
+        Ok(Enigma::plain(clear_text))
     } else {
         Err("Wrong key. Message is not RSA encrypted.".into())
     }
 }
-
-fn decrypt_rsa_string(pkey: &PKey<Private>, message: String)
--> Result<String, Box<(dyn std::error::Error + 'static)>> {
-    debug2!("Decrypt: RSA string: {message}");
-    let input = decode_block(message.as_str())?;
-    let mut decrypter = Decrypter::new(&pkey)?;
-    decrypter.set_rsa_padding(Padding::PKCS1)?;
-    // Get the length of the output buffer
-    let buffer_len = decrypter.decrypt_len(&input)?;
-    let mut decoded = vec![0u8; buffer_len];
-    // Decrypt the data and get its length
-    let decoded_len = decrypter.decrypt(&input, &mut decoded)?;
-    // Use only the part of the buffer with the decrypted data
-    let decoded = &decoded[..decoded_len];
-    let clear_text = String::from_utf8(decoded.to_vec())?;
-    Ok(clear_text)
-}
-
 
