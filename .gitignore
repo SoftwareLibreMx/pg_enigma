@@ -10,3 +10,5 @@ target/
 cmake*/
 .direnv
 /bin
+*.diff
+debug/

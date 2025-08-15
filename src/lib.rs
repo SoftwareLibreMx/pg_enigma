@@ -23,16 +23,15 @@ static PUB_KEYS: Lazy<PubKeysMap> = Lazy::new(|| PubKeysMap::new());
 
 
 /// Functions for extracting and inserting data
-#[pg_extern(immutable, parallel_safe, requires = [ "shell_type" ])]
-fn enigma_input_with_typmod(input: &CStr, oid: pg_sys::Oid, typmod: i32) 
--> Enigma {
-	debug2!("enigma_input_with_typmod: \
-            ARGUMENTS: Input: *****, OID: {:?},  Typmod: {}", oid, typmod);
-	let value: String = input
-			.to_str()
-			.expect("Enigma::input can't convert to str")
-			.to_string();
-    Enigma::try_from((typmod,value)).expect("INPUT: Enigma")
+#[pg_extern(stable, parallel_safe, requires = [ "shell_type" ])]
+fn enigma_input(input: &CStr, oid: pg_sys::Oid, typmod: i32) 
+-> Result<Enigma, Box<(dyn std::error::Error + 'static)>> {
+	//debug2!("INPUT: OID: {:?},  Typmod: {}", oid, typmod);
+	debug5!("INPUT: ARGUMENTS: \
+            Input: {:?}, OID: {:?},  Typmod: {}", input, oid, typmod);
+	let value: String = input.to_str()?.to_string();
+    // TODO: Enigma:: Encrypy(typmod,value)
+    Enigma::try_from((typmod,value))
 }
 
 /// Assignment cast is called before the INPUT function.
@@ -80,40 +79,31 @@ fn u8_as_enigma<'fcx>(original: &'fcx [u8], typmod: i32, explicit: bool)
 
 /// Cast enigma to enigma is called after enigma_input_with_typmod(). 
 /// This function is passed the correct known typmod argument.
-#[pg_extern]
-fn enigma_as_enigma(original: Enigma, typmod: i32, explicit: bool) -> Enigma {
-    debug2!("enigma_cast: \
+#[pg_extern(stable, parallel_safe)]
+fn enigma_as_enigma(original: Enigma, typmod: i32, explicit: bool) 
+-> Result<Enigma, Box<(dyn std::error::Error + 'static)>> {
+    debug2!("CAST(Enigma AS Enigma): \
         ARGUMENTS: explicit: {},  Typmod: {}", explicit, typmod);
     if typmod == -1 {
-        panic!("Unknown typmod: {}\noriginal: {:?}\nexplicit: {}", 
-            typmod, original, explicit);
+        return Err(
+            format!("Unknown typmod: {}\noriginal: {:?}\nexplicit: {}", 
+                typmod, original, explicit).into());
     }
-    //debug2!("Original: {:?}", original);
+    debug5!("Original: {:?}", original);
     if original.is_encrypted() {
         // TODO: if original.key_id != key_id {try_reencrypt()} 
-        return original;
+        return Ok(original);
     } 
     let key_id = typmod;
     debug2!("Encrypting plain message with key ID: {key_id}");
-    PUB_KEYS.encrypt(key_id, original) // Result
-            .expect("Encrypt (typmod cast)") // Enigma
+    PUB_KEYS.encrypt(key_id, original)
 }
 
-/** TODO: Receive function for Enigma
-    The optional receive_function converts the type's external binary 
-    representation to the internal representation.
-    The receive function can be declared as taking one argument of type 
-    internal, or as taking three arguments of types internal, oid, integer.
-    The first argument is a pointer to a StringInfo buffer holding the 
-    received byte string; the optional arguments are the same as for the 
-    text input function. 
-    The receive function must return a value of the data type itself. */
-
-#[pg_extern(immutable, parallel_safe, requires = [ "shell_type" ])]
-fn enigma_receive_with_typmod(mut internal: Internal, oid: Oid, typmod: i32) 
--> Enigma {
-    debug2!("enigma_receive_with_typmod: \
-            ARGUMENTS: Input: *****, OID: {:?},  Typmod: {}", oid, typmod);
+/// Enigma RECEIVE function
+#[pg_extern(stable, parallel_safe, requires = [ "shell_type" ])]
+fn enigma_receive(mut internal: Internal, oid: Oid, typmod: i32) 
+-> Result<Enigma, Box<(dyn std::error::Error + 'static)>> {
+    debug2!("RECEIVE: OID: {:?},  Typmod: {}", oid, typmod);
     let buf = unsafe { 
         internal.get_mut::<::pgrx::pg_sys::StringInfoData>().unwrap() 
     };
@@ -123,71 +113,62 @@ fn enigma_receive_with_typmod(mut internal: Internal, oid: Oid, typmod: i32)
     serialized.push_bytes(unsafe {
         core::slice::from_raw_parts(
             buf.data as *const u8,
-            buf.len as usize
-        )
+            buf.len as usize )
     });
-
-    let value = serialized.as_str().unwrap().to_string();
-    Enigma::try_from((typmod,value)).expect("RECEIVE: Enigma")
+    let value = serialized.as_str()?.to_string();
+	debug5!("RECEIVE value: {value}");
+    // TODO: Enigma:: Encrypy(typmod,value)
+    Enigma::try_from((typmod,value))
 } 
 
-
-// Send to postgres
-// TODO check if we can return just StringInfo
-#[pg_extern(immutable, parallel_safe, requires = [ "shell_type" ])]
-fn enigma_output(message: Enigma) -> &'static CStr {
-	debug2!("enigma_output: Entering enigma_output");
+/// Enigma OUTPUT function
+/// Sends Enigma to Postgres converted to `&Cstr`
+#[pg_extern(stable, parallel_safe, requires = [ "shell_type" ])]
+fn enigma_output(enigma: Enigma) 
+-> Result<&'static CStr, Box<(dyn std::error::Error + 'static)>> {
+	//debug2!("OUTPUT");
+	debug5!("OUTPUT: {}", enigma);
+    let decrypted = PRIV_KEYS.decrypt(enigma)?;
 	let mut buffer = StringInfo::new();
-
-	debug2!("enigma_output value: {}", message);
-
-    // TODO: workaround double decrypt()
-     // if decrypting key is not set, returns the same message
-     match PRIV_KEYS.decrypt(message) {
-        /* // plain message without envelopes
-        // required for SELECT when private key is set
-		Ok(m) if m.is_plain() => buffer.push_str(m.to_string().as_str()),
-        // Encrypted message with Enigam envelopes
-        // required for pg_dump. 
-        // TODO: try to differentiate between pg_dump and SELECT */
-		Ok(m) => {
-            buffer.push_str(m.to_string().as_str());
-        },
-		Err(e) =>  panic!("Decrypt error: {}", e)
-	}
-
+    buffer.push_str(decrypted.to_string().as_str());
 	//TODO try to avoid this unsafe
-	unsafe { buffer.leak_cstr() }
+	let ret = unsafe { buffer.leak_cstr() };
+    Ok(ret)
 }
 
+/// Enigma SEND function
+#[pg_extern(stable, parallel_safe, requires = [ "shell_type" ])]
+fn enigma_send(enigma: Enigma) 
+-> Result<Vec<u8>, Box<(dyn std::error::Error + 'static)>> {
+	//debug2!("SEND");
+	debug5!("SEND: {}", enigma);
+    let decrypted = PRIV_KEYS.decrypt(enigma)?;
+    Ok(decrypted.to_string().into_bytes())
+}
+
+
+/// Enigma TYPMOD_IN function.
+/// converts typmod from cstring to i32
 #[pg_extern(immutable, parallel_safe, requires = [ "shell_type" ])]
-fn enigma_send(e: Enigma) -> Vec<u8> {
-	debug2!("enigma_send");
-    // message is decrypted in FromDatum
-    e.to_string().into_bytes()
-}
-
-
-/// Needed for managing keys for each column
-/// We mark this function as `immutable` because its output depends ONLY on its inputs.
-/// This is required for functions used as a `TYPMOD_IN`, as the planner needs
-/// to rely on its output being consistent.
-#[pg_extern(immutable, name = "enigma_type_modifier_input", requires = [ "shell_type" ])]
-pub fn enigma_type_modifier_input(cstrings: pgrx::Array<'_, &CStr>) -> i32 {
-
-    // TODO: enigma_typmod_in() from KBrown/TypmodInOutFuncs is simpler
-    let rust_strings: Vec<&str> = cstrings
-        .iter()
-        .flatten()
-        .map(|cstr| cstr.to_str().unwrap_or_default())
-        .collect();
-
-    debug2!("enigma_type_modifier_input:: value {}", 
-        rust_strings[0].parse::<i32>().unwrap());
-
-    rust_strings[0]
-        .parse::<i32>()
-        .expect("Canto convert typmod to integer")
+fn enigma_typmod_in(input: Array<&CStr>) 
+-> Result<i32, Box<(dyn std::error::Error + 'static)>> {
+	debug2!("TYPMOD_IN");
+    if input.len() != 1 {
+        return Err(
+            "Enigma type modifier must be a single integer value".into());
+    }
+    let typmod = input.iter() // iterator
+    .next() // Option<Item>
+    .ok_or("No Item")? // Item
+    .ok_or("Null item")? // &Cstr
+    .to_str()? //&str
+    .parse::<i32>()?; // i32
+    debug1!("typmod_in({typmod})");
+    if typmod < 0 {
+        return Err(
+            "Enigma type modifier must be a positive integer".into());
+    }
+    Ok(typmod)
 }
 
 
@@ -195,20 +176,23 @@ pub fn enigma_type_modifier_input(cstrings: pgrx::Array<'_, &CStr>) -> i32 {
 /// SQL function for setting private key in memory (PrivKeysMap)
 /// All in-memory private keys will be lost when session is closed
 /// and postgres sessionprocess ends.
-#[pg_extern]
+#[pg_extern(stable)]
 fn set_private_key(id: i32, key: &str, pass: &str)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
     if id < 1 {
         return Err("Key id must be a positive integer".into());
     }
     PRIV_KEYS.set(id as u32, key, pass)
-}   
+}
+
+// TODO: polymorphic set_private_key() without pass
+// TODO: polymorphic set_private_key() without typmod (key_id 0)
 
 
 /// SQL function for setting public key in memory (PubKeysMap)
 /// Also inserts provided public key into enigma public keys table, 
 /// making it available for other sessions.
-#[pg_extern]
+#[pg_extern(volatile, requires = [ "shell_type" ])]
 fn set_public_key(id: i32, key: &str)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
     if id < 1 {
@@ -220,8 +204,11 @@ fn set_public_key(id: i32, key: &str)
     }
 }
 
+// TODO: polymorphic set_public_key() without typmod (key_id 0)
+// TODO: insert_public_key() Postgres function
+
 /// Delete the private key from memory (PrivKeysMap)
-#[pg_extern]
+#[pg_extern(stable)]
 fn forget_private_key(id: i32)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
     if id < 1 {
@@ -231,7 +218,7 @@ fn forget_private_key(id: i32)
 }
 
 /// Delete the public key from memory (PubKeysMap)
-#[pg_extern]
+#[pg_extern(stable)]
 fn forget_public_key(id: i32)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
     if id < 1 {
@@ -240,8 +227,10 @@ fn forget_public_key(id: i32)
     PUB_KEYS.del(id as u32)
 }
 
+// TODO: delete_public_key() Postgres function
+
 /// Sets the private key reading it from a file
-#[pg_extern]
+#[pg_extern(stable)]
 fn set_private_key_from_file(id: i32, file_path: &str, pass: &str)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
     let contents = fs::read_to_string(file_path)
@@ -250,7 +239,7 @@ fn set_private_key_from_file(id: i32, file_path: &str, pass: &str)
 }
 
 /// Sets the public key reading it from a file
-#[pg_extern]
+#[pg_extern(stable)]
 fn set_public_key_from_file(id: i32, file_path: &str)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
     let contents = fs::read_to_string(file_path)
@@ -274,8 +263,8 @@ extension_sql_file!("../sql/shell_type.sql", bootstrap);
 
 // Create the real type
 extension_sql_file!("../sql/concrete_type.sql", creates = [Type(Enigma)],
-    requires = ["shell_type", enigma_input_with_typmod, enigma_output, 
-    enigma_receive_with_typmod, enigma_send, enigma_type_modifier_input],
+    requires = ["shell_type", enigma_input, enigma_output, 
+    enigma_receive, enigma_send, enigma_typmod_in],
 );
 
 // Creates the casting function so we can get the key id in the
