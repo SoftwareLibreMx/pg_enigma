@@ -1,5 +1,10 @@
 # pg_enigma
 
+ifndef POSTGRES_VERSION
+        $(error Postgres version is needed, please define the POSTGRES_VERSION)
+        $(error environment variable)
+endif
+
 .PHONY: test clean
 
 run:
