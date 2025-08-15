@@ -1,9 +1,8 @@
-use crate::enigma::*;
 use crate::priv_key::PrivKey;
 use crate::pub_key::{PubKey,get_public_key};
-use crate::traits::{Encrypt,Decrypt};
-use pgrx::{debug1,debug2,info};
+use pgrx::{debug1,info};
 use std::collections::BTreeMap;
+use std::mem::drop;
 use std::sync::RwLock;
 
 /********************
@@ -93,27 +92,6 @@ impl PrivKeysMap {
             None => return Ok(None)
         };
         Ok(Some(key))
-    }
-
-    /// Custom decrypt function for `PrivKeysMap`.
-    /// This function is not an implementation of trait `Decrypt`
-    /// Will look for the decryption key in it's key map and call
-    /// the key's `decrypt()` function to decrypt the message.
-    /// If no decrypting key is found, returns the same encrypted message.
-    pub fn decrypt(self: &'static PrivKeysMap, message: Enigma)
-    -> Result<Enigma, Box<(dyn std::error::Error + 'static)>> {
-        let key_id = match message.key_id() {
-            Some(k) => k,
-            None => return Ok(message) // Not encrypted
-        };
-        debug2!("Decrypt: Message key_id: {key_id}");
-        match self.get(key_id)? {
-            Some(sec_key) => {
-                debug2!("Decrypt: got secret key");
-                sec_key.decrypt(message)
-            },
-            None => Ok(message)
-        }
     }
 
     /* PGP specific functions commented-out for future use
@@ -227,57 +205,27 @@ impl PubKeysMap {
         let binding = self.keys.read()?;
         let key = match binding.get(&id) {
             Some(k) => k,
-            None => return Ok(None)
+            None => {
+                drop(binding);
+                // get_public_key() reads Key from SQL
+                if let Some(armored_key) = get_public_key(id as i32)? { 
+                    debug1!("Key with ID {id}:\n{armored_key}");
+                    let set_msg = self.set(id, &armored_key)?;
+                    info!("{set_msg}");
+                    // return the key just been set
+                    self.get(id)?.ok_or("missing just set key")?
+                } else {
+                    return Ok(None);
+                }
+            }
         };
         Ok(Some(key))
-    }
-
-    /// Custom encrypt function for `PubKeysMap`.
-    /// This function is not an implementation of trait `Decrypt`
-    /// Will look for the encryption key in it's key map and call
-    /// the key's `encrypt()` function to encrypt the message.
-    /// If no encrypting key is found, returns an error message.
-    pub fn encrypt(self: &'static PubKeysMap, id: i32, msg: Enigma) 
-    -> Result<Enigma, Box<(dyn std::error::Error + 'static)>> {
-        if id < 1 { // TODO: Support Key ID 0
-            return Err("Key id must be a positive integer".into());
-        }
-        let key_id: u32 = id as u32;
-        if let Some(msgid) = msg.key_id() { // message is encrypted
-            if msgid == key_id {
-                info!("Already encrypted with key ID {msgid}"); 
-                return  Ok(msg);
-            };
-            // TODO: try to decrypt
-            return Err("Nested encryption not supported".into());
-        }
-        if let Some(pub_key) = self.get(key_id)? {
-            return pub_key.encrypt(key_id, msg);
-        }
-        // retry from SQL is expected to be needed only once 
-        if let Some(pub_key) = self.from_sql(key_id)? {
-            return pub_key.encrypt(key_id, msg);
-        }
-        Err(format!("No public key with key_id: {}", key_id).into())
     }
 
 /*********************
  * PRIVATE FUNCTIONS *
  * *******************/
 
-    fn from_sql(self: &'static PubKeysMap, key_id: u32) 
-    -> Result<Option<&'static PubKey>, 
-    Box<(dyn std::error::Error + 'static)>> {
-        // TODO: rename to public_ket_from_sql()
-        // get_public_key() reads Key from SQL
-        if let Some(armored_key) = get_public_key(key_id as i32)? { 
-            debug1!("Key with ID {key_id}:\n{armored_key}");
-            let set_msg = self.set(key_id, &armored_key)?;
-            info!("{set_msg}");
-        }
-        // return the key just been set
-        self.get(key_id)
-    }
 
 }
 

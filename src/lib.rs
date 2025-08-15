@@ -2,7 +2,6 @@ mod enigma;
 mod key_map;
 mod priv_key;
 mod pub_key;
-mod traits;
 
 use core::ffi::CStr;
 use crate::enigma::Enigma;
@@ -29,22 +28,26 @@ fn enigma_input(input: &CStr, oid: pg_sys::Oid, typmod: i32)
 	//debug2!("INPUT: OID: {:?},  Typmod: {}", oid, typmod);
 	debug5!("INPUT: ARGUMENTS: \
             Input: {:?}, OID: {:?},  Typmod: {}", input, oid, typmod);
-	let value: String = input.to_str()?.to_string();
-    // TODO: Enigma:: Encrypy(typmod,value)
-    Enigma::try_from((typmod,value))
+    let enigma =  Enigma::try_from(input)?;
+    if typmod == -1 { // unknown typmod 
+        debug1!("Unknown typmod: {typmod}");
+        return Ok(enigma);
+    }
+    enigma.encrypt(typmod)
 }
 
 /// Assignment cast is called before the INPUT function.
 #[pg_extern]
 fn string_as_enigma(original: String, typmod: i32, explicit: bool) 
--> Enigma {
+-> Result<Enigma, Box<(dyn std::error::Error + 'static)>> {
     debug2!("string_as_enigma: \
         ARGUMENTS: explicit: {},  Typmod: {}", explicit, typmod);
     if typmod == -1 {
-        panic!("Unknown typmod: {}\noriginal: {:?}\nexplicit: {}", 
-            typmod, original, explicit);
+        return Err(
+            format!("Unknown typmod: {}\noriginal: {:?}\nexplicit: {}", 
+            typmod, original, explicit).into());
     }
-    Enigma::try_from((typmod,original)).expect("ASSIGNMENT CAST: String")
+    Enigma::try_from(original)?.encrypt(typmod,)
 }
 
 /*
@@ -96,7 +99,7 @@ fn enigma_as_enigma(original: Enigma, typmod: i32, explicit: bool)
     } 
     let key_id = typmod;
     debug2!("Encrypting plain message with key ID: {key_id}");
-    PUB_KEYS.encrypt(key_id, original)
+    original.encrypt(key_id)
 }
 
 /// Enigma RECEIVE function
@@ -115,10 +118,13 @@ fn enigma_receive(mut internal: Internal, oid: Oid, typmod: i32)
             buf.data as *const u8,
             buf.len as usize )
     });
-    let value = serialized.as_str()?.to_string();
-	debug5!("RECEIVE value: {value}");
-    // TODO: Enigma:: Encrypy(typmod,value)
-    Enigma::try_from((typmod,value))
+	debug5!("RECEIVE value: {}", serialized);
+    let enigma =  Enigma::try_from(serialized)?;
+    if typmod == -1 { // unknown typmod 
+        debug1!("Unknown typmod: {typmod}");
+        return Ok(enigma);
+    }
+    enigma.encrypt(typmod)
 } 
 
 /// Enigma OUTPUT function
@@ -128,7 +134,7 @@ fn enigma_output(enigma: Enigma)
 -> Result<&'static CStr, Box<(dyn std::error::Error + 'static)>> {
 	//debug2!("OUTPUT");
 	debug5!("OUTPUT: {}", enigma);
-    let decrypted = PRIV_KEYS.decrypt(enigma)?;
+    let decrypted = enigma.decrypt()?;
 	let mut buffer = StringInfo::new();
     buffer.push_str(decrypted.to_string().as_str());
 	//TODO try to avoid this unsafe
@@ -142,7 +148,7 @@ fn enigma_send(enigma: Enigma)
 -> Result<Vec<u8>, Box<(dyn std::error::Error + 'static)>> {
 	//debug2!("SEND");
 	debug5!("SEND: {}", enigma);
-    let decrypted = PRIV_KEYS.decrypt(enigma)?;
+    let decrypted = enigma.decrypt()?;
     Ok(decrypted.to_string().into_bytes())
 }
 
