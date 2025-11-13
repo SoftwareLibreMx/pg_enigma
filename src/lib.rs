@@ -29,9 +29,17 @@ fn enigma_input(input: &CStr, oid: pg_sys::Oid, typmod: i32)
 	debug5!("INPUT: ARGUMENTS: \
             Input: {:?}, OID: {:?},  Typmod: {}", input, oid, typmod);
     let enigma =  Enigma::try_from(input)?;
-    if typmod == -1 { // unknown typmod 
-        debug1!("Unknown typmod: {typmod}");
+    if enigma.is_encrypted() {
+        info!("Already encrypted"); 
         return Ok(enigma);
+    }
+    if typmod == -1 { // unknown typmod 
+        //debug1!("Unknown typmod: {typmod}");
+        return Err("INPUT: Enigma Typmod is ambiguous.\n\
+            You should cast the value as ::Text\n\
+            More info in \
+        https://git.softwarelibre.mx/SoftwareLibreMx/pg_enigma/issues/4\
+            ".into());
     }
     enigma.encrypt(typmod)
 }
@@ -42,12 +50,12 @@ fn string_as_enigma(original: String, typmod: i32, explicit: bool)
 -> Result<Enigma, Box<(dyn std::error::Error + 'static)>> {
     debug2!("string_as_enigma: \
         ARGUMENTS: explicit: {},  Typmod: {}", explicit, typmod);
-    if typmod == -1 {
-        return Err(
-            format!("Unknown typmod: {}\noriginal: {:?}\nexplicit: {}", 
-            typmod, original, explicit).into());
-    }
-    Enigma::try_from(original)?.encrypt(typmod,)
+    let key_id = match typmod {
+        -1 => { debug1!("Unknown typmod; using default key ID 0");
+            0 },
+        _ => typmod
+    };
+    Enigma::try_from(original)?.encrypt(key_id)
 }
 
 /*
@@ -87,17 +95,20 @@ fn enigma_as_enigma(original: Enigma, typmod: i32, explicit: bool)
 -> Result<Enigma, Box<(dyn std::error::Error + 'static)>> {
     debug2!("CAST(Enigma AS Enigma): \
         ARGUMENTS: explicit: {},  Typmod: {}", explicit, typmod);
-    if typmod == -1 {
-        return Err(
-            format!("Unknown typmod: {}\noriginal: {:?}\nexplicit: {}", 
-                typmod, original, explicit).into());
-    }
     debug5!("Original: {:?}", original);
     if original.is_encrypted() {
         // TODO: if original.key_id != key_id {try_reencrypt()} 
         return Ok(original);
     } 
-    let key_id = typmod;
+    let key_id = match typmod {
+        -1 => match explicit { 
+            false => return Err( // Implicit is not called when no typmod
+                format!("Unknown typmod: {}", typmod).into()),
+            true => { debug1!("Unknown typmod; using default key ID 0");
+            0}
+        },
+        _ => typmod
+    };
     debug2!("Encrypting plain message with key ID: {key_id}");
     original.encrypt(key_id)
 }
@@ -118,13 +129,22 @@ fn enigma_receive(mut internal: Internal, oid: Oid, typmod: i32)
             buf.data as *const u8,
             buf.len as usize )
     });
-	debug5!("RECEIVE value: {}", serialized);
+    debug5!("RECEIVE value: {}", serialized);
     let enigma =  Enigma::try_from(serialized)?;
-    if typmod == -1 { // unknown typmod 
-        debug1!("Unknown typmod: {typmod}");
+    // TODO: Repeated: copied from enigma_input()
+    if enigma.is_encrypted() {
+        info!("Already encrypted"); 
         return Ok(enigma);
     }
+    if typmod == -1 { // unknown typmod 
+        return Err("RECEIVE: Enigma Typmod is ambiguous.\n\
+            You should cast the value as ::Text\n\
+            More info in \
+        https://git.softwarelibre.mx/SoftwareLibreMx/pg_enigma/issues/4\
+            ".into());
+    }
     enigma.encrypt(typmod)
+
 } 
 
 /// Enigma OUTPUT function
@@ -201,8 +221,8 @@ fn set_private_key(id: i32, key: &str, pass: &str)
 #[pg_extern(volatile, requires = [ "shell_type" ])]
 fn set_public_key(id: i32, key: &str)
 -> Result<String, Box<(dyn std::error::Error + 'static)>> {
-    if id < 1 {
-        return Err("Key id must be a positive integer".into());
+    if id < 0 { // TODO: Polymorphic without ID
+        return Err("Key id must be zero or greater".into());
     }
     match insert_public_key(id, key)? {
         Some(_) => PUB_KEYS.set(id as u32, key),
@@ -368,13 +388,14 @@ SELECT public_key FROM _enigma_public_keys WHERE id = 2;
     }
 
     /// Insert a row in the table and then query the encrypted value
+    /// Since INPUT typmod is ambiguous INSERT will cast as ::Text 
     #[pg_test]
     fn e06_insert_with_pub_key()  -> Result<(), Box<dyn Error>> {
         Spi::run(
         "
 CREATE TABLE testab ( a SERIAL, b Enigma(2));
 SELECT set_public_key_from_file(2, '../../../test/public-key.asc'); 
-INSERT INTO testab (b) VALUES ('my PGP test record');
+INSERT INTO testab (b) VALUES ('my PGP test record'::Text);
         ")? ; 
         if let Some(res) = Spi::get_one::<Enigma>("
 SELECT b FROM testab LIMIT 1;
@@ -386,13 +407,14 @@ SELECT b FROM testab LIMIT 1;
 
     /// Insert a row in the table, then set private key and then 
     /// query the decrypted value
+    /// Since INPUT typmod is ambiguous INSERT will cast as ::Text 
     #[pg_test]
     fn e07_select_with_priv_key()  -> Result<(), Box<dyn Error>> {
         Spi::run(
         "
 CREATE TABLE testab ( a SERIAL, b Enigma(2));
 SELECT set_public_key_from_file(2, '../../../test/public-key.asc'); 
-INSERT INTO testab (b) VALUES ('my PGP test record');
+INSERT INTO testab (b) VALUES ('my PGP test record'::Text);
 SELECT set_private_key_from_file(2, 
     '../../../test/private-key.asc', 'Prueba123!'); 
         ")? ; 
@@ -408,13 +430,14 @@ SELECT b FROM testab LIMIT 1;
     } 
 
     /// Insert a row in the table and then query the encrypted value
+    /// Since INPUT typmod is ambiguous INSERT will cast as ::Text 
     #[pg_test]
     fn e08_insert_with_rsa_pub_key()  -> Result<(), Box<dyn Error>> {
         Spi::run(
         "
 CREATE TABLE testab ( a SERIAL, b Enigma(3));
 SELECT set_public_key_from_file(3, '../../../test/alice_public.pem'); 
-INSERT INTO testab (b) VALUES ('my RSA test record');
+INSERT INTO testab (b) VALUES ('my RSA test record'::Text);
         ")? ; 
         if let Some(res) = Spi::get_one::<Enigma>("
 SELECT b FROM testab LIMIT 1;
@@ -426,13 +449,14 @@ SELECT b FROM testab LIMIT 1;
 
     /// Insert a row in the table, then set private key and then 
     /// query the decrypted value
+    /// Since INPUT typmod is ambiguous INSERT will cast as ::Text 
     #[pg_test]
     fn e09_select_with_rsa_priv_key()  -> Result<(), Box<dyn Error>> {
         Spi::run(
         "
 CREATE TABLE testab ( a SERIAL, b Enigma(3));
 SELECT set_public_key_from_file(3, '../../../test/alice_public.pem'); 
-INSERT INTO testab (b) VALUES ('my RSA test record');
+INSERT INTO testab (b) VALUES ('my RSA test record'::Text);
 SELECT set_private_key_from_file(3, 
     '../../../test/alice_private.pem', 'Prueba123!'); 
         ")? ; 
@@ -448,7 +472,7 @@ SELECT b FROM testab LIMIT 1;
     } 
 
     /// This test is just a cast from String to Enigma
-    /// String get through INPUT and then typmod CAST
+    /// Since INPUT typmod is ambiguous ASSIGNMENT cast is needed 
     #[pg_test]
     fn e10_select_string_as_enigma()  -> Result<(), Box<dyn Error>> {
         Spi::run(
@@ -456,7 +480,7 @@ SELECT b FROM testab LIMIT 1;
 SELECT set_public_key_from_file(2, '../../../test/public-key.asc'); 
         ")? ;  
         if let Some(res) = Spi::get_one::<Enigma>("
-SELECT 'my CAST test record'::Enigma(2);
+SELECT 'my CAST test record'::Text::Enigma(2);
         ")? {
             info!("Encrypted value: {}", res);
             if res.value().as_str() != "my CAST test record" { return Ok(()); }
@@ -468,6 +492,7 @@ SELECT 'my CAST test record'::Enigma(2);
     /// String get through INPUT and then typmod CAST
     /// Unlike e10, key 2 is delete from PubKeysMap, so it has to be 
     /// retrieved from public keys table first 
+    /// Since INPUT typmod is ambiguous ASSIGNMENT cast is needed 
     #[pg_test]
     fn e11_pub_keys_from_sql()  -> Result<(), Box<dyn Error>> {
         Spi::run(
@@ -477,7 +502,7 @@ SELECT set_public_key_from_file(2, '../../../test/public-key.asc');
 SELECT forget_public_key(2);
         ")? ;  
         if let Some(res) = Spi::get_one::<Enigma>("
-SELECT 'my CAST test record'::Enigma(2);
+SELECT 'my CAST test record'::Text::Enigma(2);
         ")? {
             info!("Encrypted value: {}", res);
             if res.value().as_str() != "my CAST test record" { return Ok(()); }
@@ -489,13 +514,14 @@ SELECT 'my CAST test record'::Enigma(2);
     /// query the decrypted value.
     /// Using `CAST(Enigma AS Text)` will force casting througn the 
     /// OUTPUT function.
+    /// Since INPUT typmod is ambiguous INSERT will cast as ::Text 
     #[pg_test]
     fn e12_decrypt_pgp_casting_as_text()  -> Result<(), Box<dyn Error>> {
         Spi::run(
         "
 CREATE TABLE testab ( a SERIAL, b Enigma(2));
 SELECT set_public_key_from_file(2, '../../../test/public-key.asc'); 
-INSERT INTO testab (b) VALUES ('my PGP test record');
+INSERT INTO testab (b) VALUES ('my PGP test record'::Text);
 SELECT set_private_key_from_file(2, 
     '../../../test/private-key.asc', 'Prueba123!'); 
         ")? ; 
@@ -512,13 +538,14 @@ SELECT CAST(b AS Text) FROM testab LIMIT 1;
     /// query the decrypted value
     /// Using `CAST(Enigma AS Text)` will force casting througn the 
     /// OUTPUT function.
+    /// Since INPUT typmod is ambiguous INSERT will cast as ::Text 
     #[pg_test]
     fn e13_decrypt_rsa_casting_as_text()  -> Result<(), Box<dyn Error>> {
         Spi::run(
         "
 CREATE TABLE testab ( a SERIAL, b Enigma(3));
 SELECT set_public_key_from_file(3, '../../../test/alice_public.pem'); 
-INSERT INTO testab (b) VALUES ('my RSA test record');
+INSERT INTO testab (b) VALUES ('my RSA test record'::Text);
 SELECT set_private_key_from_file(3, 
     '../../../test/alice_private.pem', 'Prueba123!'); 
         ")? ; 
