@@ -35,7 +35,7 @@ impl PubKey {
     /// Creates a `PubKey` struct with the key obtained
     /// from the `armored key`
     pub fn new(armored: &str) 
-    -> Result<Self, Box<(dyn std::error::Error + 'static)>> {
+    -> Result<Self, Box<dyn std::error::Error + 'static>> {
         if armored.contains(PGP_BEGIN) && armored.contains(PGP_END) {
             // https://docs.rs/pgp/latest/pgp/composed/trait.Deserializable.html#method.from_string
             let (pub_key, _) = SignedPublicKey::from_string(armored)?;
@@ -60,7 +60,7 @@ impl PubKey {
     }
 
     pub fn encrypt(&self, id: u32, msg: Enigma) 
-    -> Result<Enigma, Box<(dyn std::error::Error + 'static)>> {
+    -> Result<Enigma, Box<dyn std::error::Error + 'static>> {
         if msg.is_encrypted() { 
              return Err("Nested encryption not supported".into());
         }
@@ -122,7 +122,7 @@ pub fn insert_public_key(id: i32, key: &str)
  * *******************/
 
 fn encrypt_pgp(pub_key: &SignedPublicKey, message: String) 
--> Result<String, Box<(dyn std::error::Error + 'static)>> {
+-> Result<String, Box<dyn std::error::Error + 'static>> {
     let mut rng =  ChaCha12Rng::seed_from_u64(*SEED);
     let mut builder = MessageBuilder::from_bytes("", message)
         .seipd_v1(&mut rng, SymmetricKeyAlgorithm::AES256);
@@ -136,7 +136,7 @@ fn encrypt_pgp(pub_key: &SignedPublicKey, message: String)
 }
 
 fn encrypt_rsa(pub_key: &PKey<Public>, message: String) 
--> Result<String, Box<(dyn std::error::Error + 'static)>> {
+-> Result<String, Box<dyn std::error::Error + 'static>> {
     let mut encrypter = Encrypter::new(&pub_key)?;
     encrypter.set_rsa_padding(Padding::PKCS1)?;
     let as_bytes = message.as_bytes();

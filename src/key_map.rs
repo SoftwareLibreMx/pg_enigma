@@ -28,7 +28,7 @@ impl PrivKeysMap {
     /// Sets the `PrivKeysMap` `id` to the `PrivKey` obtained from the
     /// provides armored key and plain text password
     pub fn set(&self, id: u32, armored_key: &str, pw: &str)
-    -> Result<String, Box<(dyn std::error::Error + 'static)>> {
+    -> Result<String, Box<dyn std::error::Error + 'static>> {
         let key = PrivKey::new(armored_key, pw)?; // key with '1 lifetime
         let priv_id = key.priv_key_id();
         // put the key into the box to allow change it's lifetime
@@ -61,7 +61,7 @@ impl PrivKeysMap {
     /// Removes key from the `PrivKeysMap`. 
     /// Once the key gets out of scope, it's supposed to be dropped.
     pub fn del(&'static self, id: u32) 
-    -> Result<String, Box<(dyn std::error::Error + 'static)>> {
+    -> Result<String, Box<dyn std::error::Error + 'static>> {
         let old = match self.keys.write() {
             Ok(mut m) => {
                 m.remove(&id)
@@ -85,7 +85,7 @@ impl PrivKeysMap {
     /// Gets reference to `PrivKey` from `PrivKeysMap` entry with `id` 
     pub fn get(self: &'static PrivKeysMap, id: u32) 
     -> Result<Option<&'static PrivKey>, 
-    Box<(dyn std::error::Error + 'static)>> {
+    Box<dyn std::error::Error + 'static>> {
         let binding = self.keys.read()?;
         let key = match binding.get(&id) {
             Some(k) => k,
@@ -99,7 +99,7 @@ impl PrivKeysMap {
     /// for a matching key_id in it's own private keys map
     pub fn find_encrypting_key(self: &'static PrivKeysMap, msg: &Enigma)
     -> Result<Option<&'static PrivKey>, 
-    Box<(dyn std::error::Error + 'static)>> {
+    Box<dyn std::error::Error + 'static>> {
         if let Some(id) = msg.key_id() {
             return self.get(id);
         }
@@ -144,7 +144,7 @@ impl PubKeysMap {
     /// Sets the `PubKeysMap` `id` to the `PubKey` obtained from the
     /// provides armored key and plain text password
     pub fn set(&self, id: u32, armored_key: &str)
-    -> Result<String, Box<(dyn std::error::Error + 'static)>> {
+    -> Result<String, Box<dyn std::error::Error + 'static>> {
         let key = PubKey::new(armored_key)?; // key with '1 lifetime
         let pub_id = key.pub_key_id();
         // put the key into the box to allow change it's lifetime
@@ -177,7 +177,7 @@ impl PubKeysMap {
     /// Removes key from the `PubKeysMap`. 
     /// Once the key gets out of scope, it's supposed to be dropped.
     pub fn del(&'static self, id: u32) 
-    -> Result<String, Box<(dyn std::error::Error + 'static)>> {
+    -> Result<String, Box<dyn std::error::Error + 'static>> {
         let old = match self.keys.write() {
             Ok(mut m) => {
                 m.remove(&id)
@@ -201,7 +201,7 @@ impl PubKeysMap {
     /// Gets reference to `PubKey` from `PubKeysMap` entry with `id` 
     pub fn get(self: &'static PubKeysMap, id: u32) 
     -> Result<Option<&'static PubKey>, 
-    Box<(dyn std::error::Error + 'static)>> {
+    Box<dyn std::error::Error + 'static>> {
         let binding = self.keys.read()?;
         let key = match binding.get(&id) {
             Some(k) => k,
