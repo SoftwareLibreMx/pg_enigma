@@ -37,7 +37,7 @@ fn enigma_input(input: &CStr, oid: pg_sys::Oid, typmod: i32)
         //debug1!("Unknown typmod: {typmod}");
         return Err("INPUT: Enigma Typmod is ambiguous.\n\
             You should cast the value as ::Text\n\
-            More info in \
+            More details in issue #4 \
         https://git.softwarelibre.mx/SoftwareLibreMx/pg_enigma/issues/4\
             ".into());
     }
@@ -139,7 +139,7 @@ fn enigma_receive(mut internal: Internal, oid: Oid, typmod: i32)
     if typmod == -1 { // unknown typmod 
         return Err("RECEIVE: Enigma Typmod is ambiguous.\n\
             You should cast the value as ::Text\n\
-            More info in \
+            More details in issue #4\
         https://git.softwarelibre.mx/SoftwareLibreMx/pg_enigma/issues/4\
             ".into());
     }
