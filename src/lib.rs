@@ -24,7 +24,7 @@ static PUB_KEYS: Lazy<PubKeysMap> = Lazy::new(|| PubKeysMap::new());
 /// Functions for extracting and inserting data
 #[pg_extern(stable, parallel_safe, requires = [ "shell_type" ])]
 fn enigma_input(input: &CStr, oid: pg_sys::Oid, typmod: i32) 
--> Result<Enigma, Box<(dyn std::error::Error + 'static)>> {
+-> Result<Enigma, Box<dyn std::error::Error + 'static>> {
 	//debug2!("INPUT: OID: {:?},  Typmod: {}", oid, typmod);
 	debug5!("INPUT: ARGUMENTS: \
             Input: {:?}, OID: {:?},  Typmod: {}", input, oid, typmod);
@@ -47,7 +47,7 @@ fn enigma_input(input: &CStr, oid: pg_sys::Oid, typmod: i32)
 /// Assignment cast is called before the INPUT function.
 #[pg_extern]
 fn string_as_enigma(original: String, typmod: i32, explicit: bool) 
--> Result<Enigma, Box<(dyn std::error::Error + 'static)>> {
+-> Result<Enigma, Box<dyn std::error::Error + 'static>> {
     debug2!("string_as_enigma: \
         ARGUMENTS: explicit: {},  Typmod: {}", explicit, typmod);
     let key_id = match typmod {
@@ -92,7 +92,7 @@ fn u8_as_enigma<'fcx>(original: &'fcx [u8], typmod: i32, explicit: bool)
 /// This function is passed the correct known typmod argument.
 #[pg_extern(stable, parallel_safe)]
 fn enigma_as_enigma(original: Enigma, typmod: i32, explicit: bool) 
--> Result<Enigma, Box<(dyn std::error::Error + 'static)>> {
+-> Result<Enigma, Box<dyn std::error::Error + 'static>> {
     debug2!("CAST(Enigma AS Enigma): \
         ARGUMENTS: explicit: {},  Typmod: {}", explicit, typmod);
     debug5!("Original: {:?}", original);
@@ -116,7 +116,7 @@ fn enigma_as_enigma(original: Enigma, typmod: i32, explicit: bool)
 /// Enigma RECEIVE function
 #[pg_extern(stable, parallel_safe, requires = [ "shell_type" ])]
 fn enigma_receive(mut internal: Internal, oid: Oid, typmod: i32) 
--> Result<Enigma, Box<(dyn std::error::Error + 'static)>> {
+-> Result<Enigma, Box<dyn std::error::Error + 'static>> {
     debug2!("RECEIVE: OID: {:?},  Typmod: {}", oid, typmod);
     let buf = unsafe { 
         internal.get_mut::<::pgrx::pg_sys::StringInfoData>().unwrap() 
@@ -151,7 +151,7 @@ fn enigma_receive(mut internal: Internal, oid: Oid, typmod: i32)
 /// Sends Enigma to Postgres converted to `&Cstr`
 #[pg_extern(stable, parallel_safe, requires = [ "shell_type" ])]
 fn enigma_output(enigma: Enigma) 
--> Result<&'static CStr, Box<(dyn std::error::Error + 'static)>> {
+-> Result<&'static CStr, Box<dyn std::error::Error + 'static>> {
 	//debug2!("OUTPUT");
 	debug5!("OUTPUT: {}", enigma);
     let decrypted = enigma.decrypt()?;
@@ -165,7 +165,7 @@ fn enigma_output(enigma: Enigma)
 /// Enigma SEND function
 #[pg_extern(stable, parallel_safe, requires = [ "shell_type" ])]
 fn enigma_send(enigma: Enigma) 
--> Result<Vec<u8>, Box<(dyn std::error::Error + 'static)>> {
+-> Result<Vec<u8>, Box<dyn std::error::Error + 'static>> {
 	//debug2!("SEND");
 	debug5!("SEND: {}", enigma);
     let decrypted = enigma.decrypt()?;
@@ -177,7 +177,7 @@ fn enigma_send(enigma: Enigma)
 /// converts typmod from cstring to i32
 #[pg_extern(immutable, parallel_safe, requires = [ "shell_type" ])]
 fn enigma_typmod_in(input: Array<&CStr>) 
--> Result<i32, Box<(dyn std::error::Error + 'static)>> {
+-> Result<i32, Box<dyn std::error::Error + 'static>> {
 	debug2!("TYPMOD_IN");
     if input.len() != 1 {
         return Err(
@@ -204,7 +204,7 @@ fn enigma_typmod_in(input: Array<&CStr>)
 /// and postgres sessionprocess ends.
 #[pg_extern(stable)]
 fn set_private_key(id: i32, key: &str, pass: &str)
--> Result<String, Box<(dyn std::error::Error + 'static)>> {
+-> Result<String, Box<dyn std::error::Error + 'static>> {
     if id < 1 {
         return Err("Key id must be a positive integer".into());
     }
@@ -220,8 +220,8 @@ fn set_private_key(id: i32, key: &str, pass: &str)
 /// making it available for other sessions.
 #[pg_extern(volatile, requires = [ "shell_type" ])]
 fn set_public_key(id: i32, key: &str)
--> Result<String, Box<(dyn std::error::Error + 'static)>> {
-    if id < 0 { // TODO: Polymorphic without ID
+-> Result<String, Box<dyn std::error::Error + 'static>> {
+    if id < 0 { // TODO: Polymorphic default (without ID)
         return Err("Key id must be zero or greater".into());
     }
     match insert_public_key(id, key)? {
@@ -236,7 +236,7 @@ fn set_public_key(id: i32, key: &str)
 /// Delete the private key from memory (PrivKeysMap)
 #[pg_extern(stable)]
 fn forget_private_key(id: i32)
--> Result<String, Box<(dyn std::error::Error + 'static)>> {
+-> Result<String, Box<dyn std::error::Error + 'static>> {
     if id < 1 {
         return Err("Key id must be a positive integer".into());
     }
@@ -246,7 +246,7 @@ fn forget_private_key(id: i32)
 /// Delete the public key from memory (PubKeysMap)
 #[pg_extern(stable)]
 fn forget_public_key(id: i32)
--> Result<String, Box<(dyn std::error::Error + 'static)>> {
+-> Result<String, Box<dyn std::error::Error + 'static>> {
     if id < 1 {
         return Err("Key id must be a positive integer".into());
     }
@@ -258,7 +258,7 @@ fn forget_public_key(id: i32)
 /// Sets the private key reading it from a file
 #[pg_extern(stable)]
 fn set_private_key_from_file(id: i32, file_path: &str, pass: &str)
--> Result<String, Box<(dyn std::error::Error + 'static)>> {
+-> Result<String, Box<dyn std::error::Error + 'static>> {
     let contents = fs::read_to_string(file_path)
     .expect("Error reading private key file");
     set_private_key(id, &contents, pass)
@@ -267,7 +267,7 @@ fn set_private_key_from_file(id: i32, file_path: &str, pass: &str)
 /// Sets the public key reading it from a file
 #[pg_extern(stable)]
 fn set_public_key_from_file(id: i32, file_path: &str)
--> Result<String, Box<(dyn std::error::Error + 'static)>> {
+-> Result<String, Box<dyn std::error::Error + 'static>> {
     let contents = fs::read_to_string(file_path)
         .expect("Error reading public file");
     set_public_key(id, &contents)
