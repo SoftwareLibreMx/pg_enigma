@@ -32,7 +32,7 @@ pub enum Enigma {
 }
 
 impl TryFrom<&str> for Enigma {
-    type Error = Box<(dyn std::error::Error + 'static)>;
+    type Error = Box<dyn std::error::Error + 'static>;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         if let Some((header, payload)) = value.split_once(SEPARATOR) {
@@ -65,7 +65,7 @@ impl TryFrom<&str> for Enigma {
 } 
 
 impl TryFrom<String> for Enigma {
-    type Error = Box<(dyn std::error::Error + 'static)>;
+    type Error = Box<dyn std::error::Error + 'static>;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         Self::try_from(value.as_str())
@@ -73,7 +73,7 @@ impl TryFrom<String> for Enigma {
 }
 
 impl TryFrom<&String> for Enigma {
-    type Error = Box<(dyn std::error::Error + 'static)>;
+    type Error = Box<dyn std::error::Error + 'static>;
 
     fn try_from(value: &String) -> Result<Self, Self::Error> {
         Self::try_from(value.as_str())
@@ -81,7 +81,7 @@ impl TryFrom<&String> for Enigma {
 }
 
 impl TryFrom<StringInfo> for Enigma {
-    type Error = Box<(dyn std::error::Error + 'static)>;
+    type Error = Box<dyn std::error::Error + 'static>;
 
     fn try_from(value: StringInfo) -> Result<Self, Self::Error> {
         Self::try_from(value.as_str()?)
@@ -89,7 +89,7 @@ impl TryFrom<StringInfo> for Enigma {
 }
 
 impl TryFrom<&CStr> for Enigma {
-    type Error = Box<(dyn std::error::Error + 'static)>;
+    type Error = Box<dyn std::error::Error + 'static>;
 
     fn try_from(value: &CStr) -> Result<Self, Self::Error> {
         Self::try_from(value.to_str()?)
@@ -165,7 +165,7 @@ impl Enigma {
 
     /* PGP specific functions commented-out for future use
     pub fn pgp_encrypting_keys(&self)
-    -> Result<Vec<KeyId>, Box<(dyn std::error::Error + 'static)>> {
+    -> Result<Vec<KeyId>, Box<dyn std::error::Error + 'static>> {
         let mut keys = Vec::new();
         if let Self::PGP(_,pgp::Message::Encrypted{ esk, .. }) = self {
             for each_esk in esk {
@@ -180,7 +180,7 @@ impl Enigma {
     }
 
     pub fn pgp_encrypting_key(&self)
-    -> Result<KeyId, Box<(dyn std::error::Error + 'static)>> {
+    -> Result<KeyId, Box<dyn std::error::Error + 'static>> {
         let mut keys = self.pgp_encrypting_keys()?;
         if keys.len() > 1 {
             return Err("More than one encrypting key".into());
@@ -189,7 +189,7 @@ impl Enigma {
     }
 
     pub fn pgp_encrypting_key_as_string(&self)
-    -> Result<String, Box<(dyn std::error::Error + 'static)>> {
+    -> Result<String, Box<dyn std::error::Error + 'static>> {
         let pgp_id = self.pgp_encrypting_key()?;
         Ok(format!("{:x}", pgp_id))
     } */
@@ -198,9 +198,9 @@ impl Enigma {
     /// the key's `encrypt()` function to encrypt the message.
     /// If no encrypting key is found, returns an error message.
     pub fn encrypt(self, id: i32) 
-    -> Result<Self, Box<(dyn std::error::Error + 'static)>> {
-        if id < 1 { // TODO: Support Key ID 0
-            return Err("Key id must be a positive integer".into());
+    -> Result<Self, Box<dyn std::error::Error + 'static>> {
+        if id < 0 { 
+            return Err("Key id must be zero or greater".into());
         }
         let key_id: u32 = id as u32;
         if let Some(msgid) = self.key_id() { // message is encrypted
@@ -221,7 +221,7 @@ impl Enigma {
     /// the key's `decrypt()` function to decrypt the message.
     /// If no decrypting key is found, returns the same encrypted message.
     pub fn decrypt(self)
-    -> Result<Enigma, Box<(dyn std::error::Error + 'static)>> {
+    -> Result<Enigma, Box<dyn std::error::Error + 'static>> {
         let key_id = match self.key_id() {
             Some(k) => k,
             None => return Ok(self) // Not encrypted
@@ -253,7 +253,7 @@ pub fn is_enigma_hdr(hdr: &str) -> bool {
  * *******************/
 
 fn split_hdr(full_header: &str) 
--> Result<(u64,u32), Box<(dyn std::error::Error + 'static)>> {
+-> Result<(u64,u32), Box<dyn std::error::Error + 'static>> {
     if full_header.len() < 16 {
         return Err("Wrong header".into());
     }

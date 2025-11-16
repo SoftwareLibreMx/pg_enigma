@@ -1,3 +1,21 @@
+## Version 0.4.0
+
+### Changes
+- rpgp-0.16.0 support
+- `Enigma` refactor:
+    - Removed unnecessary `EnigmaMsg` conversions. Now `Enigma` is `Enum`.
+    - `encrypt()` method on `Enigma` instead of `PubKeyMap`
+    - `decrypt()` method on `Enigma` instead of `PrivKeyMap`
+- Postgres functions refactor
+    - All Postgres functions now return `Result<T,dyn Error>`
+- Fix: Assignment `CAST(Text AS Enigma)` fixes: #39
+
+
+### Known issues
+- https://git.softwarelibre.mx/SoftwareLibreMx/pg_enigma/issues/4 
+- In branch `postgresql-typmod-patch` we are working on a better a patch for Postgres to solve this issue.
+
+
 ## Version 0.3.0
 
 ### Features

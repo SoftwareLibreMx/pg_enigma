@@ -28,7 +28,7 @@ impl PrivKey {
     /// Creates a `PrivKey` struct with the key obtained
     /// from the `armored key` and the provided plain text password
     pub fn new(armored: &str, pw: &str) 
-    -> Result<Self, Box<(dyn std::error::Error + 'static)>> {
+    -> Result<Self, Box<dyn std::error::Error + 'static>> {
         if armored.contains(PGPKEY_BEGIN) && armored.contains(PGPKEY_END) {
             // https://docs.rs/pgp/latest/pgp/composed/trait.Deserializable.html#method.from_string
             let (sec_key, _) = SignedSecretKey::from_string(armored)?;
@@ -54,7 +54,7 @@ impl PrivKey {
     }
 
     pub fn decrypt(&self, msg: Enigma) 
-    -> Result<Enigma, Box<(dyn std::error::Error + 'static)>> {
+    -> Result<Enigma, Box<dyn std::error::Error + 'static>> {
         match self {
             PrivKey::PGP(key,pass) => {
                 debug2!("Decrypt: PGP key");
@@ -74,7 +74,7 @@ impl PrivKey {
  * *******************/
 
 fn decrypt_pgp(key: &SignedSecretKey, pass: String, enigma: Enigma)
--> Result<Enigma, Box<(dyn std::error::Error + 'static)>> {
+-> Result<Enigma, Box<dyn std::error::Error + 'static>> {
     if let Enigma::PGP(_,message) = enigma {
         debug2!("Decrypt: PGP Enigma: {message}");
         let buf = Cursor::new(format!("{}{}{}",PGP_BEGIN,message,PGP_END));
@@ -89,7 +89,7 @@ fn decrypt_pgp(key: &SignedSecretKey, pass: String, enigma: Enigma)
 
 
 fn decrypt_rsa(key: &PKey<Private>, enigma: Enigma)
--> Result<Enigma, Box<(dyn std::error::Error + 'static)>> {
+-> Result<Enigma, Box<dyn std::error::Error + 'static>> {
     if let Enigma::RSA(_,message) = enigma {
         debug2!("Decrypt: RSA Enigma: {message}");
         let input = decode_block(message.as_str())?;
