@@ -1,3 +1,4 @@
+mod common;
 mod enigma;
 mod key_map;
 mod priv_key;

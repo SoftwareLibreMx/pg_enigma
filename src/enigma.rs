@@ -1,4 +1,5 @@
 use core::ffi::CStr;
+use crate::common::*;
 use crate::{PRIV_KEYS,PUB_KEYS};
 use pgrx::callconv::{ArgAbi, BoxRet};
 use pgrx::datum::Datum;
@@ -16,9 +17,6 @@ const RSA_BEGIN: &str = "-----BEGIN RSA ENCRYPTED-----\n";
 const RSA_END: &str = "\n-----END RSA ENCRYPTED-----";
 const ENIGMA_TAG: &str = "ENIGMAv1"; // 0x454E49474D417631
 const ENIGMA_INT: u64  = 0x454E49474D417631; // "ENIGMAv1"
-const PLAIN_TAG: &str  = "PLAINMSG"; // 0x504C41494E4D5347
-const PLAIN_INT: u64   = 0x504C41494E4D5347; // "PLAINMSG"
-const SEPARATOR: char = '\n';
 
 /// Value stores entcrypted information
 #[derive( Clone, Debug)]
@@ -116,11 +114,17 @@ impl Display for Enigma {
     }
 }
 
-impl Enigma {
-    pub fn plain(value: String) -> Self {
+impl Plain for Enigma {
+    fn plain(value: String) -> Self {
         Self::Plain(value)
     }
 
+    fn is_plain(&self) -> bool {
+        matches!(*self, Self::Plain(_))
+    }
+}
+
+impl Enigma {
     pub fn pgp(id: u32, value: String) -> Self {
         Self::PGP(id, value
                     .trim_start_matches(PGP_BEGIN)
@@ -144,10 +148,6 @@ impl Enigma {
     #[allow(dead_code)]
     pub fn is_rsa(&self) -> bool {
         matches!(*self, Self::RSA(_,_))
-    }
-
-    pub fn is_plain(&self) -> bool {
-        matches!(*self, Self::Plain(_))
     }
 
     pub fn key_id(&self) -> Option<u32> {

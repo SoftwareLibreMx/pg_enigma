@@ -1,3 +1,4 @@
+use crate::common::Plain;
 use crate::enigma::Enigma;
 use hex::ToHex;
 use openssl::base64::decode_block;
