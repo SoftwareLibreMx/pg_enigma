@@ -5,6 +5,7 @@ mod priv_key;
 mod pub_key;
 
 use core::ffi::CStr;
+use crate::common::IsEncrypted;
 use crate::enigma::Enigma;
 use crate::key_map::{PrivKeysMap,PubKeysMap};
 use crate::pub_key::insert_public_key;

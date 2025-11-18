@@ -1,3 +1,4 @@
+use crate::common::IsEncrypted;
 use crate::enigma::Enigma;
 use hex::ToHex;
 use once_cell::sync::Lazy;

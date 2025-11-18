@@ -10,3 +10,14 @@ pub trait Plain {
     fn is_plain(&self) -> bool;
 }
 
+pub trait IsEncrypted {
+    /// true if payload is encrypted
+    fn is_encrypted(&self) -> bool;
+}
+
+impl<T> IsEncrypted for T where T: Plain {
+    fn is_encrypted(&self) -> bool {
+        !self.is_plain()
+    }
+}
+

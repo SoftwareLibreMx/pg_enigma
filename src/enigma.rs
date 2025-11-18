@@ -114,6 +114,7 @@ impl Display for Enigma {
     }
 }
 
+// TODO: #[derive(Plain)]
 impl Plain for Enigma {
     fn plain(value: String) -> Self {
         Self::Plain(value)
@@ -134,10 +135,6 @@ impl Enigma {
 
     pub fn rsa(id: u32, value: String) -> Self {
         Self::RSA(id, value)
-    }
-
-    pub fn is_encrypted(&self) -> bool {
-        !self.is_plain()
     }
 
     #[allow(dead_code)]
