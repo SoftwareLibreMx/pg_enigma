@@ -1,6 +1,7 @@
 use core::ffi::CStr;
 use crate::common::*;
 use crate::{PRIV_KEYS,PUB_KEYS};
+use crate::pgp::*;
 use pgrx::callconv::{ArgAbi, BoxRet};
 use pgrx::datum::Datum;
 use pgrx::{debug2,debug5,error,info};
@@ -11,8 +12,6 @@ use pgrx::pgrx_sql_entity_graph::metadata::{
 use pgrx::StringInfo;
 use std::fmt::{Display, Formatter};
 
-const PGP_BEGIN: &str = "-----BEGIN PGP MESSAGE-----\n";
-const PGP_END: &str = "-----END PGP MESSAGE-----\n";
 const RSA_BEGIN: &str = "-----BEGIN RSA ENCRYPTED-----\n";
 const RSA_END: &str = "\n-----END RSA ENCRYPTED-----";
 const ENIGMA_TAG: &str = "ENIGMAv1"; // 0x454E49474D417631
@@ -42,10 +41,9 @@ impl TryFrom<&str> for Enigma {
                         return Ok(Self::plain(payload.to_string()));
                     },
                     ENIGMA_INT => {
-                        if payload.starts_with(PGP_BEGIN) 
-                        && payload.ends_with(PGP_END) {
+                        if pgp_match(payload) {
                             debug2!("PGP encrypted message");
-                            return Ok(from_pgp_armor(key, payload));
+                            return Ok(Self::pgp(key, payload.to_string()));
                         }
 
                         if payload.starts_with(RSA_BEGIN)
@@ -66,6 +64,7 @@ impl TryFrom<&str> for Enigma {
     }
 } 
 
+// TODO: #[derive(EnigmaTryFrom)]
 impl TryFrom<String> for Enigma {
     type Error = Box<dyn std::error::Error + 'static>;
 
@@ -103,8 +102,8 @@ impl Display for Enigma {
         // TODO: Specific PGP or RSA Enigma tags to remove _BEGIN and _END
         match self {
             Enigma::PGP(key,msg) => {
-                write!(f, "{}{:08X}{}{}{}{}", 
-                ENIGMA_TAG, key, SEPARATOR, PGP_BEGIN, msg, PGP_END)
+                write!(f, "{}{:08X}{}{}", 
+                ENIGMA_TAG, key, SEPARATOR, pgp_add_envelope(msg))
             },
             Enigma::RSA(key,msg) => {
                 write!(f, "{}{:08X}{}{}{}{}",
@@ -131,10 +130,7 @@ impl Plain for Enigma {
 
 impl Enigma {
     pub fn pgp(id: u32, value: String) -> Self {
-        Self::PGP(id, value
-                    .trim_start_matches(PGP_BEGIN)
-                    .trim_end_matches(PGP_END)
-                    .to_string())
+        Self::PGP(id, pgp_trim_envelope(value))
     }
 
     pub fn rsa(id: u32, value: String) -> Self {
@@ -163,37 +159,6 @@ impl Enigma {
     pub fn value(&self) -> String {
         self.to_string()
     }
-
-    /* PGP specific functions commented-out for future use
-    pub fn pgp_encrypting_keys(&self)
-    -> Result<Vec<KeyId>, Box<dyn std::error::Error + 'static>> {
-        let mut keys = Vec::new();
-        if let Self::PGP(_,pgp::Message::Encrypted{ esk, .. }) = self {
-            for each_esk in esk {
-                if let PublicKeyEncryptedSessionKey(skey) = each_esk {
-                    let pgp_id = skey.id()?;
-                    debug1!("Encrypting key: {:?}", pgp_id);
-                    keys.push(pgp_id.clone());
-                }
-            }
-        }
-        Ok(keys)
-    }
-
-    pub fn pgp_encrypting_key(&self)
-    -> Result<KeyId, Box<dyn std::error::Error + 'static>> {
-        let mut keys = self.pgp_encrypting_keys()?;
-        if keys.len() > 1 {
-            return Err("More than one encrypting key".into());
-        }
-        keys.pop().ok_or("No encrypting key found".into())
-    }
-
-    pub fn pgp_encrypting_key_as_string(&self)
-    -> Result<String, Box<dyn std::error::Error + 'static>> {
-        let pgp_id = self.pgp_encrypting_key()?;
-        Ok(format!("{:x}", pgp_id))
-    } */
 
     /// Will look for the encryption key in it's key map and call
     /// the key's `encrypt()` function to encrypt the message.
@@ -238,27 +203,10 @@ impl Enigma {
     }
 }
 
-/* not being used
-pub fn is_enigma_hdr(hdr: &str) -> bool {
-    // TODO: optimize: just first [u8; 8] cast to u64
-    if let Ok((tag, _)) = split_hdr(hdr) {
-        if tag == ENIGMA_INT {
-            return true;
-        }
-    }
-    false
-} */
-
 /*********************
  * PRIVATE FUNCTIONS *
  * *******************/
 
-fn from_pgp_armor(key_id: u32, value: &str) -> Enigma {
-    Enigma::PGP(key_id, value
-        .trim_start_matches(PGP_BEGIN)
-        .trim_end_matches(PGP_END)
-        .to_string() )
-}
 
 fn from_rsa_envelope(key_id: u32, value: &str) -> Enigma {
     Enigma::RSA(key_id, value
@@ -282,12 +230,12 @@ fn from_rsa_envelope(key_id: u32, value: &str) -> Enigma {
 unsafe impl SqlTranslatable for Enigma {
     fn argument_sql() -> Result<SqlMapping, ArgumentError> {
         // this is what the SQL type is called when used in a function argument position
-        Ok(SqlMapping::As("enigma".into()))
+        Ok(SqlMapping::As("Enigma".into()))
     }
 
     fn return_sql() -> Result<Returns, ReturnsError> {
         // this is what the SQL type is called when used in a function return type position
-        Ok(Returns::One(SqlMapping::As("enigma".into())))
+        Ok(Returns::One(SqlMapping::As("Enigma".into())))
     }
 }
 

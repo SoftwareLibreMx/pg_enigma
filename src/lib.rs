@@ -1,6 +1,7 @@
 mod common;
 mod enigma;
 mod key_map;
+mod pgp;
 mod priv_key;
 mod pub_key;
 
