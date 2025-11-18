@@ -3,7 +3,7 @@ use crate::common::*;
 use crate::{PRIV_KEYS,PUB_KEYS};
 use pgrx::callconv::{ArgAbi, BoxRet};
 use pgrx::datum::Datum;
-use pgrx::{debug2,debug5,info};
+use pgrx::{debug2,debug5,error,info};
 use pgrx::{FromDatum,IntoDatum,pg_sys,rust_regtypein};
 use pgrx::pgrx_sql_entity_graph::metadata::{
     ArgumentError, Returns, ReturnsError, SqlMapping, SqlTranslatable
@@ -118,7 +118,7 @@ impl Display for Enigma {
     }
 }
 
-// TODO: #[derive(Plain)]
+// TODO: #[derive(EnigmaPlain)]
 impl Plain for Enigma {
     fn plain(value: String) -> Self {
         Self::Plain(value)
@@ -276,6 +276,7 @@ fn from_rsa_envelope(key_id: u32, value: &str) -> Enigma {
 *                                                                         *
 **************************************************************************/
 
+// TODO: #[derive(EnigmaBoilerplate)]
 // Boilerplate traits for converting type to postgres internals
 // Needed for the FunctionMetadata trait
 unsafe impl SqlTranslatable for Enigma {
@@ -338,23 +339,13 @@ impl FromDatum for Enigma {
 
 impl IntoDatum for Enigma {
     fn into_datum(self) -> Option<pg_sys::Datum> {
-        /* if self.is_plain() {
-            error!("Enigma is not encrypted");
-        } */
-
-        // TODO: Specific PGP or RSA Enigma tags to remove _BEGIN and _END
         let value = match self {
-            Enigma::PGP(key,msg) => {
-                format!("{}{:08X}{}{}{}{}", 
-                ENIGMA_TAG, key, SEPARATOR, PGP_BEGIN, msg, PGP_END)
+            Self::Plain(s) => {
+                //format!("{}{:08X}{}{}", PLAIN_TAG, 0, SEPARATOR, s)
+                debug5!("Plain value: {}", s);
+                error!("Enigma is not encrypted");
             },
-            Enigma::RSA(key,msg) => {
-                format!("{}{:08X}{}{}{}{}",
-                ENIGMA_TAG, key, SEPARATOR, RSA_BEGIN, msg, RSA_END)
-            },
-            Enigma::Plain(s) => {
-                format!("{}{:08X}{}{}", PLAIN_TAG, 0, SEPARATOR, s)
-            }
+            _ => self.to_string()
         };
         debug2!("IntoDatum value:\n{value}");
         Some( value.into_datum().expect("IntoDatum error") )
@@ -364,4 +355,5 @@ impl IntoDatum for Enigma {
         rust_regtypein::<Self>()
     }
 }
+
 
