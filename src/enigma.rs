@@ -14,8 +14,8 @@ use std::fmt::{Display, Formatter};
 
 const RSA_BEGIN: &str = "-----BEGIN RSA ENCRYPTED-----\n";
 const RSA_END: &str = "\n-----END RSA ENCRYPTED-----";
-const ENIGMA_TAG: &str = "ENIGMAv1"; // 0x454E49474D417631
-const ENIGMA_INT: u64  = 0x454E49474D417631; // "ENIGMAv1"
+pub const ENIGMA_TAG: &str = "ENIGMAv1"; // 0x454E49474D417631
+pub const ENIGMA_INT: u64  = 0x454E49474D417631; // "ENIGMAv1"
 
 /// Value stores entcrypted information
 #[derive( Clone, Debug)]
@@ -178,9 +178,10 @@ impl Enigma {
             return Err("Nested encryption not supported".into());
         }
         if let Some(pub_key) = PUB_KEYS.get(key_id)? {
-            return pub_key.encrypt(key_id, self);
+            pub_key.encrypt(key_id, self)
+        } else {
+            Err(format!("No public key with key_id: {}", key_id).into())
         }
-        Err(format!("No public key with key_id: {}", key_id).into())
     }
 
     /// Will look for the decryption key in it's key map and call

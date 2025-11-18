@@ -22,6 +22,16 @@ impl<T> IsEncrypted for T where T: Plain {
     }
 }
 
+pub trait Encrypt<T> where T: IsEncrypted {
+    fn encrypt(&self, id: u32, msg: T)
+        -> Result<T, Box<dyn std::error::Error + 'static>>;
+}
+
+pub trait Decrypt<T> where T: Plain {
+    fn decrypt(&self, msg: T)
+        -> Result<T, Box<dyn std::error::Error + 'static>>;
+}
+
 /** Enigma header is exactly 16 octets. 
 
 First 8 octets are Enigma tag `0x454E49474D417631`. It's value can be verified as 32-bit integer or as string `ENIGMAv1`. 
