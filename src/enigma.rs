@@ -41,7 +41,7 @@ impl TryFrom<&str> for Enigma {
                         return Ok(Self::plain(payload.to_string()));
                     },
                     ENIGMA_INT => {
-                        if pgp_match(payload) {
+                        if pgp_match_msg(payload) {
                             debug2!("PGP encrypted message");
                             return Ok(Self::pgp(key, payload.to_string()));
                         }

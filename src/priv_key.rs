@@ -1,19 +1,13 @@
 use crate::common::Plain;
 use crate::enigma::Enigma;
-use hex::ToHex;
+use crate::pgp::{pgp_decrypt,pgp_sec_key_from,pgp_sec_key_id};
 use openssl::base64::decode_block;
 use openssl::encrypt::Decrypter;
 use openssl::pkey::{PKey,Private};
 use openssl::rsa::Padding;
-use pgp::composed::{Deserializable,Message,SignedSecretKey};
-use pgp::types::{KeyDetails,Password};
+use pgp::composed::SignedSecretKey;
 use pgrx::debug2;
-use std::io::Cursor;
 
-const PGP_BEGIN: &str = "-----BEGIN PGP MESSAGE-----\n";
-const PGP_END: &str = "-----END PGP MESSAGE-----\n";
-const PGPKEY_BEGIN: &str = "-----BEGIN PGP PRIVATE KEY BLOCK-----";
-const PGPKEY_END: &str = "-----END PGP PRIVATE KEY BLOCK-----";
 // TODO:  Other OpenSSL supported key types (elyptic curves, etc.)
 const SSL_BEGIN: &str = "-----BEGIN ENCRYPTED PRIVATE KEY-----";
 const SSL_END: &str = "-----END ENCRYPTED PRIVATE KEY-----";
@@ -30,10 +24,7 @@ impl PrivKey {
     /// from the `armored key` and the provided plain text password
     pub fn new(armored: &str, pw: &str) 
     -> Result<Self, Box<dyn std::error::Error + 'static>> {
-        if armored.contains(PGPKEY_BEGIN) && armored.contains(PGPKEY_END) {
-            // https://docs.rs/pgp/latest/pgp/composed/trait.Deserializable.html#method.from_string
-            let (sec_key, _) = SignedSecretKey::from_string(armored)?;
-            sec_key.verify()?;
+        if let Ok(sec_key) = pgp_sec_key_from(armored) {
             return Ok(PrivKey::PGP(sec_key, pw.to_string()));
         }
 
@@ -49,21 +40,25 @@ impl PrivKey {
 
     pub fn priv_key_id(&self) -> String {
         match self {
-            PrivKey::PGP(k,_) => k.key_id().encode_hex(),
+            PrivKey::PGP(k,_) => pgp_sec_key_id(k),
             PrivKey::RSA(k) => format!("{:?}", k.id())
         }
     }
 
-    pub fn decrypt(&self, msg: Enigma) 
+    pub fn decrypt(&self, enigma: Enigma) 
     -> Result<Enigma, Box<dyn std::error::Error + 'static>> {
         match self {
             PrivKey::PGP(key,pass) => {
                 debug2!("Decrypt: PGP key");
-                decrypt_pgp(key, pass.clone(), msg)
+                if let Enigma::PGP(_,msg) = enigma {
+                    Ok(Enigma::plain(pgp_decrypt(key, pass.clone(), msg)?))
+                } else {
+                    Err("Wrong key. Message is not PGP.".into())
+                }
             },
             PrivKey::RSA(pkey) => {
                 debug2!("Decrypt: RSA key");
-                decrypt_rsa(pkey, msg)
+                decrypt_rsa(pkey, enigma)
             }
         }
     }
@@ -73,20 +68,6 @@ impl PrivKey {
 /*********************
  * PRIVATE FUNCTIONS *
  * *******************/
-
-fn decrypt_pgp(key: &SignedSecretKey, pass: String, enigma: Enigma)
--> Result<Enigma, Box<dyn std::error::Error + 'static>> {
-    if let Enigma::PGP(_,message) = enigma {
-        debug2!("Decrypt: PGP Enigma: {message}");
-        let buf = Cursor::new(format!("{}{}{}",PGP_BEGIN,message,PGP_END));
-        let (msg, _) = Message::from_armor(buf)?;
-        let pw = Password::from(pass);
-        let mut decrypted = msg.decrypt(&pw, key)?;
-        let clear_text = decrypted.as_data_string()?;
-        return Ok(Enigma::plain(clear_text));
-    }
-    Err("Wrong key. Message is not PGP.".into())
-}
 
 
 fn decrypt_rsa(key: &PKey<Private>, enigma: Enigma)
