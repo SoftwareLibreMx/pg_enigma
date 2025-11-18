@@ -3,7 +3,7 @@ use crate::common::*;
 use crate::{PRIV_KEYS,PUB_KEYS};
 use pgrx::callconv::{ArgAbi, BoxRet};
 use pgrx::datum::Datum;
-use pgrx::{debug2,info};
+use pgrx::{debug2,debug5,info};
 use pgrx::{FromDatum,IntoDatum,pg_sys,rust_regtypein};
 use pgrx::pgrx_sql_entity_graph::metadata::{
     ArgumentError, Returns, ReturnsError, SqlMapping, SqlTranslatable
@@ -34,30 +34,34 @@ impl TryFrom<&str> for Enigma {
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         if let Some((header, payload)) = value.split_once(SEPARATOR) {
-            let (tag,key_id) = split_hdr(header)?;
+            if let Ok(Header{tag,key}) = Header::try_from(header) {
+                match tag {
+                    PLAIN_INT => {
+                        debug2!{"Plain unencrypted message"}
+                        debug5!{"Payload: {payload}"}
+                        return Ok(Self::plain(payload.to_string()));
+                    },
+                    ENIGMA_INT => {
+                        if payload.starts_with(PGP_BEGIN) 
+                        && payload.ends_with(PGP_END) {
+                            debug2!("PGP encrypted message");
+                            return Ok(from_pgp_armor(key, payload));
+                        }
 
-            if tag == PLAIN_INT {
-                debug2!{"Plain payload: {payload}"}
-                return Ok(Self::plain(payload.to_string()));
-            }
-
-            if tag == ENIGMA_INT {
-                if payload.starts_with(PGP_BEGIN) 
-                && payload.ends_with(PGP_END) {
-                    debug2!("PGP encrypted message");
-                    return Ok(from_pgp_armor(key_id, payload));
+                        if payload.starts_with(RSA_BEGIN)
+                        && payload.ends_with(RSA_END) {
+                            debug2!("RSA encrypted message");
+                            return Ok(from_rsa_envelope(key, payload));
+                        }
+                    },
+                    _ => return Err(
+                        format!("Unknown Enigma header: {}", header).into())
                 }
+            } // non-parseable header is plain message
+        } // no header is plain message
 
-                if payload.starts_with(RSA_BEGIN)
-                && payload.ends_with(RSA_END) {
-                    debug2!("RSA encrypted message");
-                    return Ok(from_rsa_envelope(key_id, payload));
-                }
-            }
-        }
-
-        debug2!("Unmatched: {value}");
-        //unreachable!("Use Enigma::plain() instead");
+        debug2!("Not an Enigma message");
+        debug5!("Value: {value}");
         Ok(Self::plain(value.to_string()))
     }
 } 
@@ -248,18 +252,6 @@ pub fn is_enigma_hdr(hdr: &str) -> bool {
 /*********************
  * PRIVATE FUNCTIONS *
  * *******************/
-
-fn split_hdr(full_header: &str) 
--> Result<(u64,u32), Box<dyn std::error::Error + 'static>> {
-    if full_header.len() < 16 {
-        return Err("Wrong header".into());
-    }
-    let (hdr,_) = full_header.split_at(16);
-    let (stag, skey) = hdr.split_at(8);
-    let tag = u64::from_be_bytes(stag.as_bytes().try_into()?);
-    let key = u32::from_str_radix(skey, 16)?;
-    Ok((tag,key))
-}
 
 fn from_pgp_armor(key_id: u32, value: &str) -> Enigma {
     Enigma::PGP(key_id, value
