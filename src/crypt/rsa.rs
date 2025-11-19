@@ -1,8 +1,9 @@
-use hex::ToHex;
-use pgrx::{debug1,debug2};
+use openssl::base64::{decode_block,encode_block};
+use openssl::encrypt::{Decrypter,Encrypter};
+use openssl::pkey::{PKey,Private,Public};
+use openssl::rsa::Padding;
+use pgrx::{debug2};
 use std::fmt::Display;
-use std::io::Cursor;
-use std::time::{SystemTime,UNIX_EPOCH};
 
 const RSA_BEGIN: &str = "-----BEGIN RSA ENCRYPTED-----\n";
 const RSA_END: &str = "\n-----END RSA ENCRYPTED-----";
@@ -54,40 +55,38 @@ pub fn rsa_pub_key_id(key: &SignedPublicKey) -> String {
 pub fn rsa_sec_key_id(key: &SignedSecretKey) -> String {
     key.key_id().encode_hex()
 }
-
-pub fn rsa_encrypt(pub_key: &SignedPublicKey, message: String) 
--> Result<String, Box<dyn std::error::Error + 'static>> {
-    let mut rng =  ChaCha12Rng::seed_from_u64(*SEED);
-    let mut builder = MessageBuilder::from_bytes("", message)
-        .seipd_v1(&mut rng, SymmetricKeyAlgorithm::AES256);
-    builder.encrypt_to_key(&mut rng, &pub_key)?;
-    let encrypted = builder
-        .to_armored_string(rng,ArmorOptions::default())?;
-    Ok(rsa_trim_envelope(encrypted))
-}
-
-pub fn rsa_decrypt(key: &SignedSecretKey, pass: String, msg: String)
--> Result<String, Box<dyn std::error::Error + 'static>> {
-    debug2!("Decrypt: RSA message: {msg}");
-    let buf = Cursor::new(rsa_add_envelope(msg));
-    let (rsa_msg, _) = Message::from_armor(buf)?;
-    let pw = Password::from(pass);
-    let mut decrypted = rsa_msg.decrypt(&pw, key)?;
-    let clear_text = decrypted.as_data_string()?;
-    return Ok(clear_text);
-}
 */
 
-/*********************
- * PRIVATE FUNCTIONS *
- * *******************/
-
-/*
-fn from_rsa_envelope(key_id: u32, value: &str) -> Legacy {
-    Legacy::RSA(key_id, value
-        .trim_start_matches(RSA_BEGIN)
-        .trim_end_matches(RSA_END)
-        .to_string() )
+pub fn rsa_encrypt(pub_key: &PKey<Public>, message: String) 
+-> Result<String, Box<dyn std::error::Error + 'static>> {
+    let mut encrypter = Encrypter::new(&pub_key)?;
+    encrypter.set_rsa_padding(Padding::PKCS1)?;
+    let as_bytes = message.as_bytes();
+    // Get the length of the output buffer
+    let buffer_len = encrypter.encrypt_len(&as_bytes)?;
+    let mut encoded = vec![0u8; buffer_len];
+    // Encode the data and get its length
+    let encoded_len = encrypter.encrypt(&as_bytes, &mut encoded)?;
+    // Use only the part of the buffer with the encoded data
+    let encoded = &encoded[..encoded_len];
+    Ok(encode_block(encoded))
 }
-*/
+
+pub fn rsa_decrypt(key: &PKey<Private>, msg: String)
+-> Result<String, Box<dyn std::error::Error + 'static>> {
+    debug2!("Decrypt: RSA Enigma: {msg}");
+    let input = decode_block(msg.as_str())?;
+    let mut decrypter = Decrypter::new(key)?;
+    decrypter.set_rsa_padding(Padding::PKCS1)?;
+    // Get the length of the output buffer
+    let buffer_len = decrypter.decrypt_len(&input)?;
+    let mut decoded = vec![0u8; buffer_len];
+    // Decrypt the data and get its length
+    let decoded_len = decrypter.decrypt(&input, &mut decoded)?;
+    // Use only the part of the buffer with the decrypted data
+    let decoded = &decoded[..decoded_len];
+    let clear_text = String::from_utf8(decoded.to_vec())?;
+    Ok(clear_text)
+}
+
 

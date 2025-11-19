@@ -1,11 +1,10 @@
 use crate::common::{Decrypt,Plain};
 use crate::types::enigma::Enigma;
 use crate::types::enigma_pgp::Epgp;
+use crate::types::enigma_rsa::Ersa;
 use crate::crypt::pgp::{pgp_decrypt,pgp_sec_key_from,pgp_sec_key_id};
-use openssl::base64::decode_block;
-use openssl::encrypt::Decrypter;
+use crate::crypt::rsa::{rsa_decrypt/*,rsa_sec_key_from,rsa_sec_key_id*/};
 use openssl::pkey::{PKey,Private};
-use openssl::rsa::Padding;
 use pgp::composed::SignedSecretKey;
 use pgrx::debug2;
 
@@ -60,12 +59,16 @@ impl Decrypt<Enigma> for PrivKey {
                 if let Enigma::PGP(_,msg) = enigma {
                     Ok(Enigma::plain(pgp_decrypt(key, pass.clone(), msg)?))
                 } else {
-                    Err("Wrong key. Message is not PGP.".into())
+                    Err("Message is not PGP encrypted.".into())
                 }
             },
-            PrivKey::RSA(pkey) => {
+            PrivKey::RSA(key) => {
                 debug2!("Decrypt: RSA key");
-                decrypt_rsa(pkey, enigma)
+                if let Enigma::RSA(_,msg) = enigma {
+                    Ok(Enigma::plain(rsa_decrypt(key, msg)?))
+                } else {
+                    Err("Message is not RSA encrypted.".into())
+                }
             }
         }
     }
@@ -84,7 +87,7 @@ impl Decrypt<Epgp> for PrivKey {
                 if let Epgp::PGP(_,msg) = enigma {
                     Ok(Epgp::plain(pgp_decrypt(key, pass.clone(), msg)?))
                 } else {
-                    Err("Wrong key. Message is not PGP.".into())
+                    Err("Message is not PGP encrypted.".into())
                 }
             },
             _ => Err("Key is not PGP".into())
@@ -92,29 +95,25 @@ impl Decrypt<Epgp> for PrivKey {
     }
 }
 
-/*********************
- * PRIVATE FUNCTIONS *
- * *******************/
+impl Decrypt<Ersa> for PrivKey {
+    fn decrypt(&self, enigma: Ersa) 
+    -> Result<Ersa, Box<dyn std::error::Error + 'static>> {
+        if enigma.is_plain() { 
+             return Err("Already decrypted message".into());
+        }
 
-
-fn decrypt_rsa(key: &PKey<Private>, enigma: Enigma)
--> Result<Enigma, Box<dyn std::error::Error + 'static>> {
-    if let Enigma::RSA(_,message) = enigma {
-        debug2!("Decrypt: RSA Enigma: {message}");
-        let input = decode_block(message.as_str())?;
-        let mut decrypter = Decrypter::new(key)?;
-        decrypter.set_rsa_padding(Padding::PKCS1)?;
-        // Get the length of the output buffer
-        let buffer_len = decrypter.decrypt_len(&input)?;
-        let mut decoded = vec![0u8; buffer_len];
-        // Decrypt the data and get its length
-        let decoded_len = decrypter.decrypt(&input, &mut decoded)?;
-        // Use only the part of the buffer with the decrypted data
-        let decoded = &decoded[..decoded_len];
-        let clear_text = String::from_utf8(decoded.to_vec())?;
-        Ok(Enigma::plain(clear_text))
-    } else {
-        Err("Wrong key. Message is not RSA encrypted.".into())
+        match self {
+            PrivKey::RSA(key) => {
+                debug2!("Decrypt: RSA key");
+                if let Ersa::RSA(_,msg) = enigma {
+                    Ok(Ersa::plain(rsa_decrypt(key, msg)?))
+                } else {
+                    Err("Message is not RSA encrypted.".into())
+                }
+            },
+            _ => Err("Key is not RSA".into())
+        }
     }
 }
+
 

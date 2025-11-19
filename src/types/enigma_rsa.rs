@@ -170,7 +170,6 @@ impl Ersa {
         self.to_string()
     }
 
-/*
     /// Will look for the encryption key in it's key map and call
     /// the key's `encrypt()` function to encrypt the message.
     /// If no encrypting key is found, returns an error message.
@@ -223,7 +222,6 @@ impl Ersa {
             None => Ok(self)
         }
     }
-*/
 }
 
 

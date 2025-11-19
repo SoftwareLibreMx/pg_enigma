@@ -16,7 +16,7 @@ use pgrx::pgrx_sql_entity_graph::metadata::{
 use std::fmt::{Display, Formatter};
 use super::enigma_pgp::{E_PGP_INT,E_PGP_TAG,Epgp};
 use super::enigma_rsa::{E_RSA_INT,E_RSA_TAG,Ersa};
-use super::legacy::{ENIGMA_INT,ENIGMA_TAG,Legacy};
+use super::legacy::{ENIGMA_INT,Legacy};
 
 /// Value stores entcrypted information
 #[derive( Clone, Debug)]
@@ -127,7 +127,6 @@ impl From<Legacy> for Enigma {
 
 impl Display for Enigma {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        // TODO: Specific PGP or RSA Enigma tags to remove _BEGIN and _END
         match self {
             Enigma::PGP(key,msg) => {
                 // Use new Epgp header
@@ -135,14 +134,11 @@ impl Display for Enigma {
                 E_PGP_TAG, key, SEPARATOR, msg)
             },
             Enigma::RSA(key,msg) => {
-                //write!(f, "{}{:08X}{}{}{}{}",
-                //ENIGMA_TAG, key, SEPARATOR, RSA_BEGIN, msg, RSA_END)
                 // Use new Ersa header
                 write!(f, "{}{:08X}{}{}", 
                 E_RSA_TAG, key, SEPARATOR, msg)
             },
             Enigma::Plain(s) => {
-                //write!(f, "{}{:08X}{}{}", PLAIN_TAG, 0, SEPARATOR, s)
                 write!(f, "{}", s)
             }
         }        
@@ -166,7 +162,7 @@ impl Enigma {
     }
 
     pub fn rsa(id: u32, value: String) -> Self {
-        Self::RSA(id, value)
+        Self::RSA(id, rsa_trim_envelope(value))
     }
 
     #[allow(unused)]
