@@ -1,5 +1,7 @@
 use core::ffi::CStr;
 use crate::common::*;
+use crate::enigma_pgp::{E_PGP_INT,E_PGP_TAG,Epgp};
+use crate::legacy::{ENIGMA_INT,ENIGMA_TAG,Legacy};
 use crate::{PRIV_KEYS,PUB_KEYS};
 use crate::pgp::*;
 use pgrx::callconv::{ArgAbi, BoxRet};
@@ -16,8 +18,6 @@ use std::fmt::{Display, Formatter};
 
 const RSA_BEGIN: &str = "-----BEGIN RSA ENCRYPTED-----\n";
 const RSA_END: &str = "\n-----END RSA ENCRYPTED-----";
-pub const ENIGMA_TAG: &str = "ENIGMAv1"; // 0x454E49474D417631
-pub const ENIGMA_INT: u64  = 0x454E49474D417631; // "ENIGMAv1"
 
 /// Value stores entcrypted information
 #[derive( Clone, Debug)]
@@ -35,24 +35,19 @@ impl TryFrom<&str> for Enigma {
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         if let Some((header, payload)) = value.split_once(SEPARATOR) {
-            if let Ok(Header{tag,key}) = Header::try_from(header) {
+            if let Ok(Header{tag,..}) = Header::try_from(header) {
                 match tag {
                     PLAIN_INT => {
                         debug2!{"Plain unencrypted message"}
                         debug5!{"Payload: {payload}"}
                         return Ok(Self::plain(payload.to_string()));
                     },
+                    E_PGP_INT => {
+                        debug2!("PGP encrypted message");
+                        return Ok(Self::from(Epgp::try_from(value)?));
+                    },
                     ENIGMA_INT => {
-                        if pgp_match_msg(payload) {
-                            debug2!("PGP encrypted message");
-                            return Ok(Self::pgp(key, payload.to_string()));
-                        }
-
-                        if payload.starts_with(RSA_BEGIN)
-                        && payload.ends_with(RSA_END) {
-                            debug2!("RSA encrypted message");
-                            return Ok(from_rsa_envelope(key, payload));
-                        }
+                        return Ok(Self::from(Legacy::try_from(value)?));
                     },
                     _ => return Err(
                         format!("Unknown Enigma header: {}", header).into())
@@ -99,13 +94,33 @@ impl TryFrom<&CStr> for Enigma {
     }
 }
 
+impl From<Epgp> for Enigma {
+    fn from(value: Epgp) -> Self {
+        match value {
+            Epgp::PGP(key,msg) => Self::PGP(key,msg),
+            Epgp::Plain(msg) => Self::Plain(msg),
+        }
+    }
+}
+
+impl From<Legacy> for Enigma {
+    fn from(value: Legacy) -> Self {
+        match value {
+            Legacy::PGP(key,msg) => Self::PGP(key,msg),
+            Legacy::RSA(key,msg) => Self::RSA(key,msg),
+            Legacy::Plain(msg) => Self::Plain(msg),
+        }
+    }
+}
+
 impl Display for Enigma {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         // TODO: Specific PGP or RSA Enigma tags to remove _BEGIN and _END
         match self {
             Enigma::PGP(key,msg) => {
+                // Use new Epgp header
                 write!(f, "{}{:08X}{}{}", 
-                ENIGMA_TAG, key, SEPARATOR, pgp_add_envelope(msg))
+                E_PGP_TAG, key, SEPARATOR, msg)
             },
             Enigma::RSA(key,msg) => {
                 write!(f, "{}{:08X}{}{}{}{}",
@@ -139,12 +154,12 @@ impl Enigma {
         Self::RSA(id, value)
     }
 
-    #[allow(dead_code)]
+    #[allow(unused)]
     pub fn is_pgp(&self) -> bool {
         matches!(*self, Self::PGP(_,_))
     }
 
-    #[allow(dead_code)]
+    #[allow(unused)]
     pub fn is_rsa(&self) -> bool {
         matches!(*self, Self::RSA(_,_))
     }
@@ -157,7 +172,7 @@ impl Enigma {
         }
     }
 
-    #[allow(dead_code)]
+    #[allow(unused)]
     pub fn value(&self) -> String {
         self.to_string()
     }
@@ -386,19 +401,6 @@ fn enigma_typmod_in(input: Array<&CStr>)
     Ok(typmod)
 }
 
-
-
-/*********************
- * PRIVATE FUNCTIONS *
- * *******************/
-
-
-fn from_rsa_envelope(key_id: u32, value: &str) -> Enigma {
-    Enigma::RSA(key_id, value
-        .trim_start_matches(RSA_BEGIN)
-        .trim_end_matches(RSA_END)
-        .to_string() )
-}
 
 
 /**************************************************************************

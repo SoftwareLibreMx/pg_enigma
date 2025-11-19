@@ -2,6 +2,7 @@ mod common;
 mod enigma;
 mod enigma_pgp;
 mod key_map;
+mod legacy;
 mod pgp;
 mod priv_key;
 mod pub_key;

@@ -1,6 +1,7 @@
 use core::ffi::CStr;
 use crate::common::*;
-use crate::enigma::{Enigma,ENIGMA_INT};
+use crate::enigma::Enigma;
+use crate::legacy::*;
 use crate::{PRIV_KEYS,PUB_KEYS};
 use crate::pgp::*;
 use pgrx::callconv::{ArgAbi, BoxRet};
@@ -17,8 +18,8 @@ use pgrx::pgrx_sql_entity_graph::metadata::{
 use crate::priv_key::PrivKey;
 use std::fmt::{Display, Formatter};
 
-const E_PGP_TAG: &str = "PgE_PGP1"; // 0x5067455F50475031
-const E_PGP_INT: u64  = 0x5067455F50475031; // "PgE_PGP1"
+pub const E_PGP_TAG: &str = "PgE_PGP1"; // 0x5067455F50475031
+pub const E_PGP_INT: u64  = 0x5067455F50475031; // "PgE_PGP1"
 
 /// Value stores PGP-encrypted message
 #[derive( Clone, Debug)]
@@ -46,7 +47,7 @@ impl TryFrom<&str> for Epgp {
                         return Ok(Self::pgp(key, payload.to_string()));
                     },
                     ENIGMA_INT => {
-                        return Self::try_from(Enigma::try_from(value)?);
+                        return Self::try_from(Legacy::try_from(value)?);
                     },
                     _ => return Err(
                         format!("Unknown Enigma header: {}", header).into())
@@ -95,10 +96,29 @@ impl TryFrom<&CStr> for Epgp {
 impl TryFrom<Enigma> for Epgp {
     type Error = Box<dyn std::error::Error + 'static>;
 
-    fn try_from(value:Enigma) -> Result<Self, Self::Error> {
+    fn try_from(value: Enigma) -> Result<Self, Self::Error> {
         match value {
             Enigma::PGP(key,msg) => Ok(Epgp::PGP(key,msg)),
             _ => Err("Not an Enigma PGP message".into())
+        }
+    }
+}
+
+impl TryFrom<&Enigma> for Epgp {
+    type Error = Box<dyn std::error::Error + 'static>;
+
+    fn try_from(value: &Enigma) -> Result<Self, Self::Error> {
+        Self::try_from(value.clone())
+    }
+}
+
+impl TryFrom<Legacy> for Epgp {
+    type Error = Box<dyn std::error::Error + 'static>;
+
+    fn try_from(value: Legacy) -> Result<Self, Self::Error> {
+        match value {
+            Legacy::PGP(key,msg) => Ok(Self::PGP(key,msg)),
+            _ => Err("Not a legacy Enigma PGP message".into())
         }
     }
 }
