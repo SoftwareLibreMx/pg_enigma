@@ -1,7 +1,7 @@
 use crate::common::{Encrypt,IsEncrypted};
-use crate::enigma::Enigma;
-use crate::enigma_pgp::Epgp;
-use crate::pgp::{pgp_encrypt,pgp_pub_key_from,pgp_pub_key_id};
+use crate::types::enigma::Enigma;
+use crate::types::enigma_pgp::Epgp;
+use crate::crypt::pgp::{pgp_encrypt,pgp_pub_key_from,pgp_pub_key_id};
 use openssl::base64::encode_block;
 use openssl::encrypt::Encrypter;
 use openssl::pkey::{PKey,Public};

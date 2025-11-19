@@ -1,5 +1,5 @@
 use crate::common::*;
-use crate::pgp::*;
+use crate::crypt::pgp::*;
 use pgrx::{debug2};
 use std::fmt::{Display, Formatter};
 

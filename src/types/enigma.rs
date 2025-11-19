@@ -1,9 +1,7 @@
 use core::ffi::CStr;
 use crate::common::*;
-use crate::enigma_pgp::{E_PGP_INT,E_PGP_TAG,Epgp};
-use crate::legacy::{ENIGMA_INT,ENIGMA_TAG,Legacy};
 use crate::{PRIV_KEYS,PUB_KEYS};
-use crate::pgp::*;
+use crate::crypt::pgp::*;
 use pgrx::callconv::{ArgAbi, BoxRet};
 use pgrx::datum::Datum;
 use pgrx::{
@@ -15,6 +13,8 @@ use pgrx::pgrx_sql_entity_graph::metadata::{
     ArgumentError, Returns, ReturnsError, SqlMapping, SqlTranslatable
 };
 use std::fmt::{Display, Formatter};
+use super::enigma_pgp::{E_PGP_INT,E_PGP_TAG,Epgp};
+use super::legacy::{ENIGMA_INT,ENIGMA_TAG,Legacy};
 
 const RSA_BEGIN: &str = "-----BEGIN RSA ENCRYPTED-----\n";
 const RSA_END: &str = "\n-----END RSA ENCRYPTED-----";

@@ -1,7 +1,7 @@
 use crate::common::{Decrypt,Plain};
-use crate::enigma::Enigma;
-use crate::enigma_pgp::Epgp;
-use crate::pgp::{pgp_decrypt,pgp_sec_key_from,pgp_sec_key_id};
+use crate::types::enigma::Enigma;
+use crate::types::enigma_pgp::Epgp;
+use crate::crypt::pgp::{pgp_decrypt,pgp_sec_key_from,pgp_sec_key_id};
 use openssl::base64::decode_block;
 use openssl::encrypt::Decrypter;
 use openssl::pkey::{PKey,Private};
