@@ -1,6 +1,6 @@
 use crate::common::{Decrypt,Plain};
 use crate::enigma::Enigma;
-use crate::enigma_pgp::PgEpgp;
+use crate::enigma_pgp::Epgp;
 use crate::pgp::{pgp_decrypt,pgp_sec_key_from,pgp_sec_key_id};
 use openssl::base64::decode_block;
 use openssl::encrypt::Decrypter;
@@ -71,9 +71,9 @@ impl Decrypt<Enigma> for PrivKey {
     }
 }
 
-impl Decrypt<PgEpgp> for PrivKey {
-    fn decrypt(&self, enigma: PgEpgp) 
-    -> Result<PgEpgp, Box<dyn std::error::Error + 'static>> {
+impl Decrypt<Epgp> for PrivKey {
+    fn decrypt(&self, enigma: Epgp) 
+    -> Result<Epgp, Box<dyn std::error::Error + 'static>> {
         if enigma.is_plain() { 
              return Err("Already decrypted message".into());
         }
@@ -81,8 +81,8 @@ impl Decrypt<PgEpgp> for PrivKey {
         match self {
             PrivKey::PGP(key,pass) => {
                 debug2!("Decrypt: PGP key");
-                if let PgEpgp::PGP(_,msg) = enigma {
-                    Ok(PgEpgp::plain(pgp_decrypt(key, pass.clone(), msg)?))
+                if let Epgp::PGP(_,msg) = enigma {
+                    Ok(Epgp::plain(pgp_decrypt(key, pass.clone(), msg)?))
                 } else {
                     Err("Wrong key. Message is not PGP.".into())
                 }

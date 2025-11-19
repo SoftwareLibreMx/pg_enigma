@@ -114,9 +114,9 @@ extension_sql_file!("../sql/enigma_type.sql", creates = [Type(Enigma)],
     requires = ["shell_type", enigma_input, enigma_output, 
     enigma_receive, enigma_send, enigma_typmod_in],
 );
-extension_sql_file!("../sql/pgepgp_type.sql", creates = [Type(PgEpgp)],
-    requires = ["shell_type", pgepgp_input, pgepgp_output, 
-    pgepgp_receive, pgepgp_send, pgepgp_typmod_in],
+extension_sql_file!("../sql/epgp_type.sql", creates = [Type(PgEpgp)],
+    requires = ["shell_type", epgp_input, epgp_output, 
+    epgp_receive, epgp_send, epgp_typmod_in],
 );
 
 // Creates the casting function so we can get the key id in the
@@ -127,8 +127,8 @@ extension_sql_file!("../sql/pgepgp_type.sql", creates = [Type(PgEpgp)],
 extension_sql_file!("../sql/enigma_casts.sql",
     requires = ["enigma_type", enigma_as_enigma, string_as_enigma]
 );
-extension_sql_file!("../sql/pgepgp_casts.sql",
-    requires = ["pgepgp_type", pgepgp_as_pgepgp, string_as_pgepgp]
+extension_sql_file!("../sql/epgp_casts.sql",
+    requires = ["epgp_type", epgp_as_epgp, string_as_epgp]
 );
 
 

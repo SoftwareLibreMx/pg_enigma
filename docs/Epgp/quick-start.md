@@ -1,20 +1,20 @@
-## PgEpgp data type
+## Epgp data type
 
 ### SQL example
 
 ```sql
 CREATE EXTENSION IF NOT EXISTS pg_enigma;
-CREATE TABLE test_pgepgp (
+CREATE TABLE test_epgp (
     id SERIAL, 
-    val PgEpgp(2)
+    val Epgp(2)
 );
 
 
 SELECT set_public_key_from_file(2, '../../pg_enigma/test/public-key.asc'); 
 
-INSERT INTO test_pgepgp (val) 
+INSERT INTO test_epgp (val) 
 VALUES ('Secret encrypted with only PGP'::Text);
-SELECT * FROM test_pgepgp;
+SELECT * FROM test_epgp;
 ```
 
 Expected result: 
@@ -23,9 +23,9 @@ Expected result:
 pg_enigma=# CREATE EXTENSION IF NOT EXISTS pg_enigma;
 NOTICE:  extension "pg_enigma" already exists, skipping
 CREATE EXTENSION
-pg_enigma=# CREATE TABLE test_pgepgp (
+pg_enigma=# CREATE TABLE test_epgp (
 pg_enigma(#     id SERIAL, 
-pg_enigma(#     val PgEpgp(2)
+pg_enigma(#     val Epgp(2)
 pg_enigma(# );
 CREATE TABLE
 pg_enigma=# SELECT set_public_key_from_file(2, '../../pg_enigma/test/public-key.asc'); 
@@ -33,10 +33,10 @@ pg_enigma=# SELECT set_public_key_from_file(2, '../../pg_enigma/test/public-key.
 -------------------------------------------------------------------
  key 2: public key cb7d5da21af8b860 replaced with cb7d5da21af8b860
 (1 row)
-pg_enigma=# INSERT INTO test_pgepgp (val) 
+pg_enigma=# INSERT INTO test_epgp (val) 
 pg_enigma-# VALUES ('Secret encrypted with only PGP'::Text);
 INSERT 0 1
-pg_enigma=# SELECT * FROM test_pgepgp;
+pg_enigma=# SELECT * FROM test_epgp;
  id |                               val                                
 ----+------------------------------------------------------------------
   1 | PgE_PGP100000002                                                +
@@ -55,9 +55,9 @@ pg_enigma=# SELECT * FROM test_pgepgp;
 ```sql
 SELECT set_private_key_from_file(2, 
         '../../pg_enigma/test/private-key.asc', 'Prueba123!');
-SELECT * FROM test_pgepgp;
+SELECT * FROM test_epgp;
 SELECT forget_private_key(2);
-SELECT * FROM test_pgepgp;
+SELECT * FROM test_epgp;
 ```
 
 Expected result: 
@@ -70,7 +70,7 @@ pg_enigma(#         '../../pg_enigma/test/private-key.asc', 'Prueba123!');
  key 2: private key cb7d5da21af8b860 imported
 (1 row)
 
-pg_enigma=# SELECT * FROM test_pgepgp;
+pg_enigma=# SELECT * FROM test_epgp;
  id |              val               
 ----+--------------------------------
   1 | Secret encrypted with only PGP
@@ -82,7 +82,7 @@ pg_enigma=# SELECT forget_private_key(2);
  key 2: private key cb7d5da21af8b860 forgotten
 (1 row)
 
-pg_enigma=# SELECT * FROM test_pgepgp;
+pg_enigma=# SELECT * FROM test_epgp;
  id |                               val                                
 ----+------------------------------------------------------------------
   1 | PgE_PGP100000002                                                +

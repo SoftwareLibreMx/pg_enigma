@@ -1,6 +1,6 @@
 use crate::common::{Encrypt,IsEncrypted};
 use crate::enigma::Enigma;
-use crate::enigma_pgp::PgEpgp;
+use crate::enigma_pgp::Epgp;
 use crate::pgp::{pgp_encrypt,pgp_pub_key_from,pgp_pub_key_id};
 use openssl::base64::encode_block;
 use openssl::encrypt::Encrypter;
@@ -68,9 +68,9 @@ impl Encrypt<Enigma> for PubKey {
     }
 }
 
-impl Encrypt<PgEpgp> for PubKey {
-    fn encrypt(&self, id: u32, msg: PgEpgp) 
-    -> Result<PgEpgp, Box<dyn std::error::Error + 'static>> {
+impl Encrypt<Epgp> for PubKey {
+    fn encrypt(&self, id: u32, msg: Epgp) 
+    -> Result<Epgp, Box<dyn std::error::Error + 'static>> {
         if msg.is_encrypted() { 
              return Err("Nested encryption not supported".into());
         }
@@ -78,7 +78,7 @@ impl Encrypt<PgEpgp> for PubKey {
         match self {
             PubKey::PGP(pub_key) => {
                 let encrypted = pgp_encrypt(pub_key, msg.to_string())?;
-                Ok(PgEpgp::pgp(id, encrypted))
+                Ok(Epgp::pgp(id, encrypted))
             },
             _ => Err("Key is not PGP".into())
         }

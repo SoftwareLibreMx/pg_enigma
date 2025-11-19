@@ -6,5 +6,5 @@ CREATE TABLE IF NOT EXISTS _enigma_public_keys (
 );
 -- Enigma shell_type
 CREATE TYPE Enigma;
--- PgEpgp shell_type
-CREATE TYPE PgEpgp;
+-- Epgp shell_type
+CREATE TYPE Epgp;
