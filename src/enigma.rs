@@ -4,8 +4,8 @@ use crate::{PRIV_KEYS,PUB_KEYS};
 use crate::pgp::*;
 use pgrx::callconv::{ArgAbi, BoxRet};
 use pgrx::datum::Datum;
-use pgrx::{debug1,debug2,debug5,error,info};
 use pgrx::{
+    debug1, debug2, debug5, error, info,
     Array, FromDatum, Internal, IntoDatum, pg_extern, pg_sys, 
     rust_regtypein, StringInfo
 };

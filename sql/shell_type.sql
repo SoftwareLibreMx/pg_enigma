@@ -4,5 +4,7 @@ CREATE TABLE IF NOT EXISTS _enigma_public_keys (
 	id INT PRIMARY KEY,
 	public_key TEXT 
 );
--- enigma shell_type
-CREATE TYPE enigma;
+-- Enigma shell_type
+CREATE TYPE Enigma;
+-- PgEpgp shell_type
+CREATE TYPE PgEpgp;

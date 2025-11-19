@@ -5,12 +5,14 @@ use crate::{PRIV_KEYS,PUB_KEYS};
 use crate::pgp::*;
 use pgrx::callconv::{ArgAbi, BoxRet};
 use pgrx::datum::Datum;
-use pgrx::{debug2,debug5,error,info};
-use pgrx::{FromDatum,IntoDatum,pg_sys,rust_regtypein};
+use pgrx::{
+    debug1, debug2, debug5, error, info,
+    Array, FromDatum, Internal, IntoDatum, pg_extern, pg_sys, 
+    rust_regtypein, StringInfo
+};
 use pgrx::pgrx_sql_entity_graph::metadata::{
     ArgumentError, Returns, ReturnsError, SqlMapping, SqlTranslatable
 };
-use pgrx::StringInfo;
 //use crate::pub_key::PubKey;
 use crate::priv_key::PrivKey;
 use std::fmt::{Display, Formatter};
@@ -195,6 +197,157 @@ impl PgEpgp {
             None => Ok(self)
         }
     }
+}
+
+
+/**********************
+ * POSTGRES FUNCTIONS *
+ * ********************/
+
+/// Functions for extracting and inserting data
+#[pg_extern(stable, parallel_safe, requires = [ "shell_type" ])]
+fn pgepgp_input(input: &CStr, oid: pg_sys::Oid, typmod: i32) 
+-> Result<PgEpgp, Box<dyn std::error::Error + 'static>> {
+	//debug2!("INPUT: OID: {:?},  Typmod: {}", oid, typmod);
+	debug5!("INPUT: ARGUMENTS: \
+            Input: {:?}, OID: {:?},  Typmod: {}", input, oid, typmod);
+    let enigma =  PgEpgp::try_from(input)?;
+    if enigma.is_encrypted() {
+        info!("Already encrypted"); 
+        return Ok(enigma);
+    }
+    if typmod == -1 { // unknown typmod 
+        //debug1!("Unknown typmod: {typmod}");
+        return Err("INPUT: PgEpgp Typmod is ambiguous.\n\
+            You should cast the value as ::Text\n\
+            More details in issue #4 \
+        https://git.softwarelibre.mx/SoftwareLibreMx/pg_enigma/issues/4\
+            ".into());
+    }
+    enigma.encrypt(typmod)
+}
+
+/// Assignment cast is called before the INPUT function.
+#[pg_extern]
+fn string_as_pgepgp(original: String, typmod: i32, explicit: bool) 
+-> Result<PgEpgp, Box<dyn std::error::Error + 'static>> {
+    debug2!("string_as_pgepgp: \
+        ARGUMENTS: explicit: {},  Typmod: {}", explicit, typmod);
+    let key_id = match typmod {
+        -1 => { debug1!("Unknown typmod; using default key ID 0");
+            0 },
+        _ => typmod
+    };
+    PgEpgp::try_from(original)?.encrypt(key_id)
+}
+
+/// Cast PgEpgp to PgEpgp is called after pgepgp_input_with_typmod(). 
+/// This function is passed the correct known typmod argument.
+#[pg_extern(stable, parallel_safe)]
+fn pgepgp_as_pgepgp(original: PgEpgp, typmod: i32, explicit: bool) 
+-> Result<PgEpgp, Box<dyn std::error::Error + 'static>> {
+    debug2!("CAST(PgEpgp AS PgEpgp): \
+        ARGUMENTS: explicit: {},  Typmod: {}", explicit, typmod);
+    debug5!("Original: {:?}", original);
+    if original.is_encrypted() {
+        // TODO: if original.key_id != key_id {try_reencrypt()} 
+        return Ok(original);
+    } 
+    let key_id = match typmod {
+        -1 => match explicit { 
+            false => return Err( // Implicit is not called when no typmod
+                format!("Unknown typmod: {}", typmod).into()),
+            true => { debug1!("Unknown typmod; using default key ID 0");
+            0}
+        },
+        _ => typmod
+    };
+    debug2!("Encrypting plain message with key ID: {key_id}");
+    original.encrypt(key_id)
+}
+
+/// PgEpgp RECEIVE function
+#[pg_extern(stable, parallel_safe, requires = [ "shell_type" ])]
+fn pgepgp_receive(mut internal: Internal, oid: pg_sys::Oid, typmod: i32) 
+-> Result<PgEpgp, Box<dyn std::error::Error + 'static>> {
+    debug2!("RECEIVE: OID: {:?},  Typmod: {}", oid, typmod);
+    let buf = unsafe { 
+        internal.get_mut::<::pgrx::pg_sys::StringInfoData>().unwrap() 
+    };
+    let mut serialized = ::pgrx::StringInfo::new();
+    // reserve space for the header
+    serialized.push_bytes(&[0u8; ::pgrx::pg_sys::VARHDRSZ]); 
+    serialized.push_bytes(unsafe {
+        core::slice::from_raw_parts(
+            buf.data as *const u8,
+            buf.len as usize )
+    });
+    debug5!("RECEIVE value: {}", serialized);
+    let enigma =  PgEpgp::try_from(serialized)?;
+    // TODO: Repeated: copied from pgepgp_input()
+    if enigma.is_encrypted() {
+        info!("Already encrypted"); 
+        return Ok(enigma);
+    }
+    if typmod == -1 { // unknown typmod 
+        return Err("RECEIVE: PgEpgp Typmod is ambiguous.\n\
+            You should cast the value as ::Text\n\
+            More details in issue #4\
+        https://git.softwarelibre.mx/SoftwareLibreMx/pg_enigma/issues/4\
+            ".into());
+    }
+    enigma.encrypt(typmod)
+
+} 
+
+/// PgEpgp OUTPUT function
+/// Sends PgEpgp to Postgres converted to `&Cstr`
+#[pg_extern(stable, parallel_safe, requires = [ "shell_type" ])]
+fn pgepgp_output(enigma: PgEpgp) 
+-> Result<&'static CStr, Box<dyn std::error::Error + 'static>> {
+	//debug2!("OUTPUT");
+	debug5!("OUTPUT: {}", enigma);
+    let decrypted = enigma.decrypt()?;
+	let mut buffer = StringInfo::new();
+    buffer.push_str(decrypted.to_string().as_str());
+	//TODO try to avoid this unsafe
+	let ret = unsafe { buffer.leak_cstr() };
+    Ok(ret)
+}
+
+/// PgEpgp SEND function
+#[pg_extern(stable, parallel_safe, requires = [ "shell_type" ])]
+fn pgepgp_send(enigma: PgEpgp) 
+-> Result<Vec<u8>, Box<dyn std::error::Error + 'static>> {
+	//debug2!("SEND");
+	debug5!("SEND: {}", enigma);
+    let decrypted = enigma.decrypt()?;
+    Ok(decrypted.to_string().into_bytes())
+}
+
+
+/// PgEpgp TYPMOD_IN function.
+/// converts typmod from cstring to i32
+#[pg_extern(immutable, parallel_safe, requires = [ "shell_type" ])]
+fn pgepgp_typmod_in(input: Array<&CStr>) 
+-> Result<i32, Box<dyn std::error::Error + 'static>> {
+	debug2!("TYPMOD_IN");
+    if input.len() != 1 {
+        return Err(
+            "PgEpgp type modifier must be a single integer value".into());
+    }
+    let typmod = input.iter() // iterator
+    .next() // Option<Item>
+    .ok_or("No Item")? // Item
+    .ok_or("Null item")? // &Cstr
+    .to_str()? //&str
+    .parse::<i32>()?; // i32
+    debug1!("typmod_in({typmod})");
+    if typmod < 0 {
+        return Err(
+            "PgEpgp type modifier must be a positive integer".into());
+    }
+    Ok(typmod)
 }
 
 
