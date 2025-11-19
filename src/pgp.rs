@@ -13,7 +13,7 @@ use std::fmt::Display;
 use std::io::Cursor;
 use std::time::{SystemTime,UNIX_EPOCH};
 
-const PGP_BEGIN: &str = "-----BEGIN PGP MESSAGE-----\n";
+const PGP_BEGIN: &str = "-----BEGIN PGP MESSAGE-----\n\n";
 const PGP_END: &str = "-----END PGP MESSAGE-----\n";
 const PGP_PUB_KEY_BEGIN: &str = "-----BEGIN PGP PUBLIC KEY BLOCK-----";
 const PGP_PUB_KEY_END: &str = "-----END PGP PUBLIC KEY BLOCK-----";

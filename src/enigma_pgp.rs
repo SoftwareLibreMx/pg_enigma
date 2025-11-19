@@ -17,8 +17,8 @@ use pgrx::pgrx_sql_entity_graph::metadata::{
 use crate::priv_key::PrivKey;
 use std::fmt::{Display, Formatter};
 
-const PGE_PGP_TAG: &str = "PGE_PGP1"; // 0x5067455F50475031
-const PGE_PGP_INT: u64  = 0x5067455F50475031; // "PGE_PGP1"
+const PGE_PGP_TAG: &str = "PgE_PGP1"; // 0x5067455F50475031
+const PGE_PGP_INT: u64  = 0x5067455F50475031; // "PgE_PGP1"
 
 /// Value stores PGP-encrypted message
 #[derive( Clone, Debug)]
