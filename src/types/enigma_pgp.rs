@@ -1,9 +1,9 @@
 use core::ffi::CStr;
 use crate::common::*;
-use crate::enigma::Enigma;
-use crate::legacy::*;
 use crate::{PRIV_KEYS,PUB_KEYS};
-use crate::pgp::*;
+use crate::crypt::pgp::*;
+//use crate::pub_key::PubKey;
+use crate::priv_key::PrivKey;
 use pgrx::callconv::{ArgAbi, BoxRet};
 use pgrx::datum::Datum;
 use pgrx::{
@@ -14,9 +14,9 @@ use pgrx::{
 use pgrx::pgrx_sql_entity_graph::metadata::{
     ArgumentError, Returns, ReturnsError, SqlMapping, SqlTranslatable
 };
-//use crate::pub_key::PubKey;
-use crate::priv_key::PrivKey;
 use std::fmt::{Display, Formatter};
+use super::enigma::Enigma;
+use super::legacy::*;
 
 pub const E_PGP_TAG: &str = "PgE_PGP1"; // 0x5067455F50475031
 pub const E_PGP_INT: u64  = 0x5067455F50475031; // "PgE_PGP1"

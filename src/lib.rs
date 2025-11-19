@@ -1,11 +1,9 @@
 mod common;
-mod enigma;
-mod enigma_pgp;
+mod crypt;
 mod key_map;
-mod legacy;
-mod pgp;
 mod priv_key;
 mod pub_key;
+mod types;
 
 use crate::key_map::{PrivKeysMap,PubKeysMap};
 use crate::pub_key::insert_public_key;
@@ -145,7 +143,7 @@ extension_sql_file!("../sql/epgp_casts.sql",
 #[pg_schema]
 mod tests {
     //use crate::Enigma;
-    use crate::enigma::Enigma;
+    use crate::types::enigma::Enigma;
     use pgrx::prelude::*;
     use std::error::Error;
  
