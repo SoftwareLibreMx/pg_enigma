@@ -1,7 +1,7 @@
 use core::ffi::CStr;
 use crate::common::*;
-use crate::enigma_pgp::{E_PGP_INT,E_PGP_TAG,Epgp};
-use crate::legacy::{ENIGMA_INT,ENIGMA_TAG,Legacy};
+use crate::enigma::Enigma;
+use crate::legacy::*;
 use crate::{PRIV_KEYS,PUB_KEYS};
 use crate::pgp::*;
 use pgrx::callconv::{ArgAbi, BoxRet};
@@ -14,28 +14,28 @@ use pgrx::{
 use pgrx::pgrx_sql_entity_graph::metadata::{
     ArgumentError, Returns, ReturnsError, SqlMapping, SqlTranslatable
 };
+//use crate::pub_key::PubKey;
+use crate::priv_key::PrivKey;
 use std::fmt::{Display, Formatter};
 
-const RSA_BEGIN: &str = "-----BEGIN RSA ENCRYPTED-----\n";
-const RSA_END: &str = "\n-----END RSA ENCRYPTED-----";
+pub const E_PGP_TAG: &str = "PgE_PGP1"; // 0x5067455F50475031
+pub const E_PGP_INT: u64  = 0x5067455F50475031; // "PgE_PGP1"
 
-/// Value stores entcrypted information
+/// Value stores PGP-encrypted message
 #[derive( Clone, Debug)]
-pub enum Enigma {
+pub enum Epgp {
     /// PGP message
     PGP(u32,String),
-    /// OpenSSL RSA encrypted message
-    RSA(u32,String), 
     /// Plain unencrypted message
     Plain(String)
 }
 
-impl TryFrom<&str> for Enigma {
+impl TryFrom<&str> for Epgp {
     type Error = Box<dyn std::error::Error + 'static>;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         if let Some((header, payload)) = value.split_once(SEPARATOR) {
-            if let Ok(Header{tag,..}) = Header::try_from(header) {
+            if let Ok(Header{tag,key}) = Header::try_from(header) {
                 match tag {
                     PLAIN_INT => {
                         debug2!{"Plain unencrypted message"}
@@ -44,10 +44,10 @@ impl TryFrom<&str> for Enigma {
                     },
                     E_PGP_INT => {
                         debug2!("PGP encrypted message");
-                        return Ok(Self::from(Epgp::try_from(value)?));
+                        return Ok(Self::pgp(key, payload.to_string()));
                     },
                     ENIGMA_INT => {
-                        return Ok(Self::from(Legacy::try_from(value)?));
+                        return Self::try_from(Legacy::try_from(value)?);
                     },
                     _ => return Err(
                         format!("Unknown Enigma header: {}", header).into())
@@ -61,8 +61,7 @@ impl TryFrom<&str> for Enigma {
     }
 } 
 
-// TODO: #[derive(EnigmaTryFrom)]
-impl TryFrom<String> for Enigma {
+impl TryFrom<String> for Epgp {
     type Error = Box<dyn std::error::Error + 'static>;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
@@ -70,7 +69,7 @@ impl TryFrom<String> for Enigma {
     }
 }
 
-impl TryFrom<&String> for Enigma {
+impl TryFrom<&String> for Epgp {
     type Error = Box<dyn std::error::Error + 'static>;
 
     fn try_from(value: &String) -> Result<Self, Self::Error> {
@@ -78,7 +77,7 @@ impl TryFrom<&String> for Enigma {
     }
 }
 
-impl TryFrom<StringInfo> for Enigma {
+impl TryFrom<StringInfo> for Epgp {
     type Error = Box<dyn std::error::Error + 'static>;
 
     fn try_from(value: StringInfo) -> Result<Self, Self::Error> {
@@ -86,7 +85,7 @@ impl TryFrom<StringInfo> for Enigma {
     }
 }
 
-impl TryFrom<&CStr> for Enigma {
+impl TryFrom<&CStr> for Epgp {
     type Error = Box<dyn std::error::Error + 'static>;
 
     fn try_from(value: &CStr) -> Result<Self, Self::Error> {
@@ -94,40 +93,44 @@ impl TryFrom<&CStr> for Enigma {
     }
 }
 
-impl From<Epgp> for Enigma {
-    fn from(value: Epgp) -> Self {
+impl TryFrom<Enigma> for Epgp {
+    type Error = Box<dyn std::error::Error + 'static>;
+
+    fn try_from(value: Enigma) -> Result<Self, Self::Error> {
         match value {
-            Epgp::PGP(key,msg) => Self::PGP(key,msg),
-            Epgp::Plain(msg) => Self::Plain(msg),
+            Enigma::PGP(key,msg) => Ok(Epgp::PGP(key,msg)),
+            _ => Err("Not an Enigma PGP message".into())
         }
     }
 }
 
-impl From<Legacy> for Enigma {
-    fn from(value: Legacy) -> Self {
+impl TryFrom<&Enigma> for Epgp {
+    type Error = Box<dyn std::error::Error + 'static>;
+
+    fn try_from(value: &Enigma) -> Result<Self, Self::Error> {
+        Self::try_from(value.clone())
+    }
+}
+
+impl TryFrom<Legacy> for Epgp {
+    type Error = Box<dyn std::error::Error + 'static>;
+
+    fn try_from(value: Legacy) -> Result<Self, Self::Error> {
         match value {
-            Legacy::PGP(key,msg) => Self::PGP(key,msg),
-            Legacy::RSA(key,msg) => Self::RSA(key,msg),
-            Legacy::Plain(msg) => Self::Plain(msg),
+            Legacy::PGP(key,msg) => Ok(Self::PGP(key,msg)),
+            _ => Err("Not a legacy Enigma PGP message".into())
         }
     }
 }
 
-impl Display for Enigma {
+impl Display for Epgp {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        // TODO: Specific PGP or RSA Enigma tags to remove _BEGIN and _END
         match self {
-            Enigma::PGP(key,msg) => {
-                // Use new Epgp header
+            Epgp::PGP(key,msg) => {
                 write!(f, "{}{:08X}{}{}", 
                 E_PGP_TAG, key, SEPARATOR, msg)
             },
-            Enigma::RSA(key,msg) => {
-                write!(f, "{}{:08X}{}{}{}{}",
-                ENIGMA_TAG, key, SEPARATOR, RSA_BEGIN, msg, RSA_END)
-            },
-            Enigma::Plain(s) => {
-                //write!(f, "{}{:08X}{}{}", PLAIN_TAG, 0, SEPARATOR, s)
+            Epgp::Plain(s) => {
                 write!(f, "{}", s)
             }
         }        
@@ -135,7 +138,7 @@ impl Display for Enigma {
 }
 
 // TODO: #[derive(EnigmaPlain)]
-impl Plain for Enigma {
+impl Plain for Epgp {
     fn plain(value: String) -> Self {
         Self::Plain(value)
     }
@@ -145,34 +148,24 @@ impl Plain for Enigma {
     }
 }
 
-impl Enigma {
+impl Epgp {
     pub fn pgp(id: u32, value: String) -> Self {
         Self::PGP(id, pgp_trim_envelope(value))
     }
 
-    pub fn rsa(id: u32, value: String) -> Self {
-        Self::RSA(id, value)
-    }
-
-    #[allow(unused)]
+    #[allow(dead_code)]
     pub fn is_pgp(&self) -> bool {
         matches!(*self, Self::PGP(_,_))
     }
 
-    #[allow(unused)]
-    pub fn is_rsa(&self) -> bool {
-        matches!(*self, Self::RSA(_,_))
-    }
-
     pub fn key_id(&self) -> Option<u32> {
         match self {
-            Self::RSA(k,_) => Some(*k),
             Self::PGP(k,_) => Some(*k),
             Self::Plain(_) => None
         }
     }
 
-    #[allow(unused)]
+    #[allow(dead_code)]
     pub fn value(&self) -> String {
         self.to_string()
     }
@@ -194,6 +187,7 @@ impl Enigma {
             // TODO: try to decrypt
             return Err("Nested encryption not supported".into());
         }
+
         if let Some(pub_key) = PUB_KEYS.get(key_id)? {
             pub_key.encrypt(key_id, self)
         } else {
@@ -205,7 +199,7 @@ impl Enigma {
     /// the key's `decrypt()` function to decrypt the message.
     /// If no decrypting key is found, returns the same encrypted message.
     pub fn decrypt(self)
-    -> Result<Enigma, Box<dyn std::error::Error + 'static>> {
+    -> Result<Epgp, Box<dyn std::error::Error + 'static>> {
         let key_id = match self.key_id() {
             Some(k) => k,
             None => return Ok(self) // Not encrypted
@@ -214,12 +208,17 @@ impl Enigma {
         match PRIV_KEYS.get(key_id)? {
             Some(sec_key) => {
                 debug2!("Decrypt: got secret key");
-                sec_key.decrypt(self)
+                match sec_key {
+                    PrivKey::PGP(_,_) => sec_key.decrypt(self),
+                    _ => return Err(
+                        format!("Key {} is not PGP", key_id).into())
+                }
             },
             None => Ok(self)
         }
     }
 }
+
 
 /**********************
  * POSTGRES FUNCTIONS *
@@ -227,19 +226,19 @@ impl Enigma {
 
 /// Functions for extracting and inserting data
 #[pg_extern(stable, parallel_safe, requires = [ "shell_type" ])]
-fn enigma_input(input: &CStr, oid: pg_sys::Oid, typmod: i32) 
--> Result<Enigma, Box<dyn std::error::Error + 'static>> {
+fn epgp_input(input: &CStr, oid: pg_sys::Oid, typmod: i32) 
+-> Result<Epgp, Box<dyn std::error::Error + 'static>> {
 	//debug2!("INPUT: OID: {:?},  Typmod: {}", oid, typmod);
 	debug5!("INPUT: ARGUMENTS: \
             Input: {:?}, OID: {:?},  Typmod: {}", input, oid, typmod);
-    let enigma =  Enigma::try_from(input)?;
+    let enigma =  Epgp::try_from(input)?;
     if enigma.is_encrypted() {
         info!("Already encrypted"); 
         return Ok(enigma);
     }
     if typmod == -1 { // unknown typmod 
         //debug1!("Unknown typmod: {typmod}");
-        return Err("INPUT: Enigma Typmod is ambiguous.\n\
+        return Err("INPUT: Epgp Typmod is ambiguous.\n\
             You should cast the value as ::Text\n\
             More details in issue #4 \
         https://git.softwarelibre.mx/SoftwareLibreMx/pg_enigma/issues/4\
@@ -250,54 +249,24 @@ fn enigma_input(input: &CStr, oid: pg_sys::Oid, typmod: i32)
 
 /// Assignment cast is called before the INPUT function.
 #[pg_extern]
-fn string_as_enigma(original: String, typmod: i32, explicit: bool) 
--> Result<Enigma, Box<dyn std::error::Error + 'static>> {
-    debug2!("string_as_enigma: \
+fn string_as_epgp(original: String, typmod: i32, explicit: bool) 
+-> Result<Epgp, Box<dyn std::error::Error + 'static>> {
+    debug2!("string_as_epgp: \
         ARGUMENTS: explicit: {},  Typmod: {}", explicit, typmod);
     let key_id = match typmod {
         -1 => { debug1!("Unknown typmod; using default key ID 0");
             0 },
         _ => typmod
     };
-    Enigma::try_from(original)?.encrypt(key_id)
+    Epgp::try_from(original)?.encrypt(key_id)
 }
 
-/*
-#[pg_extern]
-fn str_as_enigma<'fcx>(original: &'fcx str, typmod: i32, explicit: bool) 
--> Enigma {
-    debug2!("str_as_enigma: \
-        ARGUMENTS: explicit: {},  Typmod: {}", explicit, typmod);
-    if typmod == -1 {
-        panic!("Unknown typmod: {}\noriginal: {:?}\nexplicit: {}", 
-            typmod, original, explicit);
-    }
-    
-    let value = String::from(original);
-    Enigma::try_from((typmod,value)).expect("ASSIGNMENT CAST: &str")
-}
-
-#[pg_extern]
-fn u8_as_enigma<'fcx>(original: &'fcx [u8], typmod: i32, explicit: bool) 
--> Enigma {
-    debug2!("u8_as_enigma: \
-        ARGUMENTS: explicit: {},  Typmod: {}", explicit, typmod);
-    if typmod == -1 {
-        panic!("Unknown typmod: {}\noriginal: {:?}\nexplicit: {}", 
-            typmod, original, explicit);
-    }
-    
-    let value = String::from_utf8(original.to_vec()).expect("from_utf8");
-    Enigma::try_from((typmod,value)).expect("ASSIGNMENT CAST: &[u8]")
-}
-*/
-
-/// Cast enigma to enigma is called after enigma_input_with_typmod(). 
+/// Cast Epgp to Epgp is called after epgp_input_with_typmod(). 
 /// This function is passed the correct known typmod argument.
 #[pg_extern(stable, parallel_safe)]
-fn enigma_as_enigma(original: Enigma, typmod: i32, explicit: bool) 
--> Result<Enigma, Box<dyn std::error::Error + 'static>> {
-    debug2!("CAST(Enigma AS Enigma): \
+fn epgp_as_epgp(original: Epgp, typmod: i32, explicit: bool) 
+-> Result<Epgp, Box<dyn std::error::Error + 'static>> {
+    debug2!("CAST(Epgp AS Epgp): \
         ARGUMENTS: explicit: {},  Typmod: {}", explicit, typmod);
     debug5!("Original: {:?}", original);
     if original.is_encrypted() {
@@ -317,10 +286,10 @@ fn enigma_as_enigma(original: Enigma, typmod: i32, explicit: bool)
     original.encrypt(key_id)
 }
 
-/// Enigma RECEIVE function
+/// Epgp RECEIVE function
 #[pg_extern(stable, parallel_safe, requires = [ "shell_type" ])]
-fn enigma_receive(mut internal: Internal, oid: pg_sys::Oid, typmod: i32) 
--> Result<Enigma, Box<dyn std::error::Error + 'static>> {
+fn epgp_receive(mut internal: Internal, oid: pg_sys::Oid, typmod: i32) 
+-> Result<Epgp, Box<dyn std::error::Error + 'static>> {
     debug2!("RECEIVE: OID: {:?},  Typmod: {}", oid, typmod);
     let buf = unsafe { 
         internal.get_mut::<::pgrx::pg_sys::StringInfoData>().unwrap() 
@@ -334,14 +303,14 @@ fn enigma_receive(mut internal: Internal, oid: pg_sys::Oid, typmod: i32)
             buf.len as usize )
     });
     debug5!("RECEIVE value: {}", serialized);
-    let enigma =  Enigma::try_from(serialized)?;
-    // TODO: Repeated: copied from enigma_input()
+    let enigma =  Epgp::try_from(serialized)?;
+    // TODO: Repeated: copied from epgp_input()
     if enigma.is_encrypted() {
         info!("Already encrypted"); 
         return Ok(enigma);
     }
     if typmod == -1 { // unknown typmod 
-        return Err("RECEIVE: Enigma Typmod is ambiguous.\n\
+        return Err("RECEIVE: Epgp Typmod is ambiguous.\n\
             You should cast the value as ::Text\n\
             More details in issue #4\
         https://git.softwarelibre.mx/SoftwareLibreMx/pg_enigma/issues/4\
@@ -351,10 +320,10 @@ fn enigma_receive(mut internal: Internal, oid: pg_sys::Oid, typmod: i32)
 
 } 
 
-/// Enigma OUTPUT function
-/// Sends Enigma to Postgres converted to `&Cstr`
+/// Epgp OUTPUT function
+/// Sends Epgp to Postgres converted to `&Cstr`
 #[pg_extern(stable, parallel_safe, requires = [ "shell_type" ])]
-fn enigma_output(enigma: Enigma) 
+fn epgp_output(enigma: Epgp) 
 -> Result<&'static CStr, Box<dyn std::error::Error + 'static>> {
 	//debug2!("OUTPUT");
 	debug5!("OUTPUT: {}", enigma);
@@ -366,9 +335,9 @@ fn enigma_output(enigma: Enigma)
     Ok(ret)
 }
 
-/// Enigma SEND function
+/// Epgp SEND function
 #[pg_extern(stable, parallel_safe, requires = [ "shell_type" ])]
-fn enigma_send(enigma: Enigma) 
+fn epgp_send(enigma: Epgp) 
 -> Result<Vec<u8>, Box<dyn std::error::Error + 'static>> {
 	//debug2!("SEND");
 	debug5!("SEND: {}", enigma);
@@ -377,15 +346,15 @@ fn enigma_send(enigma: Enigma)
 }
 
 
-/// Enigma TYPMOD_IN function.
+/// Epgp TYPMOD_IN function.
 /// converts typmod from cstring to i32
 #[pg_extern(immutable, parallel_safe, requires = [ "shell_type" ])]
-fn enigma_typmod_in(input: Array<&CStr>) 
+fn epgp_typmod_in(input: Array<&CStr>) 
 -> Result<i32, Box<dyn std::error::Error + 'static>> {
 	debug2!("TYPMOD_IN");
     if input.len() != 1 {
         return Err(
-            "Enigma type modifier must be a single integer value".into());
+            "Epgp type modifier must be a single integer value".into());
     }
     let typmod = input.iter() // iterator
     .next() // Option<Item>
@@ -396,11 +365,10 @@ fn enigma_typmod_in(input: Array<&CStr>)
     debug1!("typmod_in({typmod})");
     if typmod < 0 {
         return Err(
-            "Enigma type modifier must be a positive integer".into());
+            "Epgp type modifier must be a positive integer".into());
     }
     Ok(typmod)
 }
-
 
 
 /**************************************************************************
@@ -414,20 +382,20 @@ fn enigma_typmod_in(input: Array<&CStr>)
 // TODO: #[derive(EnigmaBoilerplate)]
 // Boilerplate traits for converting type to postgres internals
 // Needed for the FunctionMetadata trait
-unsafe impl SqlTranslatable for Enigma {
+unsafe impl SqlTranslatable for Epgp {
     fn argument_sql() -> Result<SqlMapping, ArgumentError> {
         // this is what the SQL type is called when used in a function argument position
-        Ok(SqlMapping::As("Enigma".into()))
+        Ok(SqlMapping::As("Epgp".into()))
     }
 
     fn return_sql() -> Result<Returns, ReturnsError> {
         // this is what the SQL type is called when used in a function return type position
-        Ok(Returns::One(SqlMapping::As("Enigma".into())))
+        Ok(Returns::One(SqlMapping::As("Epgp".into())))
     }
 }
 
 
-unsafe impl<'fcx> ArgAbi<'fcx> for Enigma
+unsafe impl<'fcx> ArgAbi<'fcx> for Epgp
 where
     Self: 'fcx,
 {
@@ -437,7 +405,7 @@ where
 }
 
 
-unsafe impl BoxRet for Enigma {
+unsafe impl BoxRet for Epgp {
     unsafe fn box_into<'fcx>(self, 
     fcinfo: &mut pgrx::callconv::FcInfo<'fcx>) 
     -> Datum<'fcx> {
@@ -448,7 +416,7 @@ unsafe impl BoxRet for Enigma {
     }
 }
 
-impl FromDatum for Enigma {
+impl FromDatum for Epgp {
     unsafe fn from_polymorphic_datum(datum: pg_sys::Datum, 
     is_null: bool, _: pg_sys::Oid) 
     -> Option<Self>
@@ -463,7 +431,7 @@ impl FromDatum for Enigma {
             Some(v) => v
         };
         debug2!("FromDatum value:\n{value}");
-        let enigma = Enigma::try_from(value).expect("Corrupted Enigma");
+        let enigma = Epgp::try_from(value).expect("Corrupted Epgp");
         //debug2!("FromDatum: Encrypted message: {:?}", enigma);
         let decrypted = enigma.decrypt()
                                 .expect("FromDatum: Decrypt error");
@@ -472,13 +440,13 @@ impl FromDatum for Enigma {
     }
 }
 
-impl IntoDatum for Enigma {
+impl IntoDatum for Epgp {
     fn into_datum(self) -> Option<pg_sys::Datum> {
         let value = match self {
             Self::Plain(s) => {
                 //format!("{}{:08X}{}{}", PLAIN_TAG, 0, SEPARATOR, s)
                 debug5!("Plain value: {}", s);
-                error!("Enigma is not encrypted");
+                error!("Epgp is not encrypted");
             },
             _ => self.to_string()
         };

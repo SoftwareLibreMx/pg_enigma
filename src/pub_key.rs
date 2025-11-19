@@ -1,28 +1,18 @@
+use crate::common::{Encrypt,IsEncrypted};
 use crate::enigma::Enigma;
-use hex::ToHex;
-use once_cell::sync::Lazy;
+use crate::enigma_pgp::Epgp;
+use crate::pgp::{pgp_encrypt,pgp_pub_key_from,pgp_pub_key_id};
 use openssl::base64::encode_block;
 use openssl::encrypt::Encrypter;
 use openssl::pkey::{PKey,Public};
 use openssl::rsa::Padding;
-use pgp::composed::{
-    ArmorOptions, Deserializable, MessageBuilder, SignedPublicKey
-};
-use pgp::crypto::sym::SymmetricKeyAlgorithm;
-use pgp::types::{KeyDetails};
+use pgp::composed::SignedPublicKey;
 use pgrx::datum::DatumWithOid;
-use pgrx::{debug1,PgBuiltInOids,Spi};
-use rand_chacha::ChaCha12Rng;
-use rand_chacha::rand_core::SeedableRng;
-use std::time::{SystemTime,UNIX_EPOCH};
+use pgrx::{PgBuiltInOids,Spi};
 
-const PGP_BEGIN: &str = "-----BEGIN PGP PUBLIC KEY BLOCK-----";
-const PGP_END: &str = "-----END PGP PUBLIC KEY BLOCK-----";
 // TODO:  Other OpenSSL supported key types (elyptic curves, etc.)
 const SSL_BEGIN: &str = "-----BEGIN PUBLIC KEY-----";
 const SSL_END: &str = "-----END PUBLIC KEY-----";
-
-static SEED: Lazy<u64> = Lazy::new(|| init_seed());
 
 pub enum PubKey {
     /// PGP public key
@@ -36,12 +26,9 @@ impl PubKey {
     /// from the `armored key`
     pub fn new(armored: &str) 
     -> Result<Self, Box<dyn std::error::Error + 'static>> {
-        if armored.contains(PGP_BEGIN) && armored.contains(PGP_END) {
-            // https://docs.rs/pgp/latest/pgp/composed/trait.Deserializable.html#method.from_string
-            let (pub_key, _) = SignedPublicKey::from_string(armored)?;
-            pub_key.verify()?;
+        if let Ok(pub_key) = pgp_pub_key_from(armored) {
             return Ok(PubKey::PGP(pub_key));
-        } 
+        }
 
         if armored.contains(SSL_BEGIN) && armored.contains(SSL_END) {
             let pub_key = 
@@ -54,12 +41,15 @@ impl PubKey {
 
     pub fn pub_key_id(&self) -> String {
         match self {
-            PubKey::PGP(k) => k.key_id().encode_hex(),
+            PubKey::PGP(k) => pgp_pub_key_id(k),
             PubKey::RSA(k) => format!("{:?}", k.id())
         }
     }
 
-    pub fn encrypt(&self, id: u32, msg: Enigma) 
+}
+
+impl Encrypt<Enigma> for PubKey {
+    fn encrypt(&self, id: u32, msg: Enigma) 
     -> Result<Enigma, Box<dyn std::error::Error + 'static>> {
         if msg.is_encrypted() { 
              return Err("Nested encryption not supported".into());
@@ -67,13 +57,30 @@ impl PubKey {
 
         match self {
             PubKey::PGP(pub_key) => {
-                let new_msg = encrypt_pgp(pub_key, msg.to_string())?;
-                Ok(Enigma::pgp(id, new_msg))
+                let encrypted = pgp_encrypt(pub_key, msg.to_string())?;
+                Ok(Enigma::pgp(id, encrypted))
             },
             PubKey::RSA(pub_key) => {
-                let new_msg = encrypt_rsa(pub_key, msg.to_string())?;
-                Ok(Enigma::rsa(id, new_msg))
+                let encrypted = encrypt_rsa(pub_key, msg.to_string())?;
+                Ok(Enigma::rsa(id, encrypted))
             }
+        }
+    }
+}
+
+impl Encrypt<Epgp> for PubKey {
+    fn encrypt(&self, id: u32, msg: Epgp) 
+    -> Result<Epgp, Box<dyn std::error::Error + 'static>> {
+        if msg.is_encrypted() { 
+             return Err("Nested encryption not supported".into());
+        }
+
+        match self {
+            PubKey::PGP(pub_key) => {
+                let encrypted = pgp_encrypt(pub_key, msg.to_string())?;
+                Ok(Epgp::pgp(id, encrypted))
+            },
+            _ => Err("Key is not PGP".into())
         }
     }
 }
@@ -121,20 +128,6 @@ pub fn insert_public_key(id: i32, key: &str)
  * PRIVATE FUNCTIONS *
  * *******************/
 
-fn encrypt_pgp(pub_key: &SignedPublicKey, message: String) 
--> Result<String, Box<dyn std::error::Error + 'static>> {
-    let mut rng =  ChaCha12Rng::seed_from_u64(*SEED);
-    let mut builder = MessageBuilder::from_bytes("", message)
-        .seipd_v1(&mut rng, SymmetricKeyAlgorithm::AES256);
-    builder.encrypt_to_key(&mut rng, &pub_key)?;
-    let encrypted = builder
-                    .to_armored_string(rng,ArmorOptions::default())?
-                    .trim_start_matches(PGP_BEGIN)
-                    .trim_end_matches(PGP_END)
-                    .to_string();
-    Ok(encrypted)
-}
-
 fn encrypt_rsa(pub_key: &PKey<Public>, message: String) 
 -> Result<String, Box<dyn std::error::Error + 'static>> {
     let mut encrypter = Encrypter::new(&pub_key)?;
@@ -148,18 +141,6 @@ fn encrypt_rsa(pub_key: &PKey<Public>, message: String)
     // Use only the part of the buffer with the encoded data
     let encoded = &encoded[..encoded_len];
     Ok(encode_block(encoded))
-}
-
-fn init_seed() -> u64 {
-        let dur = SystemTime::now()
-                            .duration_since(UNIX_EPOCH)
-                            .unwrap(); // always greater than UNIX_EPOCH
-        let secs = dur.as_secs(); 
-        let nano = dur.subsec_nanos() as u64;
-        let seed = secs ^ nano + nano << 32;
-        debug1!("RNG seed: {:x} ones: {} zeros: {}", 
-            seed, seed.count_ones(), seed.count_zeros());
-        seed
 }
 
 

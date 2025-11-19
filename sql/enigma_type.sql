@@ -1,4 +1,4 @@
-CREATE TYPE enigma (
+CREATE TYPE Enigma (
 	INPUT  = enigma_input,
 	OUTPUT = enigma_output,
 	RECEIVE = enigma_receive,
