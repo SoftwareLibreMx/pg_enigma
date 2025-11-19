@@ -2,6 +2,7 @@ use core::ffi::CStr;
 use crate::common::*;
 use crate::{PRIV_KEYS,PUB_KEYS};
 use crate::crypt::pgp::*;
+use crate::crypt::rsa::*;
 use pgrx::callconv::{ArgAbi, BoxRet};
 use pgrx::datum::Datum;
 use pgrx::{
@@ -14,10 +15,8 @@ use pgrx::pgrx_sql_entity_graph::metadata::{
 };
 use std::fmt::{Display, Formatter};
 use super::enigma_pgp::{E_PGP_INT,E_PGP_TAG,Epgp};
+use super::enigma_rsa::{E_RSA_INT,E_RSA_TAG,Ersa};
 use super::legacy::{ENIGMA_INT,ENIGMA_TAG,Legacy};
-
-const RSA_BEGIN: &str = "-----BEGIN RSA ENCRYPTED-----\n";
-const RSA_END: &str = "\n-----END RSA ENCRYPTED-----";
 
 /// Value stores entcrypted information
 #[derive( Clone, Debug)]
@@ -45,6 +44,10 @@ impl TryFrom<&str> for Enigma {
                     E_PGP_INT => {
                         debug2!("PGP encrypted message");
                         return Ok(Self::from(Epgp::try_from(value)?));
+                    },
+                    E_RSA_INT => {
+                        debug2!("RSA encrypted message");
+                        return Ok(Self::from(Ersa::try_from(value)?));
                     },
                     ENIGMA_INT => {
                         return Ok(Self::from(Legacy::try_from(value)?));
@@ -103,6 +106,15 @@ impl From<Epgp> for Enigma {
     }
 }
 
+impl From<Ersa> for Enigma {
+    fn from(value: Ersa) -> Self {
+        match value {
+            Ersa::RSA(key,msg) => Self::RSA(key,msg),
+            Ersa::Plain(msg) => Self::Plain(msg),
+        }
+    }
+}
+
 impl From<Legacy> for Enigma {
     fn from(value: Legacy) -> Self {
         match value {
@@ -123,8 +135,11 @@ impl Display for Enigma {
                 E_PGP_TAG, key, SEPARATOR, msg)
             },
             Enigma::RSA(key,msg) => {
-                write!(f, "{}{:08X}{}{}{}{}",
-                ENIGMA_TAG, key, SEPARATOR, RSA_BEGIN, msg, RSA_END)
+                //write!(f, "{}{:08X}{}{}{}{}",
+                //ENIGMA_TAG, key, SEPARATOR, RSA_BEGIN, msg, RSA_END)
+                // Use new Ersa header
+                write!(f, "{}{:08X}{}{}", 
+                E_RSA_TAG, key, SEPARATOR, msg)
             },
             Enigma::Plain(s) => {
                 //write!(f, "{}{:08X}{}{}", PLAIN_TAG, 0, SEPARATOR, s)

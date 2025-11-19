@@ -1,11 +1,10 @@
 use crate::common::*;
 use crate::crypt::pgp::*;
+use crate::crypt::rsa::*;
 use pgrx::{debug2};
 use std::fmt::{Display, Formatter};
 
 
-const RSA_BEGIN: &str = "-----BEGIN RSA ENCRYPTED-----\n";
-const RSA_END: &str = "\n-----END RSA ENCRYPTED-----";
 pub const ENIGMA_TAG: &str = "ENIGMAv1"; // 0x454E49474D417631
 pub const ENIGMA_INT: u64  = 0x454E49474D417631; // "ENIGMAv1"
 
@@ -38,11 +37,16 @@ impl TryFrom<&str> for Legacy {
                             return Ok(Self::pgp(key, payload.to_string()));
                         }
 
-                        if payload.starts_with(RSA_BEGIN)
+                        /* if payload.starts_with(RSA_BEGIN)
                         && payload.ends_with(RSA_END) {
                             debug2!("RSA encrypted message");
                             return Ok(from_rsa_envelope(key, payload));
+                        } */
+                        if rsa_match_msg(payload) {
+                            debug2!("RSA encrypted message");
+                            return Ok(Self::rsa(key, payload.to_string()));
                         }
+
                     },
                     _ => return Err(
                         format!("Unknown Enigma header: {}", header).into())
@@ -61,8 +65,8 @@ impl Display for Legacy {
                 ENIGMA_TAG, key, SEPARATOR, pgp_add_envelope(msg))
             },
             Legacy::RSA(key,msg) => {
-                write!(f, "{}{:08X}{}{}{}{}",
-                ENIGMA_TAG, key, SEPARATOR, RSA_BEGIN, msg, RSA_END)
+                write!(f, "{}{:08X}{}{}",
+                ENIGMA_TAG, key, SEPARATOR, rsa_add_envelope(msg))
             },
             Legacy::Plain(s) => {
                 write!(f, "{}", s)
@@ -92,17 +96,9 @@ impl Legacy {
         Self::PGP(id, pgp_trim_envelope(value))
     }
 
-    #[allow(unused)]
     fn rsa(id: u32, value: String) -> Self {
-        Self::RSA(id, value)
+        Self::RSA(id, rsa_trim_envelope(value))
     }
-}
-
-fn from_rsa_envelope(key_id: u32, value: &str) -> Legacy {
-    Legacy::RSA(key_id, value
-        .trim_start_matches(RSA_BEGIN)
-        .trim_end_matches(RSA_END)
-        .to_string() )
 }
 
 
