@@ -385,7 +385,6 @@ fn ersa_typmod_in(input: Array<&CStr>)
 *                                                                         *
 **************************************************************************/
 
-/*
 // TODO: #[derive(EnigmaBoilerplate)]
 // Boilerplate traits for converting type to postgres internals
 // Needed for the FunctionMetadata trait
@@ -464,5 +463,4 @@ impl IntoDatum for Ersa {
         rust_regtypein::<Self>()
     }
 }
-*/
 
