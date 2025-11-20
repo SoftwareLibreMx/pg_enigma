@@ -1,17 +1,14 @@
-mod enigma;
+mod common;
+mod crypt;
 mod key_map;
 mod priv_key;
 mod pub_key;
+mod types;
 
-use core::ffi::CStr;
-use crate::enigma::Enigma;
 use crate::key_map::{PrivKeysMap,PubKeysMap};
 use crate::pub_key::insert_public_key;
 use once_cell::sync::Lazy;
 use pgrx::prelude::*;
-use pgrx::StringInfo;
-use pgrx::datum::Internal;
-use pgrx::pg_sys::Oid;
 use std::fs;
 
 
@@ -20,182 +17,6 @@ pgrx::pg_module_magic!();
 static PRIV_KEYS: Lazy<PrivKeysMap> = Lazy::new(|| PrivKeysMap::new());
 static PUB_KEYS: Lazy<PubKeysMap> = Lazy::new(|| PubKeysMap::new());
 
-
-/// Functions for extracting and inserting data
-#[pg_extern(stable, parallel_safe, requires = [ "shell_type" ])]
-fn enigma_input(input: &CStr, oid: pg_sys::Oid, typmod: i32) 
--> Result<Enigma, Box<dyn std::error::Error + 'static>> {
-	//debug2!("INPUT: OID: {:?},  Typmod: {}", oid, typmod);
-	debug5!("INPUT: ARGUMENTS: \
-            Input: {:?}, OID: {:?},  Typmod: {}", input, oid, typmod);
-    let enigma =  Enigma::try_from(input)?;
-    if enigma.is_encrypted() {
-        info!("Already encrypted"); 
-        return Ok(enigma);
-    }
-    if typmod == -1 { // unknown typmod 
-        //debug1!("Unknown typmod: {typmod}");
-        return Err("INPUT: Enigma Typmod is ambiguous.\n\
-            You should cast the value as ::Text\n\
-            More details in issue #4 \
-        https://git.softwarelibre.mx/SoftwareLibreMx/pg_enigma/issues/4\
-            ".into());
-    }
-    enigma.encrypt(typmod)
-}
-
-/// Assignment cast is called before the INPUT function.
-#[pg_extern]
-fn string_as_enigma(original: String, typmod: i32, explicit: bool) 
--> Result<Enigma, Box<dyn std::error::Error + 'static>> {
-    debug2!("string_as_enigma: \
-        ARGUMENTS: explicit: {},  Typmod: {}", explicit, typmod);
-    let key_id = match typmod {
-        -1 => { debug1!("Unknown typmod; using default key ID 0");
-            0 },
-        _ => typmod
-    };
-    Enigma::try_from(original)?.encrypt(key_id)
-}
-
-/*
-#[pg_extern]
-fn str_as_enigma<'fcx>(original: &'fcx str, typmod: i32, explicit: bool) 
--> Enigma {
-    debug2!("str_as_enigma: \
-        ARGUMENTS: explicit: {},  Typmod: {}", explicit, typmod);
-    if typmod == -1 {
-        panic!("Unknown typmod: {}\noriginal: {:?}\nexplicit: {}", 
-            typmod, original, explicit);
-    }
-    
-    let value = String::from(original);
-    Enigma::try_from((typmod,value)).expect("ASSIGNMENT CAST: &str")
-}
-
-#[pg_extern]
-fn u8_as_enigma<'fcx>(original: &'fcx [u8], typmod: i32, explicit: bool) 
--> Enigma {
-    debug2!("u8_as_enigma: \
-        ARGUMENTS: explicit: {},  Typmod: {}", explicit, typmod);
-    if typmod == -1 {
-        panic!("Unknown typmod: {}\noriginal: {:?}\nexplicit: {}", 
-            typmod, original, explicit);
-    }
-    
-    let value = String::from_utf8(original.to_vec()).expect("from_utf8");
-    Enigma::try_from((typmod,value)).expect("ASSIGNMENT CAST: &[u8]")
-}
-*/
-
-/// Cast enigma to enigma is called after enigma_input_with_typmod(). 
-/// This function is passed the correct known typmod argument.
-#[pg_extern(stable, parallel_safe)]
-fn enigma_as_enigma(original: Enigma, typmod: i32, explicit: bool) 
--> Result<Enigma, Box<dyn std::error::Error + 'static>> {
-    debug2!("CAST(Enigma AS Enigma): \
-        ARGUMENTS: explicit: {},  Typmod: {}", explicit, typmod);
-    debug5!("Original: {:?}", original);
-    if original.is_encrypted() {
-        // TODO: if original.key_id != key_id {try_reencrypt()} 
-        return Ok(original);
-    } 
-    let key_id = match typmod {
-        -1 => match explicit { 
-            false => return Err( // Implicit is not called when no typmod
-                format!("Unknown typmod: {}", typmod).into()),
-            true => { debug1!("Unknown typmod; using default key ID 0");
-            0}
-        },
-        _ => typmod
-    };
-    debug2!("Encrypting plain message with key ID: {key_id}");
-    original.encrypt(key_id)
-}
-
-/// Enigma RECEIVE function
-#[pg_extern(stable, parallel_safe, requires = [ "shell_type" ])]
-fn enigma_receive(mut internal: Internal, oid: Oid, typmod: i32) 
--> Result<Enigma, Box<dyn std::error::Error + 'static>> {
-    debug2!("RECEIVE: OID: {:?},  Typmod: {}", oid, typmod);
-    let buf = unsafe { 
-        internal.get_mut::<::pgrx::pg_sys::StringInfoData>().unwrap() 
-    };
-    let mut serialized = ::pgrx::StringInfo::new();
-    // reserve space for the header
-    serialized.push_bytes(&[0u8; ::pgrx::pg_sys::VARHDRSZ]); 
-    serialized.push_bytes(unsafe {
-        core::slice::from_raw_parts(
-            buf.data as *const u8,
-            buf.len as usize )
-    });
-    debug5!("RECEIVE value: {}", serialized);
-    let enigma =  Enigma::try_from(serialized)?;
-    // TODO: Repeated: copied from enigma_input()
-    if enigma.is_encrypted() {
-        info!("Already encrypted"); 
-        return Ok(enigma);
-    }
-    if typmod == -1 { // unknown typmod 
-        return Err("RECEIVE: Enigma Typmod is ambiguous.\n\
-            You should cast the value as ::Text\n\
-            More details in issue #4\
-        https://git.softwarelibre.mx/SoftwareLibreMx/pg_enigma/issues/4\
-            ".into());
-    }
-    enigma.encrypt(typmod)
-
-} 
-
-/// Enigma OUTPUT function
-/// Sends Enigma to Postgres converted to `&Cstr`
-#[pg_extern(stable, parallel_safe, requires = [ "shell_type" ])]
-fn enigma_output(enigma: Enigma) 
--> Result<&'static CStr, Box<dyn std::error::Error + 'static>> {
-	//debug2!("OUTPUT");
-	debug5!("OUTPUT: {}", enigma);
-    let decrypted = enigma.decrypt()?;
-	let mut buffer = StringInfo::new();
-    buffer.push_str(decrypted.to_string().as_str());
-	//TODO try to avoid this unsafe
-	let ret = unsafe { buffer.leak_cstr() };
-    Ok(ret)
-}
-
-/// Enigma SEND function
-#[pg_extern(stable, parallel_safe, requires = [ "shell_type" ])]
-fn enigma_send(enigma: Enigma) 
--> Result<Vec<u8>, Box<dyn std::error::Error + 'static>> {
-	//debug2!("SEND");
-	debug5!("SEND: {}", enigma);
-    let decrypted = enigma.decrypt()?;
-    Ok(decrypted.to_string().into_bytes())
-}
-
-
-/// Enigma TYPMOD_IN function.
-/// converts typmod from cstring to i32
-#[pg_extern(immutable, parallel_safe, requires = [ "shell_type" ])]
-fn enigma_typmod_in(input: Array<&CStr>) 
--> Result<i32, Box<dyn std::error::Error + 'static>> {
-	debug2!("TYPMOD_IN");
-    if input.len() != 1 {
-        return Err(
-            "Enigma type modifier must be a single integer value".into());
-    }
-    let typmod = input.iter() // iterator
-    .next() // Option<Item>
-    .ok_or("No Item")? // Item
-    .ok_or("Null item")? // &Cstr
-    .to_str()? //&str
-    .parse::<i32>()?; // i32
-    debug1!("typmod_in({typmod})");
-    if typmod < 0 {
-        return Err(
-            "Enigma type modifier must be a positive integer".into());
-    }
-    Ok(typmod)
-}
 
 
 
@@ -288,9 +109,13 @@ extension_sql_file!("../sql/shell_type.sql", bootstrap);
 
 
 // Create the real type
-extension_sql_file!("../sql/concrete_type.sql", creates = [Type(Enigma)],
+extension_sql_file!("../sql/enigma_type.sql", creates = [Type(Enigma)],
     requires = ["shell_type", enigma_input, enigma_output, 
     enigma_receive, enigma_send, enigma_typmod_in],
+);
+extension_sql_file!("../sql/epgp_type.sql", creates = [Type(PgEpgp)],
+    requires = ["shell_type", epgp_input, epgp_output, 
+    epgp_receive, epgp_send, epgp_typmod_in],
 );
 
 // Creates the casting function so we can get the key id in the
@@ -299,7 +124,10 @@ extension_sql_file!("../sql/concrete_type.sql", creates = [Type(Enigma)],
 // https://stackoverflow.com/questions/40406662/postgres-doc-regaring-input-function-for-create-type-does-not-seem-to-be-correct/74426960#74426960
 // https://www.postgresql.org/message-id/67091D2B.5080002%40acm.org
 extension_sql_file!("../sql/enigma_casts.sql",
-    requires = ["concrete_type", enigma_as_enigma, string_as_enigma]
+    requires = ["enigma_type", enigma_as_enigma, string_as_enigma]
+);
+extension_sql_file!("../sql/epgp_casts.sql",
+    requires = ["epgp_type", epgp_as_epgp, string_as_epgp]
 );
 
 
@@ -315,7 +143,7 @@ extension_sql_file!("../sql/enigma_casts.sql",
 #[pg_schema]
 mod tests {
     //use crate::Enigma;
-    use crate::enigma::Enigma;
+    use crate::types::enigma::Enigma;
     use pgrx::prelude::*;
     use std::error::Error;
  

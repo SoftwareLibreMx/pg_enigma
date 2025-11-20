@@ -93,32 +93,6 @@ impl PrivKeysMap {
         };
         Ok(Some(key))
     }
-
-    /* PGP specific functions commented-out for future use
-    /// Iterates over each of the message's encrypting keys looking
-    /// for a matching key_id in it's own private keys map
-    pub fn find_encrypting_key(self: &'static PrivKeysMap, msg: &Enigma)
-    -> Result<Option<&'static PrivKey>, 
-    Box<dyn std::error::Error + 'static>> {
-        if let Some(id) = msg.key_id() {
-            return self.get(id);
-        }
-        if msg.is_pgp() {
-            let binding = self.keys.read()?;
-            for skey_id in msg.pgp_encrypting_keys()? {
-                let mkey_id = format!("{:x}", skey_id);
-                // TODO: key_id map
-                for (_,pkey) in binding.iter() {
-                    if mkey_id == pkey.priv_key_id() {
-                        info!("KEY_ID: {mkey_id}");
-                        return Ok(Some(pkey));
-                    }
-                }
-            }
-            return Ok(None);
-        }
-        Ok(None)
-    } */
 }
 
 /*******************
@@ -221,11 +195,6 @@ impl PubKeysMap {
         };
         Ok(Some(key))
     }
-
-/*********************
- * PRIVATE FUNCTIONS *
- * *******************/
-
 
 }
 
