@@ -229,7 +229,6 @@ impl Ersa {
  * POSTGRES FUNCTIONS *
  * ********************/
 
-/* 
 /// Functions for extracting and inserting data
 #[pg_extern(stable, parallel_safe, requires = [ "shell_type" ])]
 fn ersa_input(input: &CStr, oid: pg_sys::Oid, typmod: i32) 
@@ -375,7 +374,6 @@ fn ersa_typmod_in(input: Array<&CStr>)
     }
     Ok(typmod)
 }
-*/
 
 /**************************************************************************
 *                                                                         *

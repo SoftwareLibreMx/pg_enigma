@@ -2,7 +2,7 @@ use crate::common::*;
 use crate::crypt::openssl::*;
 use crate::crypt::pgp::*;
 use pgrx::{debug2};
-use std::fmt::{Display, Formatter};
+//use std::fmt::{Display, Formatter};
 
 
 //pub const ENIGMA_TAG: &str = "ENIGMAv1"; // 0x454E49474D417631
