@@ -95,3 +95,11 @@ pg_enigma=# SELECT * FROM test_epgp;
     | 
 (1 row)
 ```
+
+### Cleanup:
+```sql
+DROP TABLE test_epgp;
+DROP EXTENSION pg_enigma CASCADE;
+```
+
+
