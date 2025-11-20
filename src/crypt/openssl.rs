@@ -2,11 +2,12 @@ use openssl::base64::{decode_block,encode_block};
 use openssl::encrypt::{Decrypter,Encrypter};
 use openssl::pkey::{PKey,Private,Public};
 use openssl::rsa::Padding;
-use pgrx::{debug2,info};
+use pgrx::{debug2,debug3,debug5};
 //use std::fmt::Display;
 
 const BASE64_LINE_WRAP: usize = 65;
-const BASE64_MAX_LEN: usize = 8000;
+//const BASE64_MAX_LEN: usize = 8000;
+const BASE64_MAX_LEN: usize = 300;
 
 const RSA_BEGIN: &str = "-----BEGIN RSA ENCRYPTED-----\n";
 const RSA_END: &str = "\n-----END RSA ENCRYPTED-----";
@@ -73,7 +74,7 @@ pub fn rsa_encrypt(pub_key: &PKey<Public>, message: String)
 pub fn rsa_decrypt(key: &PKey<Private>, msg: String)
 -> Result<String, Box<dyn std::error::Error + 'static>> {
     debug2!("Decrypt: RSA Enigma: {msg}");
-    let input = decode_block(msg.as_str())?;
+    let input = decode_block(line_merge(msg).as_str())?;
     let mut decrypter = Decrypter::new(key)?;
     decrypter.set_rsa_padding(Padding::PKCS1)?;
     // Get the length of the output buffer
@@ -93,16 +94,34 @@ pub fn rsa_decrypt(key: &PKey<Private>, msg: String)
  * *******************/
 
 fn line_wrap(src: String, len: usize) -> String {
-    let (first, tail) = src.split_at(len);
-    let mut dst = String::from(first);
+    if src.len() < len {
+        return src;
+    }
+    debug3!("Before line wrap length: {}\n{src}", src.len());
+    let (mut next, mut tail) = src.split_at(len);
+    let mut dst = String::from(next);
     let mut tail_len = tail.len();
-    while tail_len > len && dst.len() < BASE64_MAX_LEN {
-        info!("Tail length: {tail_len}");
-        let (next, tail) = tail.split_at(len);
+    while tail_len > len  && dst.len() < BASE64_MAX_LEN  {
+        debug5!("Tail length: {tail_len}\n{tail}");
+        (next, tail) = tail.split_at(len);
         tail_len = tail.len();
         dst.push_str("\n");
         dst.push_str(next);
     }
+    if tail_len > 0 {
+        dst.push_str("\n");
+        dst.push_str(tail);
+    }
+    debug3!("Split base64 message:\n{dst}");
+    dst
+}
+
+fn line_merge(src: String) -> String {
+    let mut dst = String::default();
+    for next in src.split("\n") {
+        dst.push_str(next);
+    }
+    debug3!("Merged base64 message:\n{dst}");
     dst
 }
 
