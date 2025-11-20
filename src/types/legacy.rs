@@ -5,7 +5,7 @@ use pgrx::{debug2};
 use std::fmt::{Display, Formatter};
 
 
-pub const ENIGMA_TAG: &str = "ENIGMAv1"; // 0x454E49474D417631
+//pub const ENIGMA_TAG: &str = "ENIGMAv1"; // 0x454E49474D417631
 pub const ENIGMA_INT: u64  = 0x454E49474D417631; // "ENIGMAv1"
 
 /// Value stores entcrypted information
@@ -15,8 +15,9 @@ pub enum Legacy {
     PGP(u32,String),
     /// OpenSSL RSA encrypted message
     RSA(u32,String), 
+    /* unnecessary
     /// Plain unencrypted message
-    Plain(String)
+    Plain(String) */
 }
 
 impl TryFrom<&str> for Legacy {
@@ -26,7 +27,7 @@ impl TryFrom<&str> for Legacy {
         if let Some((header, payload)) = value.split_once(SEPARATOR) {
             if let Ok(Header{tag,key}) = Header::try_from(header) {
                 match tag {
-                    /* PLAIN_INT => {
+                    /* PLAIN_INT => { // unnecessary
                         debug2!{"Plain unencrypted message"}
                         debug5!{"Payload: {payload}"}
                         return Ok(Self::plain(payload.to_string()));
@@ -52,6 +53,7 @@ impl TryFrom<&str> for Legacy {
     }
 } 
 
+/* not being used
 impl Display for Legacy {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -80,6 +82,7 @@ impl Plain for Legacy {
         matches!(*self, Self::Plain(_))
     }
 }
+*/
 
 /*********************
  * PRIVATE FUNCTIONS *

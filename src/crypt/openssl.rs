@@ -3,7 +3,7 @@ use openssl::encrypt::{Decrypter,Encrypter};
 use openssl::pkey::{PKey,Private,Public};
 use openssl::rsa::Padding;
 use pgrx::{debug2};
-use std::fmt::Display;
+//use std::fmt::Display;
 
 const RSA_BEGIN: &str = "-----BEGIN RSA ENCRYPTED-----\n";
 const RSA_END: &str = "\n-----END RSA ENCRYPTED-----";
@@ -17,9 +17,9 @@ pub fn rsa_trim_envelope(msg: String) -> String {
     msg.trim_start_matches(RSA_BEGIN).trim_end_matches(RSA_END).to_string()
 }
 
-pub fn rsa_add_envelope<T: Display>(msg: T) -> String {
+/* pub fn rsa_add_envelope<T: Display>(msg: T) -> String { // unneeded
     format!("{}{}{}", RSA_BEGIN, msg, RSA_END)
-}
+} */
 
 pub fn rsa_match_msg(msg: &str) -> bool {
     msg.starts_with(RSA_BEGIN) && msg.ends_with(RSA_END)

@@ -120,7 +120,7 @@ impl From<Legacy> for Enigma {
         match value {
             Legacy::PGP(key,msg) => Self::PGP(key,msg),
             Legacy::RSA(key,msg) => Self::RSA(key,msg),
-            Legacy::Plain(msg) => Self::Plain(msg),
+            //Legacy::Plain(msg) => Self::Plain(msg),
         }
     }
 }
