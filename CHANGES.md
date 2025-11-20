@@ -1,3 +1,18 @@
+## Version 0.5.0
+
+### Changes
+- pgrx-0.16.1 support
+- rpgp-0.17.0 support
+- Workaround for `INPUT` function typmod bug
+- Enigma header refactor, now indicates used encryption
+- New data type `Epgp` accepts only PGP encryprion
+- New data typa `Ersa` accepts only RSA encryption using OpenSSL
+
+
+### Known issues
+- https://git.softwarelibre.mx/SoftwareLibreMx/pg_enigma/issues/4 
+- In version 0.5.0 a restriction was set to force the use of the `ASSIGNMENT CAST` when `INPUT` function's typmod is ambiguous.
+
 ## Version 0.4.0
 
 ### Changes

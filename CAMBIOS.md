@@ -1,3 +1,18 @@
+## Versión 0.5.0
+
+### Cambios
+- Soporte para pgrx-0.16.1
+- Soporte para rpgp-0.17.0
+- Se le sacó la vuelta al bug del typmod de la función `INPUT`
+- Retrabajo del encabezado de Enigma, ahora indica el cifrado utilizado
+- Nuevo tipo de dato `Epgp` acepta solo cifrado PGP 
+- Nuevo tipo de dato `Ersa` acepta solo cifrado RSA usando OpenSSL
+
+
+### Problemas conocidos
+- https://git.softwarelibre.mx/SoftwareLibreMx/pg_enigma/issues/4 
+- En la versión 0.5.0 se puso una restricción que forzar al uso del `ASSIGNMENT CAST` cuando el typmod es abmíguo en la función `INPUT`.
+
 ## Versión 0.4.0
 
 ### Cambios
