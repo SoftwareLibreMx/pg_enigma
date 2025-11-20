@@ -3,15 +3,13 @@ use crate::types::enigma::Enigma;
 use crate::types::enigma_pgp::Epgp;
 use crate::types::enigma_rsa::Ersa;
 use crate::crypt::pgp::{pgp_encrypt,pgp_pub_key_from,pgp_pub_key_id};
-use crate::crypt::rsa::{rsa_encrypt/*,rsa_pub_key_from,rsa_pub_key_id*/};
+use crate::crypt::openssl::{rsa_encrypt,rsa_pub_key_from,rsa_key_id};
 use openssl::pkey::{PKey,Public};
 use pgp::composed::SignedPublicKey;
 use pgrx::datum::DatumWithOid;
 use pgrx::{PgBuiltInOids,Spi};
 
 // TODO:  Other OpenSSL supported key types (elyptic curves, etc.)
-const SSL_BEGIN: &str = "-----BEGIN PUBLIC KEY-----";
-const SSL_END: &str = "-----END PUBLIC KEY-----";
 
 pub enum PubKey {
     /// PGP public key
@@ -29,10 +27,8 @@ impl PubKey {
             return Ok(PubKey::PGP(pub_key));
         }
 
-        if armored.contains(SSL_BEGIN) && armored.contains(SSL_END) {
-            let pub_key = 
-                PKey::<Public>::public_key_from_pem(armored.as_bytes())?;
-           return Ok(PubKey::RSA(pub_key));
+        if let Ok(pub_key) = rsa_pub_key_from(armored) {
+            return Ok(PubKey::RSA(pub_key));
         }
 
         Err("Key not recognized".into())
@@ -41,7 +37,7 @@ impl PubKey {
     pub fn pub_key_id(&self) -> String {
         match self {
             PubKey::PGP(k) => pgp_pub_key_id(k),
-            PubKey::RSA(k) => format!("{:?}", k.id())
+            PubKey::RSA(k) => rsa_key_id(k)
         }
     }
 

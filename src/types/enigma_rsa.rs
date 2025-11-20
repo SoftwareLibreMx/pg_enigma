@@ -1,7 +1,7 @@
 use core::ffi::CStr;
 use crate::common::*;
 use crate::{PRIV_KEYS,PUB_KEYS};
-use crate::crypt::rsa::*;
+use crate::crypt::openssl::*;
 use crate::pub_key::PubKey;
 use crate::priv_key::PrivKey;
 use pgrx::callconv::{ArgAbi, BoxRet};

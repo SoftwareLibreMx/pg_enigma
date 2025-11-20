@@ -1,6 +1,6 @@
 use crate::common::*;
+use crate::crypt::openssl::*;
 use crate::crypt::pgp::*;
-use crate::crypt::rsa::*;
 use pgrx::{debug2};
 use std::fmt::{Display, Formatter};
 
@@ -37,11 +37,6 @@ impl TryFrom<&str> for Legacy {
                             return Ok(Self::pgp(key, payload.to_string()));
                         }
 
-                        /* if payload.starts_with(RSA_BEGIN)
-                        && payload.ends_with(RSA_END) {
-                            debug2!("RSA encrypted message");
-                            return Ok(from_rsa_envelope(key, payload));
-                        } */
                         if rsa_match_msg(payload) {
                             debug2!("RSA encrypted message");
                             return Ok(Self::rsa(key, payload.to_string()));

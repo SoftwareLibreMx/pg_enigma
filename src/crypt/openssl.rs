@@ -7,7 +7,11 @@ use std::fmt::Display;
 
 const RSA_BEGIN: &str = "-----BEGIN RSA ENCRYPTED-----\n";
 const RSA_END: &str = "\n-----END RSA ENCRYPTED-----";
-
+// TODO:  Other OpenSSL supported key types (elyptic curves, etc.)
+const RSA_PUB_KEY_BEGIN: &str = "-----BEGIN PUBLIC KEY-----";
+const RSA_PUB_KEY_END: &str = "-----END PUBLIC KEY-----";
+const RSA_PRV_KEY_BEGIN: &str = "-----BEGIN ENCRYPTED PRIVATE KEY-----";
+const RSA_PRV_KEY_END: &str = "-----END ENCRYPTED PRIVATE KEY-----";
 
 pub fn rsa_trim_envelope(msg: String) -> String {
     msg.trim_start_matches(RSA_BEGIN).trim_end_matches(RSA_END).to_string()
@@ -21,41 +25,32 @@ pub fn rsa_match_msg(msg: &str) -> bool {
     msg.starts_with(RSA_BEGIN) && msg.ends_with(RSA_END)
 }
 
-/*
-pub fn rsa_pub_key_from(armored: &str)
--> Result<SignedPublicKey, Box<dyn std::error::Error + 'static>> {
-    // https://docs.rs/rsa/latest/rsa/composed/trait.Deserializable.html#method.from_string
-    if armored.contains(RSA_PUB_KEY_BEGIN) 
-    && armored.contains(RSA_PUB_KEY_END) {
-        let (pub_key, _) = SignedPublicKey::from_string(armored)?;
-        pub_key.verify()?;
+pub fn rsa_pub_key_from(pem: &str)
+-> Result<PKey<Public>, Box<dyn std::error::Error + 'static>> {
+    if pem.contains(RSA_PUB_KEY_BEGIN) 
+    && pem.contains(RSA_PUB_KEY_END) {
+        let pub_key = PKey::<Public>::public_key_from_pem(pem.as_bytes())?;
         Ok(pub_key)
     } else {
         Err("Public key is not RSA PEM".into())
     }
 }
 
-pub fn rsa_sec_key_from(armored: &str) 
--> Result<SignedSecretKey, Box<dyn std::error::Error + 'static>> {
-    // https://docs.rs/rsa/latest/rsa/composed/trait.Deserializable.html#method.from_string
-    if armored.contains(RSA_SEC_KEY_BEGIN) 
-    && armored.contains(RSA_SEC_KEY_END) {
-        let (sec_key, _) = SignedSecretKey::from_string(armored)?;
-        sec_key.verify()?;
-        Ok(sec_key)
+pub fn rsa_priv_key_from(pem: &str, pw: &str) 
+-> Result<PKey<Private>, Box<dyn std::error::Error + 'static>> {
+    if pem.contains(RSA_PRV_KEY_BEGIN) 
+    && pem.contains(RSA_PRV_KEY_END) {
+       let priv_key = PKey::<Private>::private_key_from_pem_passphrase(
+            pem.as_bytes(), pw.as_bytes())?;
+        Ok(priv_key)
     } else {
-        Err("Secret key is not RES PEM".into())
+        Err("Secret key is not RSA PEM".into())
     }
 }
 
-pub fn rsa_pub_key_id(key: &SignedPublicKey) -> String {
-    key.key_id().encode_hex()
+pub fn rsa_key_id<T>(key: &PKey<T>) -> String {
+    format!("{:?}", key.id())
 }
-
-pub fn rsa_sec_key_id(key: &SignedSecretKey) -> String {
-    key.key_id().encode_hex()
-}
-*/
 
 pub fn rsa_encrypt(pub_key: &PKey<Public>, message: String) 
 -> Result<String, Box<dyn std::error::Error + 'static>> {
