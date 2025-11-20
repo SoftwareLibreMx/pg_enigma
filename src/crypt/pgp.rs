@@ -87,7 +87,7 @@ pub fn pgp_decrypt(key: &SignedSecretKey, pass: String, msg: String)
     let pw = Password::from(pass);
     let mut decrypted = pgp_msg.decrypt(&pw, key)?;
     let clear_text = decrypted.as_data_string()?;
-    return Ok(clear_text);
+    Ok(clear_text)
 }
 
 /* Functions commented-out for future use

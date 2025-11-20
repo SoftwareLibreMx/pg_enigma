@@ -1,18 +1,15 @@
 use crate::common::{Encrypt,IsEncrypted};
 use crate::types::enigma::Enigma;
 use crate::types::enigma_pgp::Epgp;
+use crate::types::enigma_rsa::Ersa;
 use crate::crypt::pgp::{pgp_encrypt,pgp_pub_key_from,pgp_pub_key_id};
-use openssl::base64::encode_block;
-use openssl::encrypt::Encrypter;
+use crate::crypt::openssl::{rsa_encrypt,rsa_pub_key_from,rsa_key_id};
 use openssl::pkey::{PKey,Public};
-use openssl::rsa::Padding;
 use pgp::composed::SignedPublicKey;
 use pgrx::datum::DatumWithOid;
 use pgrx::{PgBuiltInOids,Spi};
 
 // TODO:  Other OpenSSL supported key types (elyptic curves, etc.)
-const SSL_BEGIN: &str = "-----BEGIN PUBLIC KEY-----";
-const SSL_END: &str = "-----END PUBLIC KEY-----";
 
 pub enum PubKey {
     /// PGP public key
@@ -30,10 +27,8 @@ impl PubKey {
             return Ok(PubKey::PGP(pub_key));
         }
 
-        if armored.contains(SSL_BEGIN) && armored.contains(SSL_END) {
-            let pub_key = 
-                PKey::<Public>::public_key_from_pem(armored.as_bytes())?;
-           return Ok(PubKey::RSA(pub_key));
+        if let Ok(pub_key) = rsa_pub_key_from(armored) {
+            return Ok(PubKey::RSA(pub_key));
         }
 
         Err("Key not recognized".into())
@@ -42,7 +37,7 @@ impl PubKey {
     pub fn pub_key_id(&self) -> String {
         match self {
             PubKey::PGP(k) => pgp_pub_key_id(k),
-            PubKey::RSA(k) => format!("{:?}", k.id())
+            PubKey::RSA(k) => rsa_key_id(k)
         }
     }
 
@@ -61,7 +56,7 @@ impl Encrypt<Enigma> for PubKey {
                 Ok(Enigma::pgp(id, encrypted))
             },
             PubKey::RSA(pub_key) => {
-                let encrypted = encrypt_rsa(pub_key, msg.to_string())?;
+                let encrypted = rsa_encrypt(pub_key, msg.to_string())?;
                 Ok(Enigma::rsa(id, encrypted))
             }
         }
@@ -81,6 +76,23 @@ impl Encrypt<Epgp> for PubKey {
                 Ok(Epgp::pgp(id, encrypted))
             },
             _ => Err("Key is not PGP".into())
+        }
+    }
+}
+
+impl Encrypt<Ersa> for PubKey {
+    fn encrypt(&self, id: u32, msg: Ersa) 
+    -> Result<Ersa, Box<dyn std::error::Error + 'static>> {
+        if msg.is_encrypted() { 
+             return Err("Nested encryption not supported".into());
+        }
+
+        match self {
+            PubKey::RSA(pub_key) => {
+                let encrypted = rsa_encrypt(pub_key, msg.to_string())?;
+                Ok(Ersa::rsa(id, encrypted))
+            },
+            _ => Err("Key is not RSA".into())
         }
     }
 }
@@ -122,25 +134,6 @@ pub fn insert_public_key(id: i32, key: &str)
            RETURNING 'Public key set'"#,
          &args
     )
-}
-
-/*********************
- * PRIVATE FUNCTIONS *
- * *******************/
-
-fn encrypt_rsa(pub_key: &PKey<Public>, message: String) 
--> Result<String, Box<dyn std::error::Error + 'static>> {
-    let mut encrypter = Encrypter::new(&pub_key)?;
-    encrypter.set_rsa_padding(Padding::PKCS1)?;
-    let as_bytes = message.as_bytes();
-    // Get the length of the output buffer
-    let buffer_len = encrypter.encrypt_len(&as_bytes)?;
-    let mut encoded = vec![0u8; buffer_len];
-    // Encode the data and get its length
-    let encoded_len = encrypter.encrypt(&as_bytes, &mut encoded)?;
-    // Use only the part of the buffer with the encoded data
-    let encoded = &encoded[..encoded_len];
-    Ok(encode_block(encoded))
 }
 
 

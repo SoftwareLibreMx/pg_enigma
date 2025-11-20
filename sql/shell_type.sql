@@ -8,3 +8,5 @@ CREATE TABLE IF NOT EXISTS _enigma_public_keys (
 CREATE TYPE Enigma;
 -- Epgp shell_type
 CREATE TYPE Epgp;
+-- Ersa shell_type
+CREATE TYPE Ersa;

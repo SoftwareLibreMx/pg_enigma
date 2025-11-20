@@ -2,7 +2,7 @@ use core::ffi::CStr;
 use crate::common::*;
 use crate::{PRIV_KEYS,PUB_KEYS};
 use crate::crypt::pgp::*;
-//use crate::pub_key::PubKey;
+use crate::pub_key::PubKey;
 use crate::priv_key::PrivKey;
 use pgrx::callconv::{ArgAbi, BoxRet};
 use pgrx::datum::Datum;
@@ -189,7 +189,12 @@ impl Epgp {
         }
 
         if let Some(pub_key) = PUB_KEYS.get(key_id)? {
-            pub_key.encrypt(key_id, self)
+            match pub_key {
+                PubKey::PGP(_) => pub_key.encrypt(key_id, self),
+                _ => return Err(
+                    format!("Public key {} is not PGP", key_id).into())
+
+            }
         } else {
             Err(format!("No public key with key_id: {}", key_id).into())
         }
@@ -199,7 +204,7 @@ impl Epgp {
     /// the key's `decrypt()` function to decrypt the message.
     /// If no decrypting key is found, returns the same encrypted message.
     pub fn decrypt(self)
-    -> Result<Epgp, Box<dyn std::error::Error + 'static>> {
+    -> Result<Self, Box<dyn std::error::Error + 'static>> {
         let key_id = match self.key_id() {
             Some(k) => k,
             None => return Ok(self) // Not encrypted
@@ -211,7 +216,7 @@ impl Epgp {
                 match sec_key {
                     PrivKey::PGP(_,_) => sec_key.decrypt(self),
                     _ => return Err(
-                        format!("Key {} is not PGP", key_id).into())
+                        format!("Private key {} is not PGP", key_id).into())
                 }
             },
             None => Ok(self)
@@ -444,7 +449,6 @@ impl IntoDatum for Epgp {
     fn into_datum(self) -> Option<pg_sys::Datum> {
         let value = match self {
             Self::Plain(s) => {
-                //format!("{}{:08X}{}{}", PLAIN_TAG, 0, SEPARATOR, s)
                 debug5!("Plain value: {}", s);
                 error!("Epgp is not encrypted");
             },

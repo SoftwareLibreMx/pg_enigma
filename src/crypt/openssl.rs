@@ -1,0 +1,127 @@
+use openssl::base64::{decode_block,encode_block};
+use openssl::encrypt::{Decrypter,Encrypter};
+use openssl::pkey::{PKey,Private,Public};
+use openssl::rsa::Padding;
+use pgrx::{debug2,debug3,debug5};
+//use std::fmt::Display;
+
+const BASE64_LINE_WRAP: usize = 65;
+//const BASE64_MAX_LEN: usize = 8000;
+const BASE64_MAX_LEN: usize = 300;
+
+const RSA_BEGIN: &str = "-----BEGIN RSA ENCRYPTED-----\n";
+const RSA_END: &str = "\n-----END RSA ENCRYPTED-----";
+// TODO:  Other OpenSSL supported key types (elyptic curves, etc.)
+const RSA_PUB_KEY_BEGIN: &str = "-----BEGIN PUBLIC KEY-----";
+const RSA_PUB_KEY_END: &str = "-----END PUBLIC KEY-----";
+const RSA_PRV_KEY_BEGIN: &str = "-----BEGIN ENCRYPTED PRIVATE KEY-----";
+const RSA_PRV_KEY_END: &str = "-----END ENCRYPTED PRIVATE KEY-----";
+
+pub fn rsa_trim_envelope(msg: String) -> String {
+    msg.trim_start_matches(RSA_BEGIN).trim_end_matches(RSA_END).to_string()
+}
+
+/* pub fn rsa_add_envelope<T: Display>(msg: T) -> String { // unneeded
+    format!("{}{}{}", RSA_BEGIN, msg, RSA_END)
+} */
+
+pub fn rsa_match_msg(msg: &str) -> bool {
+    msg.starts_with(RSA_BEGIN) && msg.ends_with(RSA_END)
+}
+
+pub fn rsa_pub_key_from(pem: &str)
+-> Result<PKey<Public>, Box<dyn std::error::Error + 'static>> {
+    if pem.contains(RSA_PUB_KEY_BEGIN) 
+    && pem.contains(RSA_PUB_KEY_END) {
+        let pub_key = PKey::<Public>::public_key_from_pem(pem.as_bytes())?;
+        Ok(pub_key)
+    } else {
+        Err("Public key is not RSA PEM".into())
+    }
+}
+
+pub fn rsa_priv_key_from(pem: &str, pw: &str) 
+-> Result<PKey<Private>, Box<dyn std::error::Error + 'static>> {
+    if pem.contains(RSA_PRV_KEY_BEGIN) 
+    && pem.contains(RSA_PRV_KEY_END) {
+       let priv_key = PKey::<Private>::private_key_from_pem_passphrase(
+            pem.as_bytes(), pw.as_bytes())?;
+        Ok(priv_key)
+    } else {
+        Err("Secret key is not RSA PEM".into())
+    }
+}
+
+pub fn rsa_key_id<T>(key: &PKey<T>) -> String {
+    format!("{:?}", key.id())
+}
+
+pub fn rsa_encrypt(pub_key: &PKey<Public>, message: String) 
+-> Result<String, Box<dyn std::error::Error + 'static>> {
+    let mut encrypter = Encrypter::new(&pub_key)?;
+    encrypter.set_rsa_padding(Padding::PKCS1)?;
+    let as_bytes = message.as_bytes();
+    // Get the length of the output buffer
+    let buffer_len = encrypter.encrypt_len(&as_bytes)?;
+    let mut encoded = vec![0u8; buffer_len];
+    // Encode the data and get its length
+    let encoded_len = encrypter.encrypt(&as_bytes, &mut encoded)?;
+    // Use only the part of the buffer with the encoded data
+    let encoded = &encoded[..encoded_len];
+    Ok(line_wrap(encode_block(encoded),BASE64_LINE_WRAP))
+}
+
+pub fn rsa_decrypt(key: &PKey<Private>, msg: String)
+-> Result<String, Box<dyn std::error::Error + 'static>> {
+    debug2!("Decrypt: RSA Enigma: {msg}");
+    let input = decode_block(line_merge(msg).as_str())?;
+    let mut decrypter = Decrypter::new(key)?;
+    decrypter.set_rsa_padding(Padding::PKCS1)?;
+    // Get the length of the output buffer
+    let buffer_len = decrypter.decrypt_len(&input)?;
+    let mut decoded = vec![0u8; buffer_len];
+    // Decrypt the data and get its length
+    let decoded_len = decrypter.decrypt(&input, &mut decoded)?;
+    // Use only the part of the buffer with the decrypted data
+    let decoded = &decoded[..decoded_len];
+    let clear_text = String::from_utf8(decoded.to_vec())?;
+    Ok(clear_text)
+}
+
+
+/*********************
+ * PRIVATE FUNCTIONS *
+ * *******************/
+
+fn line_wrap(src: String, len: usize) -> String {
+    if src.len() < len {
+        return src;
+    }
+    debug3!("Before line wrap length: {}\n{src}", src.len());
+    let (mut next, mut tail) = src.split_at(len);
+    let mut dst = String::from(next);
+    let mut tail_len = tail.len();
+    while tail_len > len  && dst.len() < BASE64_MAX_LEN  {
+        debug5!("Tail length: {tail_len}\n{tail}");
+        (next, tail) = tail.split_at(len);
+        tail_len = tail.len();
+        dst.push_str("\n");
+        dst.push_str(next);
+    }
+    if tail_len > 0 {
+        dst.push_str("\n");
+        dst.push_str(tail);
+    }
+    debug3!("Split base64 message:\n{dst}");
+    dst
+}
+
+fn line_merge(src: String) -> String {
+    let mut dst = String::default();
+    for next in src.split("\n") {
+        dst.push_str(next);
+    }
+    debug3!("Merged base64 message:\n{dst}");
+    dst
+}
+
