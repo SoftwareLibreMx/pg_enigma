@@ -2,8 +2,11 @@ use openssl::base64::{decode_block,encode_block};
 use openssl::encrypt::{Decrypter,Encrypter};
 use openssl::pkey::{PKey,Private,Public};
 use openssl::rsa::Padding;
-use pgrx::{debug2};
+use pgrx::{debug2,info};
 //use std::fmt::Display;
+
+const BASE64_LINE_WRAP: usize = 65;
+const BASE64_MAX_LEN: usize = 8000;
 
 const RSA_BEGIN: &str = "-----BEGIN RSA ENCRYPTED-----\n";
 const RSA_END: &str = "\n-----END RSA ENCRYPTED-----";
@@ -64,7 +67,7 @@ pub fn rsa_encrypt(pub_key: &PKey<Public>, message: String)
     let encoded_len = encrypter.encrypt(&as_bytes, &mut encoded)?;
     // Use only the part of the buffer with the encoded data
     let encoded = &encoded[..encoded_len];
-    Ok(encode_block(encoded))
+    Ok(line_wrap(encode_block(encoded),BASE64_LINE_WRAP))
 }
 
 pub fn rsa_decrypt(key: &PKey<Private>, msg: String)
@@ -84,4 +87,22 @@ pub fn rsa_decrypt(key: &PKey<Private>, msg: String)
     Ok(clear_text)
 }
 
+
+/*********************
+ * PRIVATE FUNCTIONS *
+ * *******************/
+
+fn line_wrap(src: String, len: usize) -> String {
+    let (first, tail) = src.split_at(len);
+    let mut dst = String::from(first);
+    let mut tail_len = tail.len();
+    while tail_len > len && dst.len() < BASE64_MAX_LEN {
+        info!("Tail length: {tail_len}");
+        let (next, tail) = tail.split_at(len);
+        tail_len = tail.len();
+        dst.push_str("\n");
+        dst.push_str(next);
+    }
+    dst
+}
 
