@@ -1,0 +1,9 @@
+
+Value storage (ASSIGNMENT CAST)
+https://www.postgresql.org/docs/current/typeconv-query.html
+
+Proposal to adjust typmod argument on base UDT input functions
+https://www.postgresql.org/message-id/1782006.1754630325%40sss.pgh.pa.us
+https://www.postgresql.org/message-id/1778630.1754628382%40sss.pgh.pa.us
+
+
