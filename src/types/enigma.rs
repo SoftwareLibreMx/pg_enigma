@@ -3,6 +3,7 @@ use crate::common::*;
 use crate::{PRIV_KEYS,PUB_KEYS};
 use crate::crypt::openssl::*;
 use crate::crypt::pgp::*;
+use enigma_macros::EnigmaType;
 use pgrx::callconv::{ArgAbi, BoxRet};
 use pgrx::datum::Datum;
 use pgrx::{
@@ -19,14 +20,15 @@ use super::enigma_rsa::{E_RSA_INT,E_RSA_TAG,Ersa};
 use super::legacy::{ENIGMA_INT,Legacy};
 
 /// Value stores entcrypted information
-#[derive( Clone, Debug)]
+#[derive( Clone, Debug, EnigmaType)]
+#[Plain]
 pub enum Enigma {
     /// PGP message
     PGP(u32,String),
     /// OpenSSL RSA encrypted message
     RSA(u32,String), 
     /// Plain unencrypted message
-    Plain(String)
+    Plain(std::string::String)
 }
 
 impl TryFrom<&str> for Enigma {
@@ -145,7 +147,7 @@ impl Display for Enigma {
     }
 }
 
-// TODO: #[derive(EnigmaPlain)]
+/* #[derive(EnigmaPlain)] 
 impl Plain for Enigma {
     fn plain(value: String) -> Self {
         Self::Plain(value)
@@ -154,7 +156,7 @@ impl Plain for Enigma {
     fn is_plain(&self) -> bool {
         matches!(*self, Self::Plain(_))
     }
-}
+} */
 
 impl Enigma {
     pub fn pgp(id: u32, value: String) -> Self {

@@ -910,6 +910,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "enigma_macros"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "enum-map"
 version = "2.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1876,6 +1885,7 @@ dependencies = [
 name = "pg_enigma"
 version = "0.5.0"
 dependencies = [
+ "enigma_macros",
  "hex",
  "once_cell",
  "openssl",

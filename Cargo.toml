@@ -28,6 +28,8 @@ pgp = "~0.17.0"
 pgrx = "~0.16.1"
 rand_chacha = "~0.3.1" #TODO: 0.9.0
 
+enigma_macros = { path = "./enigma_macros" }
+
 [dev-dependencies]
 pgrx-tests = "~0.16.1"
 
