@@ -21,7 +21,7 @@ use super::legacy::{ENIGMA_INT,Legacy};
 
 /// Value stores entcrypted information
 #[derive( Clone, Debug, EnigmaType)]
-#[enigma_impl(TryFromString)]
+#[enigma_impl(TryFromString, Boilerplate)]
 pub enum Enigma {
     /// PGP message
     PGP(u32,String),
@@ -424,7 +424,7 @@ fn enigma_typmod_in(input: Array<&CStr>)
 *                                                                         *
 **************************************************************************/
 
-// TODO: #[derive(EnigmaBoilerplate)]
+/* TODO: #[derive(EnigmaBoilerplate)]
 // Boilerplate traits for converting type to postgres internals
 // Needed for the FunctionMetadata trait
 unsafe impl SqlTranslatable for Enigma {
@@ -503,5 +503,5 @@ impl IntoDatum for Enigma {
         rust_regtypein::<Self>()
     }
 }
-
+*/
 
