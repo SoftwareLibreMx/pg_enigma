@@ -21,14 +21,14 @@ use super::legacy::{ENIGMA_INT,Legacy};
 
 /// Value stores entcrypted information
 #[derive( Clone, Debug, EnigmaType)]
-#[Plain]
+#[enigma_impl(TryFromString)]
 pub enum Enigma {
     /// PGP message
     PGP(u32,String),
     /// OpenSSL RSA encrypted message
     RSA(u32,String), 
     /// Plain unencrypted message
-    Plain(std::string::String)
+    Plain(String)
 }
 
 impl TryFrom<&str> for Enigma {
@@ -66,7 +66,7 @@ impl TryFrom<&str> for Enigma {
     }
 } 
 
-// TODO: #[derive(EnigmaTryFrom)]
+/* TODO: #[derive(EnigmaTryFrom)]
 impl TryFrom<String> for Enigma {
     type Error = Box<dyn std::error::Error + 'static>;
 
@@ -97,7 +97,7 @@ impl TryFrom<&CStr> for Enigma {
     fn try_from(value: &CStr) -> Result<Self, Self::Error> {
         Self::try_from(value.to_str()?)
     }
-}
+} */
 
 impl From<Epgp> for Enigma {
     fn from(value: Epgp) -> Self {
