@@ -1,7 +1,7 @@
 use proc_macro::TokenStream;
 use proc_macro2;
 use quote::{quote};
-use syn::{parse_macro_input, DeriveInput };
+use syn::{parse_macro_input, DeriveInput, Ident};
 
 /** Genera las implementaciones de traits para un tipo Enigma
 
@@ -24,6 +24,7 @@ pub fn enigma_derive(input: TokenStream) -> TokenStream {
     let mut try_from_string = proc_macro2::TokenStream::new();
     //let mut plain = proc_macro2::TokenStream::new();
     let plain = derive_plain(&input);
+    let mut type_funcs = proc_macro2::TokenStream::new();
     let mut boilerplate = proc_macro2::TokenStream::new();
 
     for attr in &input.attrs {
@@ -38,11 +39,14 @@ pub fn enigma_derive(input: TokenStream) -> TokenStream {
     }
     for token in tokens {
         match token.to_string().as_str() {
-            "TryFromString" => {
-                try_from_string = derive_try_from_string(&input);
-            },
             "Boilerplate" => {
                 boilerplate = derive_boilerplate(&input);
+            },
+            "InOutFuncs" => {
+                type_funcs = derive_in_out_funcs(&input);
+            },
+            "TryFromString" => {
+                try_from_string = derive_try_from_string(&input);
             },
             _ => {}
         }
@@ -52,6 +56,7 @@ pub fn enigma_derive(input: TokenStream) -> TokenStream {
     let expanded = quote! {
         #try_from_string
         #plain
+        #type_funcs
         #boilerplate
     };
     // Convert the generated code back to a TokenStream and return it
@@ -145,6 +150,88 @@ fn derive_try_from_string(ast: &DeriveInput) -> proc_macro2::TokenStream {
     }
 }
 
+
+/**********************************
+ * POSTGRES CREATE TYPE FUNCTIONS *
+ * ********************************/
+
+fn derive_in_out_funcs(ast: &DeriveInput) -> proc_macro2::TokenStream {
+    // Get the name of the struct
+    let name = &ast.ident;
+    let funcname_in = 
+        Ident::new(&format!("{name}_input").to_lowercase(), name.span());
+    let funcname_out = 
+        Ident::new(&format!("{name}_output").to_lowercase(), name.span());
+    let funcname_typmod = Ident::new(
+            &format!("{name}_typmod_in").to_lowercase(), name.span());
+    // Error messages
+    let e_ambiguous = format!("INPUT: {name} Typmod is ambiguous.\n\
+                    You should cast the value as ::Text\n\
+                    More details in issue #4 \
+        https://git.softwarelibre.mx/SoftwareLibreMx/pg_enigma/issues/4\
+                    ");
+    let e_single_int = 
+        format!("{name} type modifier must be a single integer value");
+    let e_possitive_int = 
+        format!("{name} type modifier must be a positive integer");
+
+    quote! {
+        /// INPUT function for CREATE TYPE
+        #[pg_extern(stable, parallel_safe, requires = [ "shell_type" ])]
+        fn #funcname_in(input: &CStr, oid: pg_sys::Oid, typmod: i32) 
+        -> Result<#name, Box<dyn std::error::Error + 'static>> {
+            //debug2!("INPUT: OID: {:?},  Typmod: {}", oid, typmod);
+            debug5!("INPUT: ARGUMENTS: \
+                Input: {:?}, OID: {:?},  Typmod: {}", input, oid, typmod);
+            let value =  #name::try_from(input)?;
+            if value.is_encrypted() {
+                info!("Already encrypted"); 
+                return Ok(value);
+            }
+            if typmod == -1 { // unknown typmod 
+                //debug1!("Unknown typmod: {typmod}");
+                return Err(#e_ambiguous.into());
+            }
+            value.encrypt(typmod)
+        }
+
+        /// OUTPUT function for CREATE TYPE
+        #[pg_extern(stable, parallel_safe, requires = [ "shell_type" ])]
+        fn #funcname_out(value: #name) 
+        -> Result<&'static CStr, Box<dyn std::error::Error + 'static>> {
+            //debug2!("OUTPUT");
+            debug5!("OUTPUT: {}", value);
+            let decrypted = value.decrypt()?;
+            let mut buffer = StringInfo::new();
+            buffer.push_str(decrypted.to_string().as_str());
+            //TODO try to avoid this unsafe
+            let ret = unsafe { buffer.leak_cstr() };
+            Ok(ret)
+        }
+
+        /// TYPMOD_IN function for CREATE TYPE.
+        /// converts typmod from cstring to i32
+        #[pg_extern(immutable, parallel_safe, requires = [ "shell_type" ])]
+        fn #funcname_typmod(input: Array<&CStr>) 
+        -> Result<i32, Box<dyn std::error::Error + 'static>> {
+            debug2!("TYPMOD_IN");
+            if input.len() != 1 {
+                return Err(#e_single_int.into());
+            }
+            let typmod = input.iter() // iterator
+            .next() // Option<Item>
+            .ok_or("No Item")? // Item
+            .ok_or("Null item")? // &Cstr
+            .to_str()? //&str
+            .parse::<i32>()?; // i32
+            debug1!("TYPMOD_IN({typmod})");
+            if typmod < 0 {
+                return Err(#e_possitive_int.into());
+            }
+            Ok(typmod)
+        }
+    }
+}
 
 
 /**************************************************************************

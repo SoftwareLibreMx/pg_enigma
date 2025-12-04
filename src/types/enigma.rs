@@ -21,7 +21,7 @@ use super::legacy::{ENIGMA_INT,Legacy};
 
 /// Value stores entcrypted information
 #[derive( Clone, Debug, EnigmaType)]
-#[enigma_impl(TryFromString, Boilerplate)]
+#[enigma_impl(TryFromString, InOutFuncs, Boilerplate)]
 pub enum Enigma {
     /// PGP message
     PGP(u32,String),
@@ -238,7 +238,7 @@ impl Enigma {
  * POSTGRES FUNCTIONS *
  * ********************/
 
-/// Functions for extracting and inserting data
+/* // Functions for extracting and inserting data
 #[pg_extern(stable, parallel_safe, requires = [ "shell_type" ])]
 fn enigma_input(input: &CStr, oid: pg_sys::Oid, typmod: i32) 
 -> Result<Enigma, Box<dyn std::error::Error + 'static>> {
@@ -259,7 +259,7 @@ fn enigma_input(input: &CStr, oid: pg_sys::Oid, typmod: i32)
             ".into());
     }
     enigma.encrypt(typmod)
-}
+} */
 
 /// Assignment cast is called before the INPUT function.
 #[pg_extern]
@@ -364,7 +364,7 @@ fn enigma_receive(mut internal: Internal, oid: pg_sys::Oid, typmod: i32)
 
 } 
 
-/// Enigma OUTPUT function
+/* // Enigma OUTPUT function
 /// Sends Enigma to Postgres converted to `&Cstr`
 #[pg_extern(stable, parallel_safe, requires = [ "shell_type" ])]
 fn enigma_output(enigma: Enigma) 
@@ -377,7 +377,7 @@ fn enigma_output(enigma: Enigma)
 	//TODO try to avoid this unsafe
 	let ret = unsafe { buffer.leak_cstr() };
     Ok(ret)
-}
+} */
 
 /// Enigma SEND function
 #[pg_extern(stable, parallel_safe, requires = [ "shell_type" ])]
@@ -390,7 +390,7 @@ fn enigma_send(enigma: Enigma)
 }
 
 
-/// Enigma TYPMOD_IN function.
+/* // Enigma TYPMOD_IN function.
 /// converts typmod from cstring to i32
 #[pg_extern(immutable, parallel_safe, requires = [ "shell_type" ])]
 fn enigma_typmod_in(input: Array<&CStr>) 
@@ -412,7 +412,7 @@ fn enigma_typmod_in(input: Array<&CStr>)
             "Enigma type modifier must be a positive integer".into());
     }
     Ok(typmod)
-}
+} */
 
 
 
