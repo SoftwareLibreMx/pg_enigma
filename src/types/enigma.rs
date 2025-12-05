@@ -21,7 +21,7 @@ use super::legacy::{ENIGMA_INT,Legacy};
 
 /// Value stores entcrypted information
 #[derive( Clone, Debug, EnigmaType)]
-#[enigma_impl(TryFromString, InOutFuncs, Boilerplate)]
+#[enigma_impl(TryFromString, InOutFuncs, BinaryFuncs, Boilerplate)]
 pub enum Enigma {
     /// PGP message
     PGP(u32,String),
@@ -330,7 +330,7 @@ fn enigma_as_enigma(original: Enigma, typmod: i32, explicit: bool)
     original.encrypt(key_id)
 }
 
-/// Enigma RECEIVE function
+/* // Enigma RECEIVE function
 #[pg_extern(stable, parallel_safe, requires = [ "shell_type" ])]
 fn enigma_receive(mut internal: Internal, oid: pg_sys::Oid, typmod: i32) 
 -> Result<Enigma, Box<dyn std::error::Error + 'static>> {
@@ -362,7 +362,7 @@ fn enigma_receive(mut internal: Internal, oid: pg_sys::Oid, typmod: i32)
     }
     enigma.encrypt(typmod)
 
-} 
+} */
 
 /* // Enigma OUTPUT function
 /// Sends Enigma to Postgres converted to `&Cstr`

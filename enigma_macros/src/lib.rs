@@ -25,6 +25,7 @@ pub fn enigma_derive(input: TokenStream) -> TokenStream {
     //let mut plain = proc_macro2::TokenStream::new();
     let plain = derive_plain(&input);
     let mut type_funcs = proc_macro2::TokenStream::new();
+    let mut binary_funcs = proc_macro2::TokenStream::new();
     let mut boilerplate = proc_macro2::TokenStream::new();
 
     for attr in &input.attrs {
@@ -39,6 +40,9 @@ pub fn enigma_derive(input: TokenStream) -> TokenStream {
     }
     for token in tokens {
         match token.to_string().as_str() {
+            "BinaryFuncs" => {
+                binary_funcs = derive_binary_funcs(&input);
+            },
             "Boilerplate" => {
                 boilerplate = derive_boilerplate(&input);
             },
@@ -57,6 +61,7 @@ pub fn enigma_derive(input: TokenStream) -> TokenStream {
         #try_from_string
         #plain
         #type_funcs
+        #binary_funcs
         #boilerplate
     };
     // Convert the generated code back to a TokenStream and return it
@@ -233,6 +238,52 @@ fn derive_in_out_funcs(ast: &DeriveInput) -> proc_macro2::TokenStream {
     }
 }
 
+/********************************************
+ * POSTGRE BINARY FUNCTIONS FOR CREATE TYPE *
+ * ******************************************/
+
+fn derive_binary_funcs(ast: &DeriveInput) -> proc_macro2::TokenStream {
+    // Get the name of the struct
+    let name = &ast.ident;
+    let e_ambiguous = format!("RECEIVE: {name} Typmod is ambiguous.\n\
+                    You should cast the value as ::Text\n\
+                    More details in issue #4\
+        https://git.softwarelibre.mx/SoftwareLibreMx/pg_enigma/issues/4\
+                    ");
+    let funcname_recv = 
+        Ident::new(&format!("{name}_receive").to_lowercase(), name.span());
+    quote! {
+        /// RECEIVE function FOR CREATE TYPE
+        #[pg_extern(stable, parallel_safe, requires = [ "shell_type" ])]
+        fn #funcname_recv(
+        mut internal: Internal, oid: pg_sys::Oid, typmod: i32) 
+        -> Result<#name, Box<dyn std::error::Error + 'static>> {
+            debug2!("RECEIVE: OID: {:?},  Typmod: {}", oid, typmod);
+            let buf = unsafe { 
+                internal.get_mut::<::pgrx::pg_sys::StringInfoData>().unwrap() 
+            };
+            let mut serialized = ::pgrx::StringInfo::new();
+            // reserve space for the header
+            serialized.push_bytes(&[0u8; ::pgrx::pg_sys::VARHDRSZ]); 
+            serialized.push_bytes(unsafe {
+                core::slice::from_raw_parts(
+                    buf.data as *const u8,
+                    buf.len as usize )
+            });
+            debug5!("RECEIVE value: {}", serialized);
+            let value =  #name::try_from(serialized)?;
+            // TODO: Repeated: copied from value_input()
+            if value.is_encrypted() {
+                info!("Already encrypted"); 
+                return Ok(value);
+            }
+            if typmod == -1 { // unknown typmod 
+                return Err(#e_ambiguous.into());
+            }
+            value.encrypt(typmod)
+        } 
+    }
+}
 
 /**************************************************************************
 *                                                                         *
