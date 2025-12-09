@@ -3,7 +3,7 @@ use proc_macro2;
 use quote::{quote};
 use syn::{parse_macro_input, DeriveInput, Ident};
 
-/** Genera las implementaciones de traits para un tipo Enigma
+/** Generates trait impls and Postgres functions for Enigma type
 
 ```
 #![derive (EnigmaType)]
@@ -26,7 +26,8 @@ pub fn enigma_derive(input: TokenStream) -> TokenStream {
     let plain = derive_plain(&input);
     let mut type_funcs = proc_macro2::TokenStream::new();
     let mut binary_funcs = proc_macro2::TokenStream::new();
-    let mut boilerplate = proc_macro2::TokenStream::new();
+    let mut cast_funcs = proc_macro2::TokenStream::new();
+    let mut from_into_datum = proc_macro2::TokenStream::new();
 
     for attr in &input.attrs {
         if let Some(segment) = attr.path().segments.first() {
@@ -43,8 +44,11 @@ pub fn enigma_derive(input: TokenStream) -> TokenStream {
             "BinaryFuncs" => {
                 binary_funcs = derive_binary_funcs(&input);
             },
-            "Boilerplate" => {
-                boilerplate = derive_boilerplate(&input);
+            "CastFuncs" => {
+                cast_funcs = derive_cast_funcs(&input);
+            },
+            "FromIntoDatum" => {
+                from_into_datum = derive_from_into_datum(&input);
             },
             "InOutFuncs" => {
                 type_funcs = derive_in_out_funcs(&input);
@@ -52,7 +56,9 @@ pub fn enigma_derive(input: TokenStream) -> TokenStream {
             "TryFromString" => {
                 try_from_string = derive_try_from_string(&input);
             },
-            _ => {}
+            _ => {
+                //panic!("enigma_impl({}) attribute not supported", token);
+            }
         }
     }
 
@@ -62,7 +68,8 @@ pub fn enigma_derive(input: TokenStream) -> TokenStream {
         #plain
         #type_funcs
         #binary_funcs
-        #boilerplate
+        #cast_funcs
+        #from_into_datum
     };
     // Convert the generated code back to a TokenStream and return it
     TokenStream::from(expanded)
@@ -238,9 +245,9 @@ fn derive_in_out_funcs(ast: &DeriveInput) -> proc_macro2::TokenStream {
     }
 }
 
-/********************************************
- * POSTGRE BINARY FUNCTIONS FOR CREATE TYPE *
- * ******************************************/
+/*********************************************
+ * POSTGRES BINARY FUNCTIONS FOR CREATE TYPE *
+ * *******************************************/
 
 fn derive_binary_funcs(ast: &DeriveInput) -> proc_macro2::TokenStream {
     // Get the name of the struct
@@ -252,6 +259,9 @@ fn derive_binary_funcs(ast: &DeriveInput) -> proc_macro2::TokenStream {
                     ");
     let funcname_recv = 
         Ident::new(&format!("{name}_receive").to_lowercase(), name.span());
+    let funcname_send = 
+        Ident::new(&format!("{name}_send").to_lowercase(), name.span());
+        
     quote! {
         /// RECEIVE function FOR CREATE TYPE
         #[pg_extern(stable, parallel_safe, requires = [ "shell_type" ])]
@@ -282,6 +292,78 @@ fn derive_binary_funcs(ast: &DeriveInput) -> proc_macro2::TokenStream {
             }
             value.encrypt(typmod)
         } 
+
+        /// SEND function FOR CREATE TYPE
+        #[pg_extern(stable, parallel_safe, requires = [ "shell_type" ])]
+        fn #funcname_send(value: #name) 
+        -> Result<Vec<u8>, Box<dyn std::error::Error + 'static>> {
+            //debug2!("SEND");
+            debug5!("SEND: {}", value);
+            let decrypted = value.decrypt()?;
+            Ok(decrypted.to_string().into_bytes())
+        }
+    }
+}
+
+/***************************
+ * POSTGRES CAST FUNCTIONS *
+ * *************************/
+
+fn derive_cast_funcs(ast: &DeriveInput) -> proc_macro2::TokenStream {
+    // Get the name of the struct
+    let name = &ast.ident;
+    let funcname_assignment = Ident::new(
+            &format!("string_as_{name}").to_lowercase(), name.span());
+    let funcname_sizing = Ident::new(
+            &format!("{name}_as_{name}").to_lowercase(), name.span());
+    let d2_assignment = format!( "CAST(Text as {}): \
+            ARGUMENTS: explicit: {{explicit}},  Typmod: {{typmod}}",
+            name);
+    let d2_sizing = format!( "CAST({} AS {}): \
+            ARGUMENTS: explicit: {{explicit}},  Typmod: {{typmod}}",
+            name, name);
+        
+    quote! {
+        /// Assignment cast is called before the INPUT function.
+        #[pg_extern]
+        fn #funcname_assignment(
+        original: String, typmod: i32, explicit: bool) 
+        -> Result<#name, Box<dyn std::error::Error + 'static>> {
+            debug2!(#d2_assignment);
+            let key_id = match typmod {
+                -1 => { debug1!("Unknown typmod; using default key ID 0");
+                    0 },
+                _ => typmod
+            };
+            #name::try_from(original)?.encrypt(key_id)
+        }
+
+        /// Sizing cast is called after the INPUT function only when using 
+        /// a typmod and the INPUT function is passed -1 as typmod value. 
+        /// This function is passed the correct known typmod argument.
+        #[pg_extern(stable, parallel_safe)]
+        fn #funcname_sizing(original: #name, typmod: i32, explicit: bool) 
+        -> Result<#name, Box<dyn std::error::Error + 'static>> {
+            debug2!(#d2_sizing);
+            debug5!("Original: {:?}", original);
+            if original.is_encrypted() {
+                // TODO: if original.key_id != key_id {try_reencrypt()} 
+                return Ok(original);
+            } 
+            let key_id = match typmod {
+                -1 => match explicit { 
+                    // Implicit is not called when no typmod
+                    false => return Err( 
+                        format!("Unknown typmod: {}", typmod).into()),
+                    true => { debug1!(
+                        "Unknown typmod; using default key ID 0");
+                    0}
+                },
+                _ => typmod
+            };
+            debug2!("Encrypting plain message with key ID: {key_id}");
+            original.encrypt(key_id)
+        }
     }
 }
 
@@ -292,7 +374,7 @@ fn derive_binary_funcs(ast: &DeriveInput) -> proc_macro2::TokenStream {
 **************************************************************************/
 /// Boilerplate traits for converting type to postgres internals
 /// Needed for the FunctionMetadata trait
-fn derive_boilerplate(ast: &DeriveInput) -> proc_macro2::TokenStream {
+fn derive_from_into_datum(ast: &DeriveInput) -> proc_macro2::TokenStream {
     // Get the name of the struct
     let name = &ast.ident;
     let myname = format!("{name}");

@@ -21,7 +21,13 @@ use super::legacy::{ENIGMA_INT,Legacy};
 
 /// Value stores entcrypted information
 #[derive( Clone, Debug, EnigmaType)]
-#[enigma_impl(TryFromString, InOutFuncs, BinaryFuncs, Boilerplate)]
+#[enigma_impl(
+    TryFromString, 
+    InOutFuncs, 
+    BinaryFuncs, 
+    CastFuncs, 
+    FromIntoDatum
+)]
 pub enum Enigma {
     /// PGP message
     PGP(u32,String),
@@ -261,7 +267,7 @@ fn enigma_input(input: &CStr, oid: pg_sys::Oid, typmod: i32)
     enigma.encrypt(typmod)
 } */
 
-/// Assignment cast is called before the INPUT function.
+/* // Assignment cast is called before the INPUT function.
 #[pg_extern]
 fn string_as_enigma(original: String, typmod: i32, explicit: bool) 
 -> Result<Enigma, Box<dyn std::error::Error + 'static>> {
@@ -273,7 +279,7 @@ fn string_as_enigma(original: String, typmod: i32, explicit: bool)
         _ => typmod
     };
     Enigma::try_from(original)?.encrypt(key_id)
-}
+} */
 
 /*
 #[pg_extern]
@@ -305,7 +311,7 @@ fn u8_as_enigma<'fcx>(original: &'fcx [u8], typmod: i32, explicit: bool)
 }
 */
 
-/// Cast enigma to enigma is called after enigma_input_with_typmod(). 
+/* // Cast enigma to enigma is called after enigma_input_with_typmod(). 
 /// This function is passed the correct known typmod argument.
 #[pg_extern(stable, parallel_safe)]
 fn enigma_as_enigma(original: Enigma, typmod: i32, explicit: bool) 
@@ -328,7 +334,7 @@ fn enigma_as_enigma(original: Enigma, typmod: i32, explicit: bool)
     };
     debug2!("Encrypting plain message with key ID: {key_id}");
     original.encrypt(key_id)
-}
+} */
 
 /* // Enigma RECEIVE function
 #[pg_extern(stable, parallel_safe, requires = [ "shell_type" ])]
@@ -379,7 +385,7 @@ fn enigma_output(enigma: Enigma)
     Ok(ret)
 } */
 
-/// Enigma SEND function
+/* // Enigma SEND function
 #[pg_extern(stable, parallel_safe, requires = [ "shell_type" ])]
 fn enigma_send(enigma: Enigma) 
 -> Result<Vec<u8>, Box<dyn std::error::Error + 'static>> {
@@ -387,7 +393,7 @@ fn enigma_send(enigma: Enigma)
 	debug5!("SEND: {}", enigma);
     let decrypted = enigma.decrypt()?;
     Ok(decrypted.to_string().into_bytes())
-}
+} */
 
 
 /* // Enigma TYPMOD_IN function.
