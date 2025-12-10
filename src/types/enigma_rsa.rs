@@ -112,9 +112,9 @@ impl Ersa {
         Self::RSA(id, rsa_trim_envelope(value))
     }
 
-    pub fn is_rsa(&self) -> bool {
+    /* pub fn is_rsa(&self) -> bool {
         matches!(*self, Self::RSA(_,_))
-    }
+    } */
 
     pub fn key_id(&self) -> Option<u32> {
         match self {

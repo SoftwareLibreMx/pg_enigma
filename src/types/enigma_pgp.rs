@@ -112,9 +112,9 @@ impl Epgp {
         Self::PGP(id, pgp_trim_envelope(value))
     }
 
-    pub fn is_pgp(&self) -> bool {
+    /* pub fn is_pgp(&self) -> bool {
         matches!(*self, Self::PGP(_,_))
-    }
+    } */
 
     pub fn key_id(&self) -> Option<u32> {
         match self {
