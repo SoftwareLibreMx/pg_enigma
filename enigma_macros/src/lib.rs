@@ -24,7 +24,7 @@ pub fn enigma_derive(input: TokenStream) -> TokenStream {
     let mut try_from_string = proc_macro2::TokenStream::new();
     //let mut plain = proc_macro2::TokenStream::new();
     let plain = derive_plain(&input);
-    let mut type_funcs = proc_macro2::TokenStream::new();
+    let mut in_out_funcs = proc_macro2::TokenStream::new();
     let mut binary_funcs = proc_macro2::TokenStream::new();
     let mut cast_funcs = proc_macro2::TokenStream::new();
     let mut from_into_datum = proc_macro2::TokenStream::new();
@@ -51,13 +51,23 @@ pub fn enigma_derive(input: TokenStream) -> TokenStream {
                 from_into_datum = derive_from_into_datum(&input);
             },
             "InOutFuncs" => {
-                type_funcs = derive_in_out_funcs(&input);
+                in_out_funcs = derive_in_out_funcs(&input);
             },
             "TryFromString" => {
                 try_from_string = derive_try_from_string(&input);
             },
+            "FullBoilerplate" => {
+                binary_funcs = derive_binary_funcs(&input);
+                cast_funcs = derive_cast_funcs(&input);
+                from_into_datum = derive_from_into_datum(&input);
+                in_out_funcs = derive_in_out_funcs(&input);
+                try_from_string = derive_try_from_string(&input);
+            },
+            "," => {
+                // separator is also a token
+            },
             _ => {
-                //panic!("enigma_impl({}) attribute not supported", token);
+                panic!("enigma_impl({}) attribute not supported", token);
             }
         }
     }
@@ -66,7 +76,7 @@ pub fn enigma_derive(input: TokenStream) -> TokenStream {
     let expanded = quote! {
         #try_from_string
         #plain
-        #type_funcs
+        #in_out_funcs
         #binary_funcs
         #cast_funcs
         #from_into_datum

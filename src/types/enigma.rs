@@ -21,13 +21,7 @@ use super::legacy::{ENIGMA_INT,Legacy};
 
 /// Value stores entcrypted information
 #[derive( Clone, Debug, EnigmaType)]
-#[enigma_impl(
-    TryFromString, 
-    InOutFuncs, 
-    BinaryFuncs, 
-    CastFuncs, 
-    FromIntoDatum
-)]
+#[enigma_impl( FullBoilerplate )]
 pub enum Enigma {
     /// PGP message
     PGP(u32,String),
