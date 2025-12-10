@@ -4,6 +4,7 @@ use crate::{PRIV_KEYS,PUB_KEYS};
 use crate::crypt::pgp::*;
 use crate::pub_key::PubKey;
 use crate::priv_key::PrivKey;
+use enigma_macros::EnigmaType;
 use pgrx::callconv::{ArgAbi, BoxRet};
 use pgrx::datum::Datum;
 use pgrx::{
@@ -22,7 +23,8 @@ pub const E_PGP_TAG: &str = "PgE_PGP1"; // 0x5067455F50475031
 pub const E_PGP_INT: u64  = 0x5067455F50475031; // "PgE_PGP1"
 
 /// Value stores PGP-encrypted message
-#[derive( Clone, Debug)]
+#[derive( Clone, Debug, EnigmaType)]
+#[enigma_impl( FullBoilerplate )]
 pub enum Epgp {
     /// PGP message
     PGP(u32,String),
@@ -61,7 +63,7 @@ impl TryFrom<&str> for Epgp {
     }
 } 
 
-impl TryFrom<String> for Epgp {
+/* impl TryFrom<String> for Epgp {
     type Error = Box<dyn std::error::Error + 'static>;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
@@ -91,7 +93,7 @@ impl TryFrom<&CStr> for Epgp {
     fn try_from(value: &CStr) -> Result<Self, Self::Error> {
         Self::try_from(value.to_str()?)
     }
-}
+} */
 
 impl TryFrom<Enigma> for Epgp {
     type Error = Box<dyn std::error::Error + 'static>;
@@ -137,7 +139,7 @@ impl Display for Epgp {
     }
 }
 
-// TODO: #[derive(EnigmaPlain)]
+/* / TODO: #[derive(EnigmaPlain)]
 impl Plain for Epgp {
     fn plain(value: String) -> Self {
         Self::Plain(value)
@@ -146,7 +148,7 @@ impl Plain for Epgp {
     fn is_plain(&self) -> bool {
         matches!(*self, Self::Plain(_))
     }
-}
+} */
 
 impl Epgp {
     pub fn pgp(id: u32, value: String) -> Self {
@@ -229,7 +231,7 @@ impl Epgp {
  * POSTGRES FUNCTIONS *
  * ********************/
 
-/// Functions for extracting and inserting data
+/* // Functions for extracting and inserting data
 #[pg_extern(stable, parallel_safe, requires = [ "shell_type" ])]
 fn epgp_input(input: &CStr, oid: pg_sys::Oid, typmod: i32) 
 -> Result<Epgp, Box<dyn std::error::Error + 'static>> {
@@ -374,7 +376,7 @@ fn epgp_typmod_in(input: Array<&CStr>)
     }
     Ok(typmod)
 }
-
+*/
 
 /**************************************************************************
 *                                                                         *
@@ -384,7 +386,7 @@ fn epgp_typmod_in(input: Array<&CStr>)
 *                                                                         *
 **************************************************************************/
 
-// TODO: #[derive(EnigmaBoilerplate)]
+/* / TODO: #[derive(EnigmaBoilerplate)]
 // Boilerplate traits for converting type to postgres internals
 // Needed for the FunctionMetadata trait
 unsafe impl SqlTranslatable for Epgp {
@@ -462,5 +464,5 @@ impl IntoDatum for Epgp {
         rust_regtypein::<Self>()
     }
 }
-
+*/
 

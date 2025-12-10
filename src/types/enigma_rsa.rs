@@ -4,6 +4,7 @@ use crate::{PRIV_KEYS,PUB_KEYS};
 use crate::crypt::openssl::*;
 use crate::pub_key::PubKey;
 use crate::priv_key::PrivKey;
+use enigma_macros::EnigmaType;
 use pgrx::callconv::{ArgAbi, BoxRet};
 use pgrx::datum::Datum;
 use pgrx::{
@@ -22,7 +23,8 @@ pub const E_RSA_TAG: &str = "PgE_RSA1"; // 0x5067455F52534131
 pub const E_RSA_INT: u64  = 0x5067455F52534131; // "PgE_RSA1"
 
 /// Value stores RSA-encrypted message
-#[derive( Clone, Debug)]
+#[derive( Clone, Debug, EnigmaType)]
+#[enigma_impl( FullBoilerplate )]
 pub enum Ersa {
     /// RSA message
     RSA(u32,String),
@@ -61,6 +63,7 @@ impl TryFrom<&str> for Ersa {
     }
 } 
 
+/* 
 impl TryFrom<String> for Ersa {
     type Error = Box<dyn std::error::Error + 'static>;
 
@@ -91,7 +94,7 @@ impl TryFrom<&CStr> for Ersa {
     fn try_from(value: &CStr) -> Result<Self, Self::Error> {
         Self::try_from(value.to_str()?)
     }
-}
+} */
 
 impl TryFrom<Enigma> for Ersa {
     type Error = Box<dyn std::error::Error + 'static>;
@@ -137,7 +140,7 @@ impl Display for Ersa {
     }
 }
 
-// TODO: #[derive(EnigmaPlain)]
+/* / TODO: #[derive(EnigmaPlain)]
 impl Plain for Ersa {
     fn plain(value: String) -> Self {
         Self::Plain(value)
@@ -146,7 +149,7 @@ impl Plain for Ersa {
     fn is_plain(&self) -> bool {
         matches!(*self, Self::Plain(_))
     }
-}
+} */
 
 impl Ersa {
     pub fn rsa(id: u32, value: String) -> Self {
@@ -229,7 +232,7 @@ impl Ersa {
  * POSTGRES FUNCTIONS *
  * ********************/
 
-/// Functions for extracting and inserting data
+/* // Functions for extracting and inserting data
 #[pg_extern(stable, parallel_safe, requires = [ "shell_type" ])]
 fn ersa_input(input: &CStr, oid: pg_sys::Oid, typmod: i32) 
 -> Result<Ersa, Box<dyn std::error::Error + 'static>> {
@@ -373,7 +376,7 @@ fn ersa_typmod_in(input: Array<&CStr>)
             "Ersa type modifier must be a positive integer".into());
     }
     Ok(typmod)
-}
+} */
 
 /**************************************************************************
 *                                                                         *
@@ -383,7 +386,7 @@ fn ersa_typmod_in(input: Array<&CStr>)
 *                                                                         *
 **************************************************************************/
 
-// TODO: #[derive(EnigmaBoilerplate)]
+/* / TODO: #[derive(EnigmaBoilerplate)]
 // Boilerplate traits for converting type to postgres internals
 // Needed for the FunctionMetadata trait
 unsafe impl SqlTranslatable for Ersa {
@@ -461,4 +464,5 @@ impl IntoDatum for Ersa {
         rust_regtypein::<Self>()
     }
 }
+*/
 
