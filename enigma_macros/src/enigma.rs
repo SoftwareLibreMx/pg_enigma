@@ -1,6 +1,6 @@
 use proc_macro2::TokenStream;
 use quote::{quote};
-use syn::{DeriveInput};
+use syn::{DeriveInput,TypePath, Variant};
 
 pub fn derive_plain(ast: &DeriveInput) -> TokenStream {
     let mut has_plain = false;
@@ -16,18 +16,7 @@ pub fn derive_plain(ast: &DeriveInput) -> TokenStream {
     // Look for Plain variant
     for variant in variants.iter() {
         if variant.ident.to_string().eq("Plain") {
-            if variant.fields.len() == 1 {
-                if let Some(field) = variant.fields.iter().next() {
-                    if let syn::Type::Path(path) = &field.ty  {
-                        for segment in path.path.segments.iter() {
-                            if segment.ident.to_string().eq("String") {
-                                has_plain = true;
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
+            has_plain = validate_plain_variant(variant, "String");
             break;
         }
     }
@@ -87,6 +76,37 @@ pub fn derive_try_from_string(ast: &DeriveInput) -> TokenStream {
             }
         }
     }
+}
+
+/*********************
+ * PRIVATE FUNCTIONS *
+ *********************/
+
+fn validate_plain_variant(variant: &Variant, needle: &str) -> bool {
+    if variant.fields.len() != 1 {
+        return false;
+    }
+
+    if let Some(field) = variant.fields.iter().next() {
+        // need nesting level to reference field
+        if let syn::Type::Path(path) = &field.ty  {
+            return validate_plain_path_segment(path, needle);
+        }
+    }
+    false
+}
+
+fn validate_plain_path_segment(path: &TypePath, needle: &str) -> bool {
+    if path.path.segments.len() != 1 {
+        return false;
+    }
+
+    if let Some(segment) = path.path.segments.iter().next() {
+        if segment.ident.to_string().eq(needle) {
+            return true;
+        }
+    }
+    false
 }
 
 
