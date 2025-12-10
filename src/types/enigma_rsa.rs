@@ -112,7 +112,6 @@ impl Ersa {
         Self::RSA(id, rsa_trim_envelope(value))
     }
 
-    #[allow(dead_code)]
     pub fn is_rsa(&self) -> bool {
         matches!(*self, Self::RSA(_,_))
     }
@@ -122,11 +121,6 @@ impl Ersa {
             Self::RSA(k,_) => Some(*k),
             Self::Plain(_) => None
         }
-    }
-
-    #[allow(dead_code)]
-    pub fn value(&self) -> String {
-        self.to_string()
     }
 
     /// Will look for the encryption key in it's key map and call

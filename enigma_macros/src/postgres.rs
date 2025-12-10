@@ -54,7 +54,7 @@ pub fn derive_in_out_funcs(ast: &DeriveInput) -> TokenStream {
             debug5!("OUTPUT: {}", value);
             let decrypted = value.decrypt()?;
             let mut buffer = StringInfo::new();
-            buffer.push_str(decrypted.to_string().as_str());
+            buffer.push_str(decrypted.value().as_str());
             //TODO try to avoid this unsafe
             let ret = unsafe { buffer.leak_cstr() };
             Ok(ret)
@@ -139,7 +139,7 @@ pub fn derive_binary_funcs(ast: &DeriveInput) -> TokenStream {
             //debug2!("SEND");
             debug5!("SEND: {}", value);
             let decrypted = value.decrypt()?;
-            Ok(decrypted.to_string().into_bytes())
+            Ok(decrypted.value().into_bytes())
         }
     }
 }
@@ -289,7 +289,7 @@ pub fn derive_from_into_datum(ast: &DeriveInput) -> TokenStream {
                         debug5!("Plain value: {}", s);
                         error!(#e_not_encrypted);
                     },
-                    _ => self.to_string()
+                    _ => self.value()
                 };
                 debug2!("IntoDatum value:\n{value}");
                 Some( value.into_datum().expect("IntoDatum error") )
