@@ -22,6 +22,17 @@ impl<T> IsEncrypted for T where T: Plain {
     }
 }
 
+pub trait Value {
+    /// get the value as a String
+    fn value(&self) -> String;
+}
+
+impl <T> Value for T where T: ToString {
+    fn value(&self) -> String {
+        self.to_string()
+    }
+}
+
 pub trait Encrypt<T> where T: IsEncrypted {
     fn encrypt(&self, id: u32, msg: T)
         -> Result<T, Box<dyn std::error::Error + 'static>>;

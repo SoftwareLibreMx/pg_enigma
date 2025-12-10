@@ -150,6 +150,7 @@ extension_sql_file!("../sql/ersa_casts.sql",
 #[pg_schema]
 mod tests {
     //use crate::Enigma;
+    use crate::common::Value;
     use crate::types::enigma::Enigma;
     use pgrx::prelude::*;
     use std::error::Error;
