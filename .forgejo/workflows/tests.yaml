@@ -1,18 +1,22 @@
 name: PG_ENIGMA for pg16 tests
-on: [push]
+on:
+  - push
+env:
+   PGRX_HOME=./.pgrx
 jobs:
   tests:
     runs-on: ubuntu-latest
     steps:
+      - run: apt update -y 
       - name: install deps
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --quiet -y
-          apt update -y 
           apt install -y libclang-dev clang build-essential libreadline-dev \
-              zlib1g-dev flex bison libxml2-dev libxslt-dev libssl-dev libxml2-utils xsltproc ccache pkg-config \
-              postgresql-16 postgresql-server-dev-16
+              zlib1g-dev flex bison libxml2-dev libxslt-dev libssl-dev libxml2-utils xsltproc ccache pkg-config
+      - run: . $HOME/.cargo/env
       - run: . $HOME/.cargo/env && cargo install --locked cargo-pgrx
       - name: Check out repository code
         uses: actions/checkout@v5
-      - run: . $HOME/.cargo/env && cargo pgrx init --pg16 pg_config
+      - run: . $HOME/.cargo/env && cargo pgrx init --pg16 download
       - run: . $HOME/.cargo/env && cargo pgrx  test pg16
+        env: PGRX_PG_CONFIG_PATH=$PGRX_HOME/16.11/pgrx-install/bin/pg_config

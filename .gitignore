@@ -12,3 +12,6 @@ cmake*/
 /bin
 *.diff
 debug/
+
+.pgrx
+.devenv*
