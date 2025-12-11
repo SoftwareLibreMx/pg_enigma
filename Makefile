@@ -15,9 +15,9 @@ test:
 
 build:
 	export PGRX_HOME=./.pgrx
-	cargo pgrx init --pg%{pg_version} /usr/bin/pg_config --no-run
+	cargo pgrx init --pg${POSTGRES_VERSION} /usr/bin/pg_config --no-run
 	export PGRX_PG_CONFIG_PATH=/usr/bin/pg_config
-	cargo pgrx package --no-default-features --features=pg%{pg_version} --verbose
+	cargo pgrx package --no-default-features --features=pg${POSTGRES_VERSION} --verbose
 
 install:
 	cargo pgrx install
