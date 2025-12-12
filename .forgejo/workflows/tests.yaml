@@ -5,21 +5,23 @@ env:
   PGRX_HOME: /root/.pgrx
   RUST_BACKTRACE: full
 jobs:
-  tests:
+  tests_ubuntu:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        pg_version: [16, 17, 18]
     steps:
       - run: pwd
       - run: apt update -y 
       - name: install deps
         run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --quiet -y
-          apt install -y libclang-dev clang build-essential libreadline-dev \
-              zlib1g-dev flex bison libxml2-dev libxslt-dev libssl-dev libxml2-utils xsltproc ccache pkg-config
-      - run: . $HOME/.cargo/env
-      - run: . $HOME/.cargo/env && cargo install --locked cargo-pgrx
+          apt install -y rustup libclang-dev clang build-essential libreadline-dev \
+              zlib1g-dev flex bison libxml2-dev libxslt-dev libssl-dev \
+              libxml2-utils xsltproc ccache pkg-config
+      - run:  cargo install --locked cargo-pgrx
       - name: Check out repository code
         uses: actions/checkout@v5
-      - run: . $HOME/.cargo/env && cargo pgrx init --pg16 download
-      - run: . $HOME/.cargo/env && cargo pgrx  test pg16
+      - run:  cargo pgrx init --pg${matrix.pg_version} download
+      - run:  cargo pgrx  test pg16
         env: 
           PGRX_PG_CONFIG_PATH: $PGRX_HOME/16.11/pgrx-install/bin/pg_config
