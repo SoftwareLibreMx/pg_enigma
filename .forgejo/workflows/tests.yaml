@@ -5,23 +5,30 @@ env:
   PGRX_HOME: /root/.pgrx
   RUST_BACKTRACE: full
 jobs:
-  tests_ubuntu:
-    runs-on: ubuntu-latest
+  tests:
     strategy:
       matrix:
-        pg_version: [16, 17, 18]
+        pg_version: [16] # [16,17,18]
+        os: [ubuntu-latest] #[ ubuntu-latest, centos-latest]
+    runs-on: ${{matrix.os}}
     steps:
-      - run: pwd
-      - run: apt update -y 
-      - name: install deps
+      - name: install  apt  deps
+        if: contains(runner.os, 'ubuntu')
         run: |
+          apt update -y 
           apt install -y rustup libclang-dev clang build-essential libreadline-dev \
               zlib1g-dev flex bison libxml2-dev libxslt-dev libssl-dev \
               libxml2-utils xsltproc ccache pkg-config
+      - name: install rpm deps
+        if: contains(runner.os, 'centos')
+        run: |
+          echo TBD
+      - run: rustup default stable
       - run:  cargo install --locked cargo-pgrx
       - name: Check out repository code
         uses: actions/checkout@v5
-      - run:  cargo pgrx init --pg${matrix.pg_version} download
-      - run:  cargo pgrx  test pg16
-        env: 
-          PGRX_PG_CONFIG_PATH: $PGRX_HOME/16.11/pgrx-install/bin/pg_config
+      - run:  cargo pgrx init --pg${{ matrix.pg_version}} download
+      - run: |
+          export PGRX_PG_CONFIG_PATH=$(find $PGRX_HOME/${{matrix.pg_version}}* -name pg_config)
+          echo $PGRX_PG_CONFIG_PATH
+          cargo pgrx  test pg${{matrix.pg_version}}
