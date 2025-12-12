@@ -13,10 +13,18 @@ endif
 .PHONY: test clean 
 
 run:
+ifdef POSTGRES_VERSION
+	cargo pgrx run pg${POSTGRES_VERSION}
+else
 	cargo pgrx run
+endif
 
 test:
+ifdef POSTGRES_VERSION
+	cargo pgrx test pg${POSTGRES_VERSION}
+else
 	cargo pgrx test
+endif
 
 postgres_version:
 
