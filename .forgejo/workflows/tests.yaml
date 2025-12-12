@@ -29,6 +29,6 @@ jobs:
         uses: actions/checkout@v5
       - run:  cargo pgrx init --pg${{ matrix.pg_version}} download
       - run: |
-          export PGRX_PG_CONFIG_PATH=$(find $PGRX_HOME/${{matrix.pg_version}}* -name pg_config)
+          export PGRX_PG_CONFIG_PATH=$(find $PGRX_HOME/${{matrix.pg_version}}*/pgrx-install/ -name pg_config)
           echo $PGRX_PG_CONFIG_PATH
           cargo pgrx  test pg${{matrix.pg_version}}
