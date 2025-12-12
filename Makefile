@@ -9,7 +9,7 @@ ifndef POSTGRES_VERSION
 	$(error environment variable)
 endif
 
-.PHONY: test clean 
+.PHONY: test clean
 
 run:
 ifdef POSTGRES_VERSION
