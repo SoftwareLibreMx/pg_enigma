@@ -2,11 +2,13 @@ name: PG_ENIGMA for pg16 tests
 on:
   - push
 env:
-   PGRX_HOME=./.pgrx
+  PGRX_HOME: /root/.pgrx
+  RUST_BACKTRACE: full
 jobs:
   tests:
     runs-on: ubuntu-latest
     steps:
+      - run: pwd
       - run: apt update -y 
       - name: install deps
         run: |
@@ -19,4 +21,5 @@ jobs:
         uses: actions/checkout@v5
       - run: . $HOME/.cargo/env && cargo pgrx init --pg16 download
       - run: . $HOME/.cargo/env && cargo pgrx  test pg16
-        env: PGRX_PG_CONFIG_PATH=$PGRX_HOME/16.11/pgrx-install/bin/pg_config
+        env: 
+          PGRX_PG_CONFIG_PATH: $PGRX_HOME/16.11/pgrx-install/bin/pg_config
