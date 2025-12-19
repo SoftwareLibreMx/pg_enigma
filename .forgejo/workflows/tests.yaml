@@ -1,9 +1,9 @@
 name: PG_ENIGMA for pg16 tests
 on:
   - push
-env:
-  PGRX_HOME: /root/.pgrx
-  RUST_BACKTRACE: full
+# env:
+#   PGRX_HOME: /root/.pgrx
+#   RUST_BACKTRACE: full
 jobs:
   tests:
     strategy:
@@ -15,7 +15,7 @@ jobs:
       - name: install  apt  deps
         if: contains(matrix.os, 'ubuntu')
         run: |
-          apt update -y && apt install -y rustup flex bison pkg-config  libssl-dev libreadline-dev zlib1g-dev
+          apt update -y && apt install -y rustup flex bison pkg-config  libssl-dev libreadline-dev zlib1g-dev libclang-dev clang
       - name: install rpm deps
         if: contains(matrix.os, 'centos')
         run: |
