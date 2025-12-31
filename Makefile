@@ -3,27 +3,27 @@
 # TODO: Obtain TEST_VERSIONS from Cargo.toml
 TEST_VERSIONS := 13 14 15 16 17 18
 
-required postgres_version:
-ifndef POSTGRES_VERSION
-	$(error Postgres version is needed, please define the POSTGRES_VERSION)
-	$(error environment variable)
-endif
+required_postgres_version:
+	ifndef POSTGRES_VERSION
+		$(error Postgres version is needed, please define the POSTGRES_VERSION)
+		$(error environment variable)
+	endif
 
 .PHONY: test clean
 
 run:
-ifdef POSTGRES_VERSION
-	cargo pgrx run pg${POSTGRES_VERSION}
-else
-	cargo pgrx run
-endif
+	ifdef POSTGRES_VERSION
+		cargo pgrx run pg${POSTGRES_VERSION}
+	else
+		cargo pgrx run
+	endif
 
 test:
-ifdef POSTGRES_VERSION
-	cargo pgrx test pg${POSTGRES_VERSION}
-else
-	cargo pgrx test
-endif
+	ifdef POSTGRES_VERSION
+		cargo pgrx test pg${POSTGRES_VERSION}
+	else
+		cargo pgrx test
+	endif
 
 test_all:
 	for V in $(TEST_VERSIONS) ; do \
