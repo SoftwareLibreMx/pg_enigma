@@ -27,14 +27,14 @@ endif
 
 test_all:
 	for V in $(TEST_VERSIONS) ; do \
-	echo "Testing for Postgres version: $$V" ; \
-	POSTGRES_VERSION=$$V make test; \
+		echo "Testing for Postgres version: $$V" ; \
+		POSTGRES_VERSION=$$V make test; \
 	done
 
 build: required_postgres_version
 	export PGRX_HOME=./.pgrx
-	cargo pgrx init --pg${POSTGRES_VERSION} /usr/bin/pg_config --no-run
 	export PGRX_PG_CONFIG_PATH=/usr/bin/pg_config
+	cargo pgrx init --pg${POSTGRES_VERSION} ${PGRX_PG_CONFIG_PATH} --no-run
 	cargo pgrx package --no-default-features --features=pg${POSTGRES_VERSION} --verbose
 
 install:
