@@ -9,10 +9,6 @@ jobs:
         os: [ubuntu-latest] #[ ubuntu-latest, centos-latest]
     runs-on: ${{matrix.os}}
     steps:
-      - run: |
-          useradd  -m dev
-          sudo sh -c 'echo "dev ALL=(ALL) ALL" >> /etc/sudoers'
-
       - name: install  apt  deps
         if: contains(matrix.os, 'ubuntu')
         run: |
@@ -22,12 +18,14 @@ jobs:
         run: |
           echo TBD
       - run: rustup default stable
-      - run:  cargo install --locked cargo-pgrx
+      - run: cargo install --locked cargo-pgrx
       - name: Check out repository code
         uses: actions/checkout@v5
-      - name: pgrx init 
-        if: steps.cache.outputs.cache-hit != 'true'
-        run:  cargo pgrx init --pg${{ matrix.pg_version}} download
       - run: |
-          export PGRX_PG_CONFIG_PATH=$(cargo pgrx info pg-config pg${{matrix.pg_version}})
-          cargo pgrx  test --runas dev pg${{ matrix.pg_version }} 
+          export PGRX_HOME=`pwd`/.pgrx
+          cargo pgrx init --pg${{ matrix.pg_version}} download -vv
+
+      # - run: |
+      #     export PGRX_PG_CONFIG_PATH=$(cargo pgrx info pg-config pg${{matrix.pg_version}})
+      #     mkdir .custom_pgdata
+      #     cargo pgrx  test --runas root pg${{ matrix.pg_version }}  -vv
