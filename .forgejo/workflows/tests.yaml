@@ -5,14 +5,14 @@ jobs:
   tests:
     strategy:
       matrix:
-        pg_version: [16] # [16,17,18]
+        pg_version: [16, 17, 18]
         os: [ubuntu-latest] #[ ubuntu-latest, centos-latest]
     runs-on: ${{matrix.os}}
     steps:
       - name: install  apt  deps
         if: contains(matrix.os, 'ubuntu')
         run: |
-          apt update -y && apt install -y rustup flex bison pkg-config  libssl-dev libreadline-dev zlib1g-dev libclang-dev clang
+          sudo apt update -y && sudo apt install -y rustup flex bison pkg-config  libssl-dev libreadline-dev zlib1g-dev libclang-dev clang
       - name: install rpm deps
         if: contains(matrix.os, 'centos')
         run: |
@@ -23,9 +23,10 @@ jobs:
         uses: actions/checkout@v5
       - run: |
           export PGRX_HOME=`pwd`/.pgrx
-          cargo pgrx init --pg${{ matrix.pg_version}} download -vv
-
-      # - run: |
-      #     export PGRX_PG_CONFIG_PATH=$(cargo pgrx info pg-config pg${{matrix.pg_version}})
-      #     mkdir .custom_pgdata
-      #     cargo pgrx  test --runas root pg${{ matrix.pg_version }}  -vv
+          export PGRX_PG_CONFIG_PATH=$(cargo pgrx info pg-config pg${{matrix.pg_version}} || echo 'download' )
+          cargo pgrx init  -vv --pg${{ matrix.pg_version}} $PGRX_PG_CONFIG_PATH
+      - run: |
+          export PGRX_HOME=`pwd`/.pgrx
+          export PGRX_PG_CONFIG_PATH=$(cargo pgrx info pg-config pg${{matrix.pg_version}})
+          rm -rf target
+          cargo pgrx  test -vv pg${{ matrix.pg_version }}
