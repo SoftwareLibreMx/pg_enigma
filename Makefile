@@ -2,7 +2,7 @@
 
 # TODO: Obtain TEST_VERSIONS from Cargo.toml
 TEST_VERSIONS := 13 14 15 16 17 18
-SELF_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
+ROOT_DIR := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 
 required_postgres_version:
 ifndef POSTGRES_VERSION
@@ -49,7 +49,7 @@ install_pgrx:
 
 init:
 ifdef POSTGRES_VERSION
-	PGRX_HOME=$(SELF_DIR).pgrx; \
+	PGRX_HOME=${ROOT_DIR}.pgrx; \
 	PGRX_PG_CONFIG_PATH=$(shell cargo pgrx info pg-config pg${POSTGRES_VERSION}  || echo 'download'); \
 	cargo pgrx init  -vv --pg${POSTGRES_VERSION} $$PGRX_PG_CONFIG_PATH
 endif
