@@ -8,6 +8,8 @@ jobs:
         pg_version: [13, 14, 15, 16, 17, 18]
         os: [ubuntu-latest] #[ ubuntu-latest, centos-latest]
     runs-on: ${{matrix.os}}
+    env:
+      POSTGRES_VERSION: ${{matrix.pg_version}}
     steps:
       - name: install  apt  deps
         if: contains(matrix.os, 'ubuntu')
@@ -18,15 +20,9 @@ jobs:
         run: |
           echo TBD
       - run: rustup default stable
-      - run: cargo install --locked cargo-pgrx
+      - run: make install_pgrx
       - name: Check out repository code
         uses: actions/checkout@v5
-      - run: |
-          export PGRX_HOME=`pwd`/.pgrx
-          export PGRX_PG_CONFIG_PATH=$(cargo pgrx info pg-config pg${{matrix.pg_version}} || echo 'download' )
-          cargo pgrx init  -vv --pg${{ matrix.pg_version}} $PGRX_PG_CONFIG_PATH
-      - run: |
-          export PGRX_HOME=`pwd`/.pgrx
-          export PGRX_PG_CONFIG_PATH=$(cargo pgrx info pg-config pg${{matrix.pg_version}})
-          rm -rf target
-          cargo pgrx  test -vv pg${{ matrix.pg_version }}
+      - run: make clean
+      - run: make init
+      - run: make test
