@@ -20,9 +20,9 @@ jobs:
         run: |
           echo TBD
       - run: rustup default stable
-      - run: make install_pgrx
       - name: Check out repository code
         uses: actions/checkout@v5
+      - run: make install_pgrx
       - run: make clean
       - run: make init
       - run: make test

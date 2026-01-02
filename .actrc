@@ -1,3 +1,2 @@
- -r  
  -W .forgejo/workflows 
  -P ubuntu-latest=ghcr.io/catthehacker/ubuntu:runner-latest
