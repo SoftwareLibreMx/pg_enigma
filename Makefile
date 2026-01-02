@@ -1,6 +1,4 @@
 # pg_enigma
-.ONESHELL:
-
 # TODO: Obtain TEST_VERSIONS from Cargo.toml
 TEST_VERSIONS := 13 14 15 16 17 18
 
@@ -33,8 +31,8 @@ test_all:
 	done
 
 build: required_postgres_version
-	export PGRX_HOME=./.pgrx
-	export PGRX_PG_CONFIG_PATH=/usr/bin/pg_config
+	PGRX_HOME=./.pgrx ; \
+	PGRX_PG_CONFIG_PATH=/usr/bin/pg_config ; \
 	cargo pgrx init --pg${POSTGRES_VERSION} $$PGRX_PG_CONFIG_PATH --no-run
 	cargo pgrx package --no-default-features --features=pg${POSTGRES_VERSION} --verbose
 
