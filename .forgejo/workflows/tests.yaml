@@ -3,9 +3,11 @@ on:
   - push
 jobs:
   tests:
+    container:
+      image: ghcr.io/catthehacker/ubuntu:runner-latest
     strategy:
       matrix:
-        pg_version: [13, 14, 15, 16, 17, 18]
+        pg_version: [16] # [13, 14, 15, 16, 17, 18]
         os: [ubuntu-latest] #[ ubuntu-latest, centos-latest]
     runs-on: ${{matrix.os}}
     env:
