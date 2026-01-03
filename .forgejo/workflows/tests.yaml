@@ -7,7 +7,7 @@ jobs:
       image: ghcr.io/catthehacker/ubuntu:runner-latest
     strategy:
       matrix:
-        pg_version: [16] # [13, 14, 15, 16, 17, 18]
+        pg_version: [13, 14, 15, 16, 17, 18]
         os: [ubuntu-latest] #[ ubuntu-latest, centos-latest]
     runs-on: ${{matrix.os}}
     env:
@@ -26,5 +26,5 @@ jobs:
         uses: actions/checkout@v5
       - run: make install_pgrx
       - run: make clean
-      - run: make init
+      - run: make init_download
       - run: make test

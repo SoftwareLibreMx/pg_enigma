@@ -47,9 +47,8 @@ clean:
 install_pgrx:
 	cargo install --locked cargo-pgrx
 
-init:
+init_download:
 ifdef POSTGRES_VERSION
 	PGRX_HOME=${ROOT_DIR}/.pgrx; \
-	PGRX_PG_CONFIG_PATH=$(shell cargo pgrx info pg-config pg${POSTGRES_VERSION}  || echo 'download'); \
-	cargo pgrx init  -vv --pg${POSTGRES_VERSION} $$PGRX_PG_CONFIG_PATH
+	cargo pgrx init  -vv --pg${POSTGRES_VERSION} download
 endif
