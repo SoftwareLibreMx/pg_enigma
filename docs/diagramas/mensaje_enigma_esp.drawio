@@ -1,0 +1,108 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/28.0.6 Chrome/138.0.7204.100 Electron/37.2.3 Safari/537.36" version="28.0.6">
+  <diagram name="Página-1" id="nAMdDA-Kpv1MSNAJexaW">
+    <mxGraphModel dx="1042" dy="722" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="Vl5ND8sZFnN1LKHmK58J-1" value="Mensaje Enigma" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontStyle=1;fontSize=24;textShadow=1;" parent="1" vertex="1">
+          <mxGeometry x="280" y="40" width="200" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="Vl5ND8sZFnN1LKHmK58J-41" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;endArrow=none;endFill=0;strokeWidth=3;" parent="1" source="Vl5ND8sZFnN1LKHmK58J-3" target="Vl5ND8sZFnN1LKHmK58J-4" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="Vl5ND8sZFnN1LKHmK58J-3" value="Encabezado" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
+          <mxGeometry x="40" y="120" width="280" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="Vl5ND8sZFnN1LKHmK58J-42" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=3;endArrow=none;endFill=0;" parent="1" source="Vl5ND8sZFnN1LKHmK58J-4" target="Vl5ND8sZFnN1LKHmK58J-5" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="Vl5ND8sZFnN1LKHmK58J-4" value="Separador" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="1" vertex="1">
+          <mxGeometry x="377" y="120" width="126" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="Vl5ND8sZFnN1LKHmK58J-5" value="Carga útil del mensaje" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b1ddf0;strokeColor=#10739e;" parent="1" vertex="1">
+          <mxGeometry x="560" y="120" width="160" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="Vl5ND8sZFnN1LKHmK58J-15" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;endArrow=none;endFill=0;strokeWidth=2;" parent="1" source="Vl5ND8sZFnN1LKHmK58J-6" target="Vl5ND8sZFnN1LKHmK58J-9" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="63" y="220" />
+              <mxPoint x="63" y="220" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Vl5ND8sZFnN1LKHmK58J-6" value="Octeto 1" style="whiteSpace=wrap;html=1;aspect=fixed;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
+          <mxGeometry x="13" y="200" width="40" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="Vl5ND8sZFnN1LKHmK58J-17" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;endArrow=none;endFill=0;strokeWidth=3;dashed=1;dashPattern=1 4;" parent="1" source="Vl5ND8sZFnN1LKHmK58J-8" target="Vl5ND8sZFnN1LKHmK58J-11" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="Vl5ND8sZFnN1LKHmK58J-8" value="Octeto 3" style="whiteSpace=wrap;html=1;aspect=fixed;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
+          <mxGeometry x="133" y="200" width="40" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="Vl5ND8sZFnN1LKHmK58J-16" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;endArrow=none;endFill=0;strokeWidth=2;" parent="1" source="Vl5ND8sZFnN1LKHmK58J-9" target="Vl5ND8sZFnN1LKHmK58J-8" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="Vl5ND8sZFnN1LKHmK58J-9" value="Octeto 2" style="whiteSpace=wrap;html=1;aspect=fixed;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
+          <mxGeometry x="73" y="200" width="40" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="Vl5ND8sZFnN1LKHmK58J-18" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;endArrow=none;endFill=0;strokeWidth=2;" parent="1" source="Vl5ND8sZFnN1LKHmK58J-11" target="Vl5ND8sZFnN1LKHmK58J-12" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="Vl5ND8sZFnN1LKHmK58J-11" value="Octeto 15" style="whiteSpace=wrap;html=1;aspect=fixed;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
+          <mxGeometry x="213" y="200" width="40" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="Vl5ND8sZFnN1LKHmK58J-12" value="Octeto 16" style="whiteSpace=wrap;html=1;aspect=fixed;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
+          <mxGeometry x="273" y="200" width="40" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="Vl5ND8sZFnN1LKHmK58J-19" value="&lt;b&gt;&lt;font style=&quot;font-size: 16px;&quot;&gt;\n&lt;/font&gt;&lt;/b&gt;" style="whiteSpace=wrap;html=1;aspect=fixed;fillColor=#fff2cc;strokeColor=#d6b656;" parent="1" vertex="1">
+          <mxGeometry x="416" y="201" width="40" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="Vl5ND8sZFnN1LKHmK58J-20" value="Información&amp;nbsp;&lt;div&gt;&amp;nbsp;mensajes de texto cifrados&amp;nbsp;&lt;/div&gt;&lt;div&gt;con PGP&lt;/div&gt;" style="whiteSpace=wrap;html=1;aspect=fixed;fillColor=#b1ddf0;strokeColor=#10739e;" parent="1" vertex="1">
+          <mxGeometry x="561" y="203.25" width="156.75" height="156.75" as="geometry" />
+        </mxCell>
+        <mxCell id="Vl5ND8sZFnN1LKHmK58J-37" value="Primeros 8 octetos" style="shape=curlyBracket;whiteSpace=wrap;html=1;rounded=1;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;rotation=-90;size=0.5;textDirection=vertical-lr;spacingTop=0;spacing=-28;" parent="1" vertex="1">
+          <mxGeometry x="82.5" y="193.5" width="20" height="157" as="geometry" />
+        </mxCell>
+        <mxCell id="Vl5ND8sZFnN1LKHmK58J-38" value="Siguientes 8 octetos" style="shape=curlyBracket;whiteSpace=wrap;html=1;rounded=1;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;rotation=-90;size=0.5;textDirection=vertical-lr;spacingTop=0;spacing=-28;" parent="1" vertex="1">
+          <mxGeometry x="251.75" y="201.75" width="20" height="140.5" as="geometry" />
+        </mxCell>
+        <mxCell id="Vl5ND8sZFnN1LKHmK58J-39" value="Etiqueta Enigma" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
+          <mxGeometry x="14.5" y="300.5" width="152.5" height="29.5" as="geometry" />
+        </mxCell>
+        <mxCell id="Vl5ND8sZFnN1LKHmK58J-40" value="Key_id&lt;div&gt;&amp;lt;&amp;nbsp;2,147,483,647&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
+          <mxGeometry x="190" y="300" width="152.5" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="eYoqakteX4vig9kRghUl-1" value="&lt;div&gt;&lt;span style=&quot;&quot;&gt;sql&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;&quot;&gt;pg_enigma=# SELECT * FROM testab;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;&quot;&gt;&lt;br&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;&quot;&gt;&amp;nbsp;a |&amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; b&amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;&quot;&gt;---+------------------------------------------------------------------&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;&quot;&gt;&amp;nbsp;1 | ENIGMAv100000002&amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp;&amp;nbsp;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;&quot;&gt;&lt;span style=&quot;color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));&quot;&gt;&amp;nbsp; &amp;nbsp; &lt;/span&gt;&lt;span style=&quot;color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));&quot;&gt;|&lt;/span&gt;&lt;span style=&quot;color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));&quot;&gt;&lt;b&gt; -----BEGIN PGP MESSAGE-----&lt;/b&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp;&lt;/span&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));&quot;&gt;&amp;nbsp; &amp;nbsp; | wYwDy31dohr4uGABA/9Vx7nR1mOaGnwYQu7q5PTn71c3jOmuH2TgzDaYj77VAuAM&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;&quot;&gt;&amp;nbsp; &amp;nbsp; | YT5K78n/1mQtjWhbKpJANEF6UuvyDAMBQGLSwfrliqeJZpZks0SE/pHwAixiz3Z4&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;&quot;&gt;&amp;nbsp; &amp;nbsp; | 89BH4ivO3FFa9Hz0++crCSo5h10HJtuXB+JmrHFNWZDvMp5ogMrsL74nfAEfXtJE&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;&quot;&gt;&amp;nbsp; &amp;nbsp; | AU7DKyNkf/11b5OCPVlOF+DRmEcW90h6vWjuP0l8mqQxy8FQ1r1HKXxX3ysBeP7X&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;&quot;&gt;&amp;nbsp; &amp;nbsp; | 5d4tF51WNOAFba8KQtSeVT3FcNQ=&amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp;&amp;nbsp;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;&quot;&gt;&amp;nbsp; &amp;nbsp; | =/iec&amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;&quot;&gt;&amp;nbsp; &amp;nbsp; |&lt;b&gt; -----END PGP MESSAGE-----&amp;nbsp; &amp;nbsp;&lt;/b&gt; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;&quot;&gt;&amp;nbsp; &amp;nbsp; |&amp;nbsp;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;&quot;&gt;(1 row)&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;strokeColor=#d6b656;dashed=1;fontSize=13;fillColor=#fff2cc;gradientColor=#ffd966;labelBackgroundColor=none;labelBorderColor=none;" parent="1" vertex="1">
+          <mxGeometry x="121" y="478" width="539" height="350" as="geometry" />
+        </mxCell>
+        <mxCell id="eYoqakteX4vig9kRghUl-2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.374;entryDx=0;entryDy=0;entryPerimeter=0;" parent="1" source="Vl5ND8sZFnN1LKHmK58J-39" target="eYoqakteX4vig9kRghUl-1" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="eYoqakteX4vig9kRghUl-5" value="" style="shape=curlyBracket;whiteSpace=wrap;html=1;rounded=1;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;rotation=-180;size=0.5;textDirection=vertical-lr;spacingTop=0;spacing=-28;" parent="1" vertex="1">
+          <mxGeometry x="675" y="621" width="20" height="128" as="geometry" />
+        </mxCell>
+        <mxCell id="eYoqakteX4vig9kRghUl-7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.45;entryY=0.483;entryDx=0;entryDy=0;entryPerimeter=0;" parent="1" source="Vl5ND8sZFnN1LKHmK58J-20" target="eYoqakteX4vig9kRghUl-5" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="639" y="430" />
+              <mxPoint x="760" y="430" />
+              <mxPoint x="760" y="687" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="eYoqakteX4vig9kRghUl-8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=-0.007;entryY=0.374;entryDx=0;entryDy=0;entryPerimeter=0;" parent="1" source="Vl5ND8sZFnN1LKHmK58J-40" target="eYoqakteX4vig9kRghUl-1" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="266" y="404" />
+              <mxPoint x="90" y="404" />
+              <mxPoint x="90" y="609" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="LnmIkmsq1zSLkRVE7Tgv-1" value="&lt;div&gt;El encabezado &lt;b&gt;More Keys&lt;/b&gt;&amp;nbsp;está reservado para uso futuro como identificaciones PGP de 64 bits&amp;nbsp;&lt;span style=&quot;background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));&quot;&gt;codificadas en hexadecimal o como identificaciones de clave enigma de 32 bits convertidas&amp;nbsp;&lt;/span&gt;&lt;span style=&quot;background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));&quot;&gt;como un entero de 64 bits.&lt;/span&gt;&lt;/div&gt;" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=15;" vertex="1" parent="1">
+          <mxGeometry x="99" y="920" width="606" height="70" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
