@@ -11,7 +11,7 @@ jobs:
 #      POSTGRES_VERSION: ${{matrix.pg_version}}
     steps:
       - name: cargo pgrx test
-      - uses: actions/checkout@v4
+        uses: actions/checkout@v4
       - run: |
           sleep 55
           cargo pgrx test
