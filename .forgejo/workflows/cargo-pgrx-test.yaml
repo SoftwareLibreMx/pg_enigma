@@ -8,6 +8,6 @@ jobs:
         pg_version: [13, 14, 15, 16, 17, 18]
     runs-on: host
     steps:
-      - name: test pg${{matrix.pg_version}}
+      - name: cargo pgrx test
         uses: actions/checkout@v4
       - run: cargo pgrx test pg${{matrix.pg_version}}
