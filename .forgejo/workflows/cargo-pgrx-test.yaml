@@ -1,0 +1,14 @@
+name: cargo pgrx tests
+on:
+  - push
+jobs:
+  tests:
+    strategy:
+#      matrix:
+#        pg_version: [13, 14, 15, 16, 17, 18]
+    runs-on: host
+#    env:
+#      POSTGRES_VERSION: ${{matrix.pg_version}}
+    steps:
+      - name: cargo pgrx test
+        run: cargo pgrx test
