@@ -11,4 +11,6 @@ jobs:
 #      POSTGRES_VERSION: ${{matrix.pg_version}}
     steps:
       - name: cargo pgrx test
-        run: cargo pgrx test
+        run: |
+          sleep 55
+          cargo pgrx test
