@@ -5,6 +5,7 @@ mod priv_key;
 mod pub_key;
 mod types;
 
+use crate::types::{Enigma,Epgp,Ersa};
 use crate::key_map::{PrivKeysMap,PubKeysMap};
 use crate::pub_key::insert_public_key;
 use once_cell::sync::Lazy;

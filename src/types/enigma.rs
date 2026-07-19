@@ -11,9 +11,6 @@ use pgrx::{
     Array, FromDatum, Internal, IntoDatum, pg_extern, pg_sys, 
     rust_regtypein, StringInfo
 };
-use pgrx::pgrx_sql_entity_graph::metadata::{
-    ArgumentError, Returns, ReturnsError, SqlMapping, SqlTranslatable
-};
 use std::fmt::{Display, Formatter};
 use super::enigma_pgp::{E_PGP_INT,E_PGP_TAG,Epgp};
 use super::enigma_rsa::{E_RSA_INT,E_RSA_TAG,Ersa};

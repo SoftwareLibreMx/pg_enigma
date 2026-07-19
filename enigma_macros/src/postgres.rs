@@ -219,18 +219,19 @@ pub fn derive_from_into_datum(ast: &DeriveInput) -> TokenStream {
     let e_not_encrypted = format!("{name} is not encrypted");
 
     quote! {
-        unsafe impl SqlTranslatable for #name {
-            fn argument_sql() -> Result<SqlMapping, ArgumentError> {
-                /* this is what the SQL type is called when used in a 
-                 * function argument position */
-                Ok(SqlMapping::As(#myname.into()))
-            }
+        use pgrx::pgrx_sql_entity_graph::metadata::{
+            ArgumentError, ReturnsError, ReturnsRef, SqlMappingRef, 
+            SqlTranslatable, TypeOrigin,
+        };
 
-            fn return_sql() -> Result<Returns, ReturnsError> {
-                /* this is what the SQL type is called when used in a 
-                 * function return type position */
-                Ok(Returns::One(SqlMapping::As(#myname.into())))
-            }
+        unsafe impl SqlTranslatable for #name {
+            const TYPE_IDENT: &'static str = 
+                pgrx::pgrx_resolved_type!(#name);
+            const TYPE_ORIGIN: TypeOrigin = TypeOrigin::ThisExtension;
+            const ARGUMENT_SQL: Result<SqlMappingRef, ArgumentError> =
+                Ok(SqlMappingRef::literal(#myname));
+            const RETURN_SQL: Result<ReturnsRef, ReturnsError> =
+                Ok(ReturnsRef::One(SqlMappingRef::literal(#myname)));
         }
 
 
