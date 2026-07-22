@@ -18,9 +18,6 @@ pgrx::pg_module_magic!();
 static PRIV_KEYS: Lazy<PrivKeysMap> = Lazy::new(|| PrivKeysMap::new());
 static PUB_KEYS: Lazy<PubKeysMap> = Lazy::new(|| PubKeysMap::new());
 
-
-
-
 /// SQL function for setting private key in memory (PrivKeysMap)
 /// All in-memory private keys will be lost when session is closed
 /// and postgres sessionprocess ends.
