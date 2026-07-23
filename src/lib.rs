@@ -5,6 +5,7 @@ mod priv_key;
 mod pub_key;
 mod types;
 
+use crate::types::{Enigma,Epgp,Ersa};
 use crate::key_map::{PrivKeysMap,PubKeysMap};
 use crate::pub_key::insert_public_key;
 use once_cell::sync::Lazy;
@@ -16,9 +17,6 @@ pgrx::pg_module_magic!();
 
 static PRIV_KEYS: Lazy<PrivKeysMap> = Lazy::new(|| PrivKeysMap::new());
 static PUB_KEYS: Lazy<PubKeysMap> = Lazy::new(|| PubKeysMap::new());
-
-
-
 
 /// SQL function for setting private key in memory (PrivKeysMap)
 /// All in-memory private keys will be lost when session is closed
