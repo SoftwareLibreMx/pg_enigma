@@ -403,7 +403,7 @@ SELECT CAST(b AS Text) FROM testab LIMIT 1;
 CREATE TABLE testab ( a SERIAL, b Enigma(2));
 SELECT set_public_key_from_file(2, '../../../test/public-key.asc'); 
         ")? ;
-        const MSG_SIZE: usize = 5790;
+        const MSG_SIZE: usize = 5790; // encrypted is almost 8160
         let bytes = ['a' as u8; MSG_SIZE];
         let string = str::from_utf8(&bytes)?;
         let args = unsafe {
@@ -412,7 +412,29 @@ SELECT set_public_key_from_file(2, '../../../test/public-key.asc');
             ]
         };
         Ok(Spi::run_with_args("
-INSERT INTO testab (b) VALUES ($1::Text);
+INSERT INTO testab (b) VALUES ($1);
+        ", 
+        &args)?)
+    } 
+
+    /** Insert a row with `Enigma` message size of 1MiB */
+    #[pg_test]
+    fn e15_insert_message_size_1m()  -> Result<(), Box<dyn Error>> {
+        Spi::run(
+        "
+CREATE TABLE testab ( a SERIAL, b Enigma(2));
+SELECT set_public_key_from_file(2, '../../../test/public-key.asc'); 
+        ")? ;
+        const MSG_SIZE: usize = 1024*1024;
+        let bytes = ['a' as u8; MSG_SIZE];
+        let string = str::from_utf8(&bytes)?;
+        let args = unsafe {
+            [
+                DatumWithOid::new(string, PgBuiltInOids::TEXTOID.value()),
+            ]
+        };
+        Ok(Spi::run_with_args("
+INSERT INTO testab (b) VALUES ($1);
         ", 
         &args)?)
     } 
