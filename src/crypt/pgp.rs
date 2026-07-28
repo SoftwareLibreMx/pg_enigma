@@ -40,7 +40,7 @@ pub fn pgp_pub_key_from(armored: &str)
     if armored.contains(PGP_PUB_KEY_BEGIN) 
     && armored.contains(PGP_PUB_KEY_END) {
         let (pub_key, _) = SignedPublicKey::from_string(armored)?;
-        pub_key.verify()?;
+        pub_key.verify_bindings()?;
         Ok(pub_key)
     } else {
         Err("Public key is not PGP armor".into())
@@ -53,7 +53,7 @@ pub fn pgp_sec_key_from(armored: &str)
     if armored.contains(PGP_SEC_KEY_BEGIN) 
     && armored.contains(PGP_SEC_KEY_END) {
         let (sec_key, _) = SignedSecretKey::from_string(armored)?;
-        sec_key.verify()?;
+        sec_key.verify_bindings()?;
         Ok(sec_key)
     } else {
         Err("Secret key is not PGP armor".into())
@@ -61,11 +61,11 @@ pub fn pgp_sec_key_from(armored: &str)
 }
 
 pub fn pgp_pub_key_id(key: &SignedPublicKey) -> String {
-    key.key_id().encode_hex()
+    key.legacy_key_id().encode_hex()
 }
 
 pub fn pgp_sec_key_id(key: &SignedSecretKey) -> String {
-    key.key_id().encode_hex()
+    key.legacy_key_id().encode_hex()
 }
 
 pub fn pgp_encrypt(pub_key: &SignedPublicKey, message: String) 
