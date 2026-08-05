@@ -3,6 +3,9 @@ CREATE TYPE Enigma (
 	OUTPUT = enigma_output,
 	RECEIVE = enigma_receive,
 	SEND = enigma_send,
-	TYPMOD_IN = enigma_typmod_in
+	TYPMOD_IN = enigma_typmod_in,
+	CATEGORY = string,
+	INTERNALLENGTH = variable,
+	STORAGE = external
 );
 
