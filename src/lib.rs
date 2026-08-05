@@ -151,6 +151,7 @@ mod tests {
     use crate::common::Value;
     use crate::types::enigma::Enigma;
     use pgrx::prelude::*;
+    use pgrx::datum::DatumWithOid;
     use std::error::Error;
  
     /// Just create a table with type Enigma with typmod
@@ -390,6 +391,52 @@ SELECT CAST(b AS Text) FROM testab LIMIT 1;
             if res.as_str() == "my RSA test record" { return Ok(()); }
         } 
         Err("Should return decrypted string".into()) 
+    } 
+
+
+    /** Insert a row with `Enigma` message size slightly lower than
+     * `maximum size 8160 8160` */
+    #[pg_test]
+    fn e14_insert_less_than_8160()  -> Result<(), Box<dyn Error>> {
+        Spi::run(
+        "
+CREATE TABLE testab ( a SERIAL, b Enigma(2));
+SELECT set_public_key_from_file(2, '../../../test/public-key.asc'); 
+        ")? ;
+        const MSG_SIZE: usize = 5790; // encrypted is almost 8160
+        let bytes = ['a' as u8; MSG_SIZE];
+        let string = str::from_utf8(&bytes)?;
+        let args = unsafe {
+            [
+                DatumWithOid::new(string, PgBuiltInOids::TEXTOID.value()),
+            ]
+        };
+        Ok(Spi::run_with_args("
+INSERT INTO testab (b) VALUES ($1);
+        ", 
+        &args)?)
+    } 
+
+    /** Insert a row with `Enigma` message size of 1MiB */
+    #[pg_test]
+    fn e15_insert_message_size_1m()  -> Result<(), Box<dyn Error>> {
+        Spi::run(
+        "
+CREATE TABLE testab ( a SERIAL, b Enigma(2));
+SELECT set_public_key_from_file(2, '../../../test/public-key.asc'); 
+        ")? ;
+        const MSG_SIZE: usize = 1024*1024;
+        let bytes = ['a' as u8; MSG_SIZE];
+        let string = str::from_utf8(&bytes)?;
+        let args = unsafe {
+            [
+                DatumWithOid::new(string, PgBuiltInOids::TEXTOID.value()),
+            ]
+        };
+        Ok(Spi::run_with_args("
+INSERT INTO testab (b) VALUES ($1);
+        ", 
+        &args)?)
     } 
 
 }
