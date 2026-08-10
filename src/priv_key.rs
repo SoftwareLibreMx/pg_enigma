@@ -1,6 +1,6 @@
-use crate::common::{Decrypt,Plain};
+use crate::common::{Decrypt,Plain,Value};
 use crate::types::enigma::Enigma;
-use crate::types::enigma_pgp::Epgp;
+//use crate::types::enigma_pgp::Epgp;
 use crate::types::enigma_rsa::Ersa;
 use crate::crypt::pgp::{pgp_decrypt,pgp_sec_key_from,pgp_sec_key_id};
 use crate::crypt::openssl::{rsa_decrypt,rsa_priv_key_from,rsa_key_id};
@@ -49,8 +49,9 @@ impl Decrypt<Enigma> for PrivKey {
         match self {
             PrivKey::PGP(key,pass) => {
                 debug2!("Decrypt: PGP key");
-                if let Enigma::PGP(_,msg) = enigma {
-                    Ok(Enigma::plain(pgp_decrypt(key, pass.clone(), msg)?))
+                if enigma.is_pgp() {
+                    Ok(Enigma::plain(
+                        pgp_decrypt(key, pass.clone(), &enigma.value())?))
                 } else {
                     Err("Message is not PGP encrypted.".into())
                 }
@@ -67,6 +68,7 @@ impl Decrypt<Enigma> for PrivKey {
     }
 }
 
+/* Esta ya no se usa.
 impl Decrypt<Epgp> for PrivKey {
     fn decrypt(&self, enigma: Epgp) 
     -> Result<Epgp, Box<dyn std::error::Error + 'static>> {
@@ -77,8 +79,10 @@ impl Decrypt<Epgp> for PrivKey {
         match self {
             PrivKey::PGP(key,pass) => {
                 debug2!("Decrypt: PGP key");
-                if let Epgp::PGP(_,msg) = enigma {
-                    Ok(Epgp::plain(pgp_decrypt(key, pass.clone(), msg)?))
+                if enigma.is_pgp() {
+                    Ok(Epgp::plain(
+                        enigma.0.decrypt(key, pass.clone())?)
+                    )
                 } else {
                     Err("Message is not PGP encrypted.".into())
                 }
@@ -86,7 +90,7 @@ impl Decrypt<Epgp> for PrivKey {
             _ => Err("Key is not PGP".into())
         }
     }
-}
+} */
 
 impl Decrypt<Ersa> for PrivKey {
     fn decrypt(&self, enigma: Ersa) 

@@ -24,7 +24,8 @@ pub const E_PGP_INT: u64  = 0x5067455F50475031; // "PgE_PGP1"
 #[enigma_impl( FullBoilerplate )]
 pub enum Epgp {
     /// PGP message
-    PGP(u32,String),
+    //PGP(u32,String),
+    PGP(PgpMessage),
     /// Plain unencrypted message
     Plain(String)
 }
@@ -65,7 +66,7 @@ impl TryFrom<Enigma> for Epgp {
 
     fn try_from(value: Enigma) -> Result<Self, Self::Error> {
         match value {
-            Enigma::PGP(key,msg) => Ok(Epgp::PGP(key,msg)),
+            Enigma::PGP(val) => Ok(Self::PGP(val)),
             _ => Err("Not an Enigma PGP message".into())
         }
     }
@@ -84,7 +85,7 @@ impl TryFrom<Legacy> for Epgp {
 
     fn try_from(value: Legacy) -> Result<Self, Self::Error> {
         match value {
-            Legacy::PGP(key,msg) => Ok(Self::PGP(key,msg)),
+            Legacy::PGP(key,msg) => Ok(Self::pgp(key,msg)),
             _ => Err("Not a legacy Enigma PGP message".into())
         }
     }
@@ -93,11 +94,11 @@ impl TryFrom<Legacy> for Epgp {
 impl Display for Epgp {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Epgp::PGP(key,msg) => {
-                write!(f, "{}{:08X}{}{}", 
-                E_PGP_TAG, key, SEPARATOR, msg)
+            Self::PGP(msg) => {
+                write!(f, "{}{}", 
+                E_PGP_TAG, msg)
             },
-            Epgp::Plain(s) => {
+            Self::Plain(s) => {
                 write!(f, "{}", s)
             }
         }        
@@ -106,16 +107,16 @@ impl Display for Epgp {
 
 impl Epgp {
     pub fn pgp(id: u32, value: String) -> Self {
-        Self::PGP(id, pgp_trim_envelope(value))
+       Self::PGP(PgpMessage::new(id, pgp_trim_envelope(value)))
     }
 
-    /* pub fn is_pgp(&self) -> bool {
-        matches!(*self, Self::PGP(_,_))
-    } */
+    pub fn is_pgp(&self) -> bool {
+        matches!(*self, Self::PGP(_))
+    }
 
     pub fn key_id(&self) -> Option<u32> {
         match self {
-            Self::PGP(k,_) => Some(*k),
+            Self::PGP(pgp_msg) => Some(pgp_msg.key_id()),
             Self::Plain(_) => None
         }
     }
@@ -155,21 +156,20 @@ impl Epgp {
     /// If no decrypting key is found, returns the same encrypted message.
     pub fn decrypt(self)
     -> Result<Self, Box<dyn std::error::Error + 'static>> {
-        let key_id = match self.key_id() {
-            Some(k) => k,
-            None => return Ok(self) // Not encrypted
-        };
-        debug2!("Decrypt: Message key_id: {key_id}");
-        match PRIV_KEYS.get(key_id)? {
-            Some(sec_key) => {
-                debug2!("Decrypt: got secret key");
-                match sec_key {
-                    PrivKey::PGP(_,_) => sec_key.decrypt(self),
-                    _ => return Err(
-                        format!("Private key {} is not PGP", key_id).into())
+        if let Self::PGP(ref msg) = self {
+            let key_id = msg.key_id();
+            debug2!("Decrypt: Message key_id: {key_id}");
+            if let Some(sec_key) = PRIV_KEYS.get(key_id)? {
+                if let PrivKey::PGP(key,pass) = sec_key {
+                    Ok(Self::plain(msg.decrypt(key,pass.clone())?))
+                } else {
+                    Err(format!("Private key {} is not PGP", key_id).into())
                 }
-            },
-            None => Ok(self)
+            } else {
+                Ok(self) // No Private key found
+            }
+        } else {
+            Ok(self) // Not encrypted
         }
     }
 }

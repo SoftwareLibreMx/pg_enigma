@@ -1,3 +1,4 @@
+use crate::common::*;
 use hex::ToHex;
 use once_cell::sync::Lazy;
 use pgp::composed::{
@@ -9,7 +10,7 @@ use pgp::types::{KeyDetails,Password};
 use pgrx::{debug1,debug2};
 use rand_chacha::ChaCha12Rng;
 use rand_chacha::rand_core::SeedableRng;
-use std::fmt::Display;
+use std::fmt::{Display,Formatter};
 use std::io::Cursor;
 use std::time::{SystemTime,UNIX_EPOCH};
 
@@ -21,6 +22,45 @@ const PGP_SEC_KEY_BEGIN: &str = "-----BEGIN PGP PRIVATE KEY BLOCK-----";
 const PGP_SEC_KEY_END: &str = "-----END PGP PRIVATE KEY BLOCK-----";
 
 static SEED: Lazy<u64> = Lazy::new(|| init_seed());
+
+#[derive( Clone, Debug)]
+pub struct PgpMessage {
+    key_id: u32,
+    message: String
+}
+
+pub struct PubKey {
+    key: SignedPublicKey
+}
+
+pub struct PrivKey {
+    key: SignedSecretKey,
+    pass: String
+}
+
+impl PgpMessage {
+    pub fn new(id: u32, message: String) -> Self {
+        PgpMessage {
+            key_id: id,
+            message: message
+        }
+    }
+
+    pub fn key_id(&self) -> u32 {
+        self.key_id
+    }
+
+    pub fn decrypt(&self, key: &SignedSecretKey, pass: String)
+    -> Result<String, Box<dyn std::error::Error + 'static>> {
+        pgp_decrypt(key, pass, &self.message)
+    }
+}
+
+impl Display for PgpMessage {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:08X}{}{}", self.key_id, SEPARATOR, self.message)
+    }
+}
 
 pub fn pgp_trim_envelope(msg: String) -> String {
     msg.trim_start_matches(PGP_BEGIN).trim_end_matches(PGP_END).to_string()
@@ -79,7 +119,7 @@ pub fn pgp_encrypt(pub_key: &SignedPublicKey, message: String)
     Ok(pgp_trim_envelope(encrypted))
 }
 
-pub fn pgp_decrypt(key: &SignedSecretKey, pass: String, msg: String)
+pub fn pgp_decrypt(key: &SignedSecretKey, pass: String, msg: &str)
 -> Result<String, Box<dyn std::error::Error + 'static>> {
     debug2!("Decrypt: PGP message: {msg}");
     let buf = Cursor::new(pgp_add_envelope(msg));

@@ -3,6 +3,7 @@ use crate::common::*;
 use crate::{PRIV_KEYS,PUB_KEYS};
 use crate::crypt::openssl::*;
 use crate::crypt::pgp::*;
+//use crate::crypt::pgp::{PgpMessage};
 use enigma_macros::EnigmaType;
 use pgrx::callconv::{ArgAbi, BoxRet};
 use pgrx::datum::Datum;
@@ -21,7 +22,8 @@ use super::legacy::{ENIGMA_INT,Legacy};
 #[enigma_impl( FullBoilerplate )]
 pub enum Enigma {
     /// PGP message
-    PGP(u32,String),
+    //PGP(u32,String),
+    PGP(PgpMessage),
     /// OpenSSL RSA encrypted message
     RSA(u32,String), 
     /// Plain unencrypted message
@@ -66,7 +68,7 @@ impl TryFrom<&str> for Enigma {
 impl From<Epgp> for Enigma {
     fn from(value: Epgp) -> Self {
         match value {
-            Epgp::PGP(key,msg) => Self::PGP(key,msg),
+            Epgp::PGP(val) => Self::PGP(val),
             Epgp::Plain(msg) => Self::Plain(msg),
         }
     }
@@ -84,27 +86,42 @@ impl From<Ersa> for Enigma {
 impl From<Legacy> for Enigma {
     fn from(value: Legacy) -> Self {
         match value {
-            Legacy::PGP(key,msg) => Self::PGP(key,msg),
+            Legacy::PGP(key,msg) => Self::pgp(key,msg),
             Legacy::RSA(key,msg) => Self::RSA(key,msg),
             //Legacy::Plain(msg) => Self::Plain(msg),
         }
     }
 }
 
+/*impl TryFrom<Enigma> for PgpMessage {
+   type Error = Box<dyn std::error::Error + 'static>;
+
+    fn try_from(value: Enigma) -> Result<Self, Self::Error> {
+        match value {
+            Enigma::PgpMessage{key_id,message} => {
+                Ok(PgpMessage{key_id,message})
+            },
+            _ => {
+                Err("Not a PgpMessage variant".into())
+            }
+        }
+    }
+
+} */
+
 impl Display for Enigma {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Enigma::PGP(key,msg) => {
-                // Use new Epgp header
-                write!(f, "{}{:08X}{}{}", 
-                E_PGP_TAG, key, SEPARATOR, msg)
+            Self::PGP(msg) => {
+                //let val: &PgpMessage = self.0;
+                write!(f, "{}{}", E_PGP_TAG, msg)
             },
-            Enigma::RSA(key,msg) => {
+            Self::RSA(key,msg) => {
                 // Use new Ersa header
                 write!(f, "{}{:08X}{}{}", 
                 E_RSA_TAG, key, SEPARATOR, msg)
             },
-            Enigma::Plain(s) => {
+            Self::Plain(s) => {
                 write!(f, "{}", s)
             }
         }        
@@ -113,7 +130,7 @@ impl Display for Enigma {
 
 impl Enigma {
     pub fn pgp(id: u32, value: String) -> Self {
-        Self::PGP(id, pgp_trim_envelope(value))
+        Self::PGP(PgpMessage::new(id, pgp_trim_envelope(value)))
     }
 
     pub fn rsa(id: u32, value: String) -> Self {
@@ -121,7 +138,7 @@ impl Enigma {
     }
 
     pub fn is_pgp(&self) -> bool {
-        matches!(*self, Self::PGP(_,_))
+        matches!(*self, Self::PGP(_))
     }
 
     pub fn is_rsa(&self) -> bool {
@@ -131,7 +148,7 @@ impl Enigma {
     pub fn key_id(&self) -> Option<u32> {
         match self {
             Self::RSA(k,_) => Some(*k),
-            Self::PGP(k,_) => Some(*k),
+            Self::PGP(pgp_msg) => Some(pgp_msg.key_id()),
             Self::Plain(_) => None
         }
     }
