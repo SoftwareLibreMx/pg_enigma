@@ -7,7 +7,7 @@ use pgp::composed::{
 };
 use pgp::crypto::sym::SymmetricKeyAlgorithm;
 use pgp::types::{KeyDetails,Password};
-use pgrx::{debug1,debug2};
+use pgrx::{debug1,debug2,debug5};
 use rand_chacha::ChaCha12Rng;
 use rand_chacha::rand_core::SeedableRng;
 use std::fmt::{Display,Formatter};
@@ -40,6 +40,7 @@ pub struct PrivKey {
 
 impl PgpMessage {
     pub fn new(id: u32, message: String) -> Self {
+        //debug5!("PgpMessage New key: {}\tmessage: {}", id, message);
         PgpMessage {
             key_id: id,
             message: message
@@ -52,6 +53,7 @@ impl PgpMessage {
 
     pub fn decrypt(&self, key: &SignedSecretKey, pass: String)
     -> Result<String, Box<dyn std::error::Error + 'static>> {
+        //debug5!("PgpMessage key: {}\tmessage: {}", self.key_id, self.message);
         pgp_decrypt(key, pass, &self.message)
     }
 }

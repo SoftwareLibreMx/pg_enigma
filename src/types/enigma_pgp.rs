@@ -38,13 +38,18 @@ impl TryFrom<&str> for Epgp {
             if let Ok(Header{tag,key}) = Header::try_from(header) {
                 match tag {
                     PLAIN_INT => {
-                        debug2!{"Plain unencrypted message"}
+                        debug2!{"Epgp: Plain unencrypted message"}
                         debug5!{"Payload: {payload}"}
                         return Ok(Self::plain(payload.to_string()));
                     },
                     E_PGP_INT => {
-                        debug2!("PGP encrypted message");
-                        return Ok(Self::pgp(key, payload.to_string()));
+                        debug2!("Epgp: PGP encrypted message");
+                        //debug5!{"Payload: {payload}"}
+                        return Ok(
+                            //Self::pgp(key, payload.to_string())
+                            Self::PGP(PgpMessage::new(
+                                key,payload.to_string()))
+                        );
                     },
                     ENIGMA_INT => {
                         return Self::try_from(Legacy::try_from(value)?);
@@ -158,10 +163,14 @@ impl Epgp {
     -> Result<Self, Box<dyn std::error::Error + 'static>> {
         if let Self::PGP(ref msg) = self {
             let key_id = msg.key_id();
-            debug2!("Decrypt: Message key_id: {key_id}");
+            debug2!("Epgp Decrypt: Message key_id: {key_id}");
             if let Some(sec_key) = PRIV_KEYS.get(key_id)? {
+                //debug2!("Epgp Decrypt got key: {key_id}");
                 if let PrivKey::PGP(key,pass) = sec_key {
-                    Ok(Self::plain(msg.decrypt(key,pass.clone())?))
+                    //debug2!("Epgp key: {key_id} is PGP");
+                    Ok(Self::plain(
+                        msg.decrypt(key,pass.clone())?
+                    ))
                 } else {
                     Err(format!("Private key {} is not PGP", key_id).into())
                 }
