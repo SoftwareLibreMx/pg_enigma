@@ -8,7 +8,7 @@ use pgrx::debug2;
 
 pub enum PrivKey {
     /// PGP secret key
-    PGP(pgp::PgpPrivKey),
+    PGP(pgp::PrivateKey),
     /// OpenSSL RSA
     RSA(PKey<Private>)
 }
@@ -18,7 +18,7 @@ impl PrivKey {
     /// from the `armored key` and the provided plain text password
     pub fn new(armored: &str, pw: &str) 
     -> Result<Self, Box<dyn std::error::Error + 'static>> {
-        if let Ok(priv_key) = pgp::PgpPrivKey::new(armored, pw) {
+        if let Ok(priv_key) = pgp::PrivateKey::new(armored, pw) {
             return Ok(PrivKey::PGP(priv_key));
         }
 

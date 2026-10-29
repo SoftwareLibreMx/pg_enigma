@@ -1,10 +1,7 @@
 use crate::common::*;
 use hex::ToHex;
 use once_cell::sync::Lazy;
-use pgp::composed::{
-    ArmorOptions, Deserializable,Message,MessageBuilder, 
-    SignedPublicKey, SignedSecretKey
-};
+use pgp::composed::{ Deserializable, SignedPublicKey, SignedSecretKey };
 use pgp::crypto::sym::SymmetricKeyAlgorithm;
 use pgp::types::{KeyDetails,Password};
 use pgrx::{debug1,debug2};
@@ -25,25 +22,25 @@ const PGP_SEC_KEY_END: &str = "-----END PGP PRIVATE KEY BLOCK-----";
 static SEED: Lazy<u64> = Lazy::new(|| init_seed());
 
 #[derive( Clone, Debug)]
-pub struct PgpMessage {
+pub struct Message {
     key_id: u32,
     message: String
 }
 
-pub struct PgpPubKey {
+pub struct PublicKey {
     key: SignedPublicKey
 }
 
-pub struct PgpPrivKey {
+pub struct PrivateKey {
     key: SignedSecretKey,
     pass: String
 }
 
-impl PgpPubKey {
+impl PublicKey {
     pub fn new(armored: &str) 
     -> Result<Self, Box<dyn std::error::Error + 'static>>  {
         let pub_key = pgp_pub_key_from(armored)?;
-        Ok(PgpPubKey{key: pub_key})
+        Ok(PublicKey{key: pub_key})
     }
 
     pub fn key_id(&self) -> String {
@@ -56,11 +53,11 @@ impl PgpPubKey {
     }
 }
 
-impl PgpPrivKey {
+impl PrivateKey {
     pub fn new(armored: &str, pass: &str) 
     -> Result<Self, Box<dyn std::error::Error + 'static>>  {
         let sec_key = pgp_sec_key_from(armored)?;
-        Ok(PgpPrivKey{key: sec_key, pass: pass.to_string()})
+        Ok(PrivateKey{key: sec_key, pass: pass.to_string()})
     }
 
     pub fn key_id(&self) -> String {
@@ -69,12 +66,12 @@ impl PgpPrivKey {
 
 }
 
-impl PgpMessage {
-    pub fn new(id: u32, message: String) -> Self {
-        //debug5!("PgpMessage New key: {}\tmessage: {}", id, message);
-        PgpMessage {
+impl Message {
+    pub fn new_encrypted(id: u32, message: &str) -> Self {
+        //debug5!("Message New key: {}\tmessage: {}", id, message);
+        Message {
             key_id: id,
-            message: message
+            message: pgp_trim_envelope(message)
         }
     }
 
@@ -82,15 +79,15 @@ impl PgpMessage {
         self.key_id
     }
 
-    pub fn decrypt(&self, key: &PgpPrivKey)
+    pub fn decrypt(&self, key: &PrivateKey)
     -> Result<String, Box<dyn std::error::Error + 'static>> {
-        //debug5!("PgpMessage key: {}\tmessage: {}", self.key_id, self.message);
+        //debug5!("Message key: {}\tmessage: {}", self.key_id, self.message);
         pgp_decrypt(&key.key, key.pass.clone(), &self.message)
     }
 
-    pub fn encrypt(plain: String, key_id: u32, pub_key: &PgpPubKey) 
+    pub fn encrypt(plain: String, key_id: u32, pub_key: &PublicKey) 
     -> Result<Self, Box<dyn std::error::Error + 'static>>  {
-        let encrypted = PgpMessage {
+        let encrypted = Message {
             key_id: key_id,
             message: pub_key.encrypt(plain)?
         };
@@ -98,25 +95,29 @@ impl PgpMessage {
     }
 }
 
-impl Display for PgpMessage {
+impl Display for Message {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:08X}{}{}", self.key_id, SEPARATOR, self.message)
     }
-}
-
-pub fn pgp_trim_envelope(msg: String) -> String {
-    msg.trim_start_matches(PGP_BEGIN).trim_end_matches(PGP_END).to_string()
-}
-
-pub fn pgp_add_envelope<T: Display>(msg: T) -> String {
-    format!("{}{}{}", PGP_BEGIN, msg, PGP_END)
 }
 
 pub fn pgp_match_msg(msg: &str) -> bool {
     msg.starts_with(PGP_BEGIN) && msg.ends_with(PGP_END)
 }
 
-pub fn pgp_pub_key_from(armored: &str)
+/*********************
+ * PRIVATE FUNCTIONS *
+ * *******************/
+
+fn pgp_trim_envelope(msg: &str) -> String {
+    msg.trim_start_matches(PGP_BEGIN).trim_end_matches(PGP_END).to_string()
+}
+
+fn pgp_add_envelope<T: Display>(msg: T) -> String {
+    format!("{}{}{}", PGP_BEGIN, msg, PGP_END)
+}
+
+fn pgp_pub_key_from(armored: &str)
 -> Result<SignedPublicKey, Box<dyn std::error::Error + 'static>> {
     // https://docs.rs/pgp/latest/pgp/composed/trait.Deserializable.html#method.from_string
     if armored.contains(PGP_PUB_KEY_BEGIN) 
@@ -129,7 +130,7 @@ pub fn pgp_pub_key_from(armored: &str)
     }
 }
 
-pub fn pgp_sec_key_from(armored: &str) 
+fn pgp_sec_key_from(armored: &str) 
 -> Result<SignedSecretKey, Box<dyn std::error::Error + 'static>> {
     // https://docs.rs/pgp/latest/pgp/composed/trait.Deserializable.html#method.from_string
     if armored.contains(PGP_SEC_KEY_BEGIN) 
@@ -142,30 +143,30 @@ pub fn pgp_sec_key_from(armored: &str)
     }
 }
 
-pub fn pgp_pub_key_id(key: &SignedPublicKey) -> String {
+fn pgp_pub_key_id(key: &SignedPublicKey) -> String {
     key.legacy_key_id().encode_hex()
 }
 
-pub fn pgp_sec_key_id(key: &SignedSecretKey) -> String {
+fn pgp_sec_key_id(key: &SignedSecretKey) -> String {
     key.legacy_key_id().encode_hex()
 }
 
-pub fn pgp_encrypt(pub_key: &SignedPublicKey, message: String) 
+fn pgp_encrypt(pub_key: &SignedPublicKey, message: String) 
 -> Result<String, Box<dyn std::error::Error + 'static>> {
     let mut rng =  ChaCha12Rng::seed_from_u64(*SEED);
-    let mut builder = MessageBuilder::from_bytes("", message)
+    let mut builder = pgp::composed::MessageBuilder::from_bytes("", message)
         .seipd_v1(&mut rng, SymmetricKeyAlgorithm::AES256);
     builder.encrypt_to_key(&mut rng, &pub_key)?;
     let encrypted = builder
-        .to_armored_string(rng,ArmorOptions::default())?;
-    Ok(pgp_trim_envelope(encrypted))
+        .to_armored_string(rng, pgp::composed::ArmorOptions::default())?;
+    Ok(pgp_trim_envelope(&encrypted))
 }
 
-pub fn pgp_decrypt(key: &SignedSecretKey, pass: String, msg: &str)
+fn pgp_decrypt(key: &SignedSecretKey, pass: String, msg: &str)
 -> Result<String, Box<dyn std::error::Error + 'static>> {
     debug2!("Decrypt: PGP message: {msg}");
     let buf = Cursor::new(pgp_add_envelope(msg));
-    let (pgp_msg, _) = Message::from_armor(buf)?;
+    let (pgp_msg, _) = pgp::composed::Message::from_armor(buf)?;
     let pw = Password::from(pass);
     let mut decrypted = pgp_msg.decrypt(&pw, key)?;
     let clear_text = decrypted.as_data_string()?;
@@ -173,7 +174,7 @@ pub fn pgp_decrypt(key: &SignedSecretKey, pass: String, msg: &str)
 }
 
 /* Functions commented-out for future use
-pub fn pgp_encrypting_keys(&self)
+fn pgp_encrypting_keys(&self)
 -> Result<Vec<KeyId>, Box<dyn std::error::Error + 'static>> {
     let mut keys = Vec::new();
     if let Self::PGP(_,pgp::Message::Encrypted{ esk, .. }) = self {
@@ -188,7 +189,7 @@ pub fn pgp_encrypting_keys(&self)
     Ok(keys)
 }
 
-pub fn pgp_encrypting_key(&self)
+fn pgp_encrypting_key(&self)
 -> Result<KeyId, Box<dyn std::error::Error + 'static>> {
     let mut keys = self.pgp_encrypting_keys()?;
     if keys.len() > 1 {
@@ -197,7 +198,7 @@ pub fn pgp_encrypting_key(&self)
     keys.pop().ok_or("No encrypting key found".into())
 }
 
-pub fn pgp_encrypting_key_as_string(&self)
+fn pgp_encrypting_key_as_string(&self)
 -> Result<String, Box<dyn std::error::Error + 'static>> {
     let pgp_id = self.pgp_encrypting_key()?;
     Ok(format!("{:x}", pgp_id))
@@ -205,7 +206,7 @@ pub fn pgp_encrypting_key_as_string(&self)
 
 /// Iterates over each of the message's encrypting keys looking
 /// for a matching key_id in it's own private keys map
-pub fn find_encrypting_key(self: &'static PrivKeysMap, msg: &Enigma)
+fn find_encrypting_key(self: &'static PrivKeysMap, msg: &Enigma)
 -> Result<Option<&'static PrivKey>, 
 Box<dyn std::error::Error + 'static>> {
     if let Some(id) = msg.key_id() {
@@ -227,10 +228,6 @@ Box<dyn std::error::Error + 'static>> {
     }
     Ok(None)
 } */
-
-/*********************
- * PRIVATE FUNCTIONS *
- * *******************/
 
 fn init_seed() -> u64 {
         let dur = SystemTime::now()

@@ -11,7 +11,7 @@ use pgrx::{PgBuiltInOids,Spi};
 
 pub enum PubKey {
     /// PGP public key
-    PGP(pgp::PgpPubKey),
+    PGP(pgp::PublicKey),
     /// OpenSSL RSA
     RSA(PKey<Public>)
 }
@@ -21,7 +21,7 @@ impl PubKey {
     /// from the `armored key`
     pub fn new(armored: &str) 
     -> Result<Self, Box<dyn std::error::Error + 'static>> {
-        if let Ok(pub_key) = pgp::PgpPubKey::new(armored) {
+        if let Ok(pub_key) = pgp::PublicKey::new(armored) {
             return Ok(PubKey::PGP(pub_key));
         }
 

@@ -1,7 +1,7 @@
 use core::ffi::CStr;
 use crate::common::*;
 use crate::{PRIV_KEYS,PUB_KEYS};
-use crate::crypt::pgp::*;
+use crate::crypt::pgp;
 use crate::pub_key::PubKey;
 use crate::priv_key::PrivKey;
 use enigma_macros::EnigmaType;
@@ -24,7 +24,7 @@ pub const E_PGP_INT: u64  = 0x5067455F50475031; // "PgE_PGP1"
 #[enigma_impl( FullBoilerplate )]
 pub enum Epgp {
     /// PGP message
-    PGP(PgpMessage),
+    PGP(pgp::Message),
     /// Plain unencrypted message
     Plain(String)
 }
@@ -44,11 +44,8 @@ impl TryFrom<&str> for Epgp {
                     E_PGP_INT => {
                         debug2!("Epgp: PGP encrypted message");
                         //debug5!{"Payload: {payload}"}
-                        return Ok(
-                            //Self::pgp(key, payload.to_string())
-                            Self::PGP(PgpMessage::new(
-                                key,payload.to_string()))
-                        );
+                        let msg=pgp::Message::new_encrypted(key, payload);
+                        return Ok(Self::PGP(msg));
                     },
                     ENIGMA_INT => {
                         return Self::try_from(Legacy::try_from(value)?);
@@ -89,7 +86,7 @@ impl TryFrom<Legacy> for Epgp {
 
     fn try_from(value: Legacy) -> Result<Self, Self::Error> {
         match value {
-            Legacy::PGP(key,msg) => Ok(Self::pgp(key,msg)),
+            Legacy::PGP(msg) => Ok(Self::PGP(msg)),
             _ => Err("Not a legacy Enigma PGP message".into())
         }
     }
@@ -110,10 +107,6 @@ impl Display for Epgp {
 }
 
 impl Epgp {
-    pub fn pgp(id: u32, value: String) -> Self {
-       Self::PGP(PgpMessage::new(id, pgp_trim_envelope(value)))
-    }
-
     pub fn key_id(&self) -> Option<u32> {
         match self {
             Self::PGP(pgp_msg) => Some(pgp_msg.key_id()),
@@ -133,7 +126,7 @@ impl Epgp {
         if let Self::Plain(plain) = self {
             if let Some(pub_key) = PUB_KEYS.get(key_id)? {
                 if let PubKey::PGP(k) = pub_key {
-                    let encrypted = PgpMessage::encrypt(
+                    let encrypted = pgp::Message::encrypt(
                         plain, key_id, k)?;
                     Ok(Self::PGP(encrypted))
                 } else {

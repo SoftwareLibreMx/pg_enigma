@@ -2,7 +2,7 @@ use core::ffi::CStr;
 use crate::common::*;
 use crate::{PRIV_KEYS,PUB_KEYS};
 use crate::crypt::openssl::*;
-use crate::crypt::pgp::*;
+use crate::crypt::pgp;
 use crate::priv_key::PrivKey;
 use crate::pub_key::PubKey;
 use enigma_macros::EnigmaType;
@@ -23,7 +23,7 @@ use super::legacy::{ENIGMA_INT,Legacy};
 #[enigma_impl( FullBoilerplate )]
 pub enum Enigma {
     /// PGP message
-    PGP(PgpMessage),
+    PGP(pgp::Message),
     /// OpenSSL RSA encrypted message
     RSA(u32,String), 
     /// Plain unencrypted message
@@ -86,7 +86,7 @@ impl From<Ersa> for Enigma {
 impl From<Legacy> for Enigma {
     fn from(value: Legacy) -> Self {
         match value {
-            Legacy::PGP(key,msg) => Self::pgp(key,msg),
+            Legacy::PGP(msg) => Self::PGP(msg),
             Legacy::RSA(key,msg) => Self::RSA(key,msg),
         }
     }
@@ -110,10 +110,6 @@ impl Display for Enigma {
 }
 
 impl Enigma {
-    pub fn pgp(id: u32, value: String) -> Self {
-        Self::PGP(PgpMessage::new(id, pgp_trim_envelope(value)))
-    }
-
     pub fn rsa(id: u32, value: String) -> Self {
         Self::RSA(id, rsa_trim_envelope(value))
     }
@@ -126,6 +122,7 @@ impl Enigma {
         matches!(*self, Self::RSA(_,_))
     }
 
+    // TODO: Unambiguate: this is key_num; not key_id
     pub fn key_id(&self) -> Option<u32> {
         match self {
             Self::RSA(k,_) => Some(*k),
@@ -149,7 +146,7 @@ impl Enigma {
                 match pub_key {
                     PubKey::PGP(k) => {
                         // TODO: Use borrowed plain without conversion
-                        let encrypted = PgpMessage::encrypt(
+                        let encrypted = pgp::Message::encrypt(
                             plain.to_string(), key_id, k)?;
                         Ok(Self::PGP(encrypted))
                     }, 
