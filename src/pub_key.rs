@@ -1,12 +1,9 @@
 use crate::common::{Encrypt,IsEncrypted};
 use crate::crypt::pgp;
 use crate::types::enigma::Enigma;
-use crate::types::enigma_pgp::Epgp;
 use crate::types::enigma_rsa::Ersa;
-//use crate::crypt::pgp::{pgp_encrypt,pgp_pub_key_from,pgp_pub_key_id};
 use crate::crypt::openssl::{rsa_encrypt,rsa_pub_key_from,rsa_key_id};
 use openssl::pkey::{PKey,Public};
-//use pgp::composed::SignedPublicKey;
 use pgrx::datum::DatumWithOid;
 use pgrx::{PgBuiltInOids,Spi};
 
@@ -14,7 +11,6 @@ use pgrx::{PgBuiltInOids,Spi};
 
 pub enum PubKey {
     /// PGP public key
-    //PGP(SignedPublicKeddy),
     PGP(pgp::PgpPubKey),
     /// OpenSSL RSA
     RSA(PKey<Public>)
@@ -25,9 +21,6 @@ impl PubKey {
     /// from the `armored key`
     pub fn new(armored: &str) 
     -> Result<Self, Box<dyn std::error::Error + 'static>> {
-        /* if let Ok(pub_key) = pgp_pub_key_from(armored) {
-            return Ok(PubKey::PGP(pub_key));
-        } */
         if let Ok(pub_key) = pgp::PgpPubKey::new(armored) {
             return Ok(PubKey::PGP(pub_key));
         }
@@ -58,9 +51,7 @@ impl Encrypt<Enigma> for PubKey {
         }
 
         match self {
-            PubKey::PGP(pub_key) => {
-                /* let encrypted = pgp_encrypt(pub_key, msg.to_string())?;
-                Ok(Enigma::pgp(id, encrypted)) */
+            PubKey::PGP(_) => {
                 msg.encrypt(id as i32)
             },
             PubKey::RSA(pub_key) => {
@@ -70,25 +61,6 @@ impl Encrypt<Enigma> for PubKey {
         }
     }
 }
-
-/*  TODO: Obsolete
-impl Encrypt<Epgp> for PubKey {
-    fn encrypt(&self, id: u32, msg: Epgp) 
-    -> Result<Epgp, Box<dyn std::error::Error + 'static>> {
-        /* if msg.is_encrypted() { 
-             return Err("Nested encryption not supported".into());
-        }
-
-        match self {
-            PubKey::PGP(pub_key) => {
-                let encrypted = pgp_encrypt(pub_key, msg.to_string())?;
-                Ok(Epgp::pgp(id, encrypted))
-            },
-            _ => Err("Key is not PGP".into())
-        } */
-        msg.encrypt(id)
-    }
-} */
 
 // TODO: Obsolete
 impl Encrypt<Ersa> for PubKey {

@@ -24,7 +24,6 @@ pub const E_PGP_INT: u64  = 0x5067455F50475031; // "PgE_PGP1"
 #[enigma_impl( FullBoilerplate )]
 pub enum Epgp {
     /// PGP message
-    //PGP(u32,String),
     PGP(PgpMessage),
     /// Plain unencrypted message
     Plain(String)
@@ -113,10 +112,6 @@ impl Display for Epgp {
 impl Epgp {
     pub fn pgp(id: u32, value: String) -> Self {
        Self::PGP(PgpMessage::new(id, pgp_trim_envelope(value)))
-    }
-
-    pub fn is_pgp(&self) -> bool {
-        matches!(*self, Self::PGP(_))
     }
 
     pub fn key_id(&self) -> Option<u32> {

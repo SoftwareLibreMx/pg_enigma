@@ -3,7 +3,6 @@ use crate::common::*;
 use crate::{PRIV_KEYS,PUB_KEYS};
 use crate::crypt::openssl::*;
 use crate::crypt::pgp::*;
-//use crate::crypt::pgp::{PgpMessage};
 use crate::priv_key::PrivKey;
 use crate::pub_key::PubKey;
 use enigma_macros::EnigmaType;
@@ -24,7 +23,6 @@ use super::legacy::{ENIGMA_INT,Legacy};
 #[enigma_impl( FullBoilerplate )]
 pub enum Enigma {
     /// PGP message
-    //PGP(u32,String),
     PGP(PgpMessage),
     /// OpenSSL RSA encrypted message
     RSA(u32,String), 
@@ -90,36 +88,17 @@ impl From<Legacy> for Enigma {
         match value {
             Legacy::PGP(key,msg) => Self::pgp(key,msg),
             Legacy::RSA(key,msg) => Self::RSA(key,msg),
-            //Legacy::Plain(msg) => Self::Plain(msg),
         }
     }
 }
-
-/*impl TryFrom<Enigma> for PgpMessage {
-   type Error = Box<dyn std::error::Error + 'static>;
-
-    fn try_from(value: Enigma) -> Result<Self, Self::Error> {
-        match value {
-            Enigma::PgpMessage{key_id,message} => {
-                Ok(PgpMessage{key_id,message})
-            },
-            _ => {
-                Err("Not a PgpMessage variant".into())
-            }
-        }
-    }
-
-} */
 
 impl Display for Enigma {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::PGP(msg) => {
-                //let val: &PgpMessage = self.0;
                 write!(f, "{}{}", E_PGP_TAG, msg)
             },
             Self::RSA(key,msg) => {
-                // Use new Ersa header
                 write!(f, "{}{:08X}{}{}", 
                 E_RSA_TAG, key, SEPARATOR, msg)
             },
