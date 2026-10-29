@@ -122,11 +122,10 @@ impl Enigma {
         matches!(*self, Self::RSA(_,_))
     }
 
-    // TODO: Unambiguate: this is key_num; not key_id
-    pub fn key_id(&self) -> Option<u32> {
+    pub fn key_num(&self) -> Option<u32> {
         match self {
             Self::RSA(k,_) => Some(*k),
-            Self::PGP(pgp_msg) => Some(pgp_msg.key_id()),
+            Self::PGP(pgp_msg) => Some(pgp_msg.key_num()),
             Self::Plain(_) => None
         }
     }
@@ -139,28 +138,29 @@ impl Enigma {
         if id < 0 { 
             return Err("Key id must be zero or greater".into());
         }
-        let key_id: u32 = id as u32;
+        let key_num: u32 = id as u32;
         // TODO: Borrow plain (without ref)
         if let Self::Plain(ref plain) = self {
-            if let Some(pub_key) = PUB_KEYS.get(key_id)? {
+            if let Some(pub_key) = PUB_KEYS.get(key_num)? {
                 match pub_key {
                     PubKey::PGP(k) => {
                         // TODO: Use borrowed plain without conversion
                         let encrypted = pgp::Message::encrypt(
-                            plain.to_string(), key_id, k)?;
+                            plain.to_string(), key_num, k)?;
                         Ok(Self::PGP(encrypted))
                     }, 
                     // TODO: obsolete
-                    PubKey::RSA(_) => pub_key.encrypt(key_id, self) 
+                    PubKey::RSA(_) => pub_key.encrypt(key_num, self) 
                 }
 
             } else {
-                Err(format!("No public key with key_id: {}", key_id).into())
+                Err(format!("No public key with key_num: {}", key_num)
+                    .into())
             }
         } else { // message is encrypted
-            let msgid = self.key_id()
-                        .ok_or("Epgp: encrypted with no key_id")?; 
-            if msgid == key_id {
+            let msgid = self.key_num()
+                        .ok_or("Epgp: encrypted with no key_num")?; 
+            if msgid == key_num {
                 info!("Already encrypted with key ID {msgid}"); 
                 Ok(self)
             } else {
@@ -176,22 +176,22 @@ impl Enigma {
     /// If no decrypting key is found, returns the same encrypted message.
     pub fn decrypt(self)
     -> Result<Enigma, Box<dyn std::error::Error + 'static>> {
-        if let Some(key_id) = self.key_id() {
-            debug2!("Enigma Decrypt: Message key_id: {key_id}");
-            if let Some(sec_key) = PRIV_KEYS.get(key_id)? {
-                debug2!("Enigma Decrypt got key: {key_id}");
+        if let Some(key_num) = self.key_num() {
+            debug2!("Enigma Decrypt: Message key_num: {key_num}");
+            if let Some(sec_key) = PRIV_KEYS.get(key_num)? {
+                debug2!("Enigma Decrypt got key: {key_num}");
                 if let Self::RSA(_,_) = self {
                     return sec_key.decrypt(self);
                 }
                 if let Self::PGP(ref msg) = self {
                     if let PrivKey::PGP(k) = sec_key {
-                        debug2!("Enigma key: {key_id} is PGP");
+                        debug2!("Enigma key: {key_num} is PGP");
                         return Ok(Self::plain(
                             msg.decrypt(k)?
                         ));
                     } else {
                         return Err(format!("Private key {} is not PGP", 
-                            key_id).into());
+                            key_num).into());
                     }
                 }
             }

@@ -107,9 +107,9 @@ impl Display for Epgp {
 }
 
 impl Epgp {
-    pub fn key_id(&self) -> Option<u32> {
+    pub fn key_num(&self) -> Option<u32> {
         match self {
-            Self::PGP(pgp_msg) => Some(pgp_msg.key_id()),
+            Self::PGP(pgp_msg) => Some(pgp_msg.key_num()),
             Self::Plain(_) => None
         }
     }
@@ -122,23 +122,24 @@ impl Epgp {
         if id < 0 { 
             return Err("Key id must be zero or greater".into());
         }
-        let key_id: u32 = id as u32;
+        let key_num: u32 = id as u32;
         if let Self::Plain(plain) = self {
-            if let Some(pub_key) = PUB_KEYS.get(key_id)? {
+            if let Some(pub_key) = PUB_KEYS.get(key_num)? {
                 if let PubKey::PGP(k) = pub_key {
                     let encrypted = pgp::Message::encrypt(
-                        plain, key_id, k)?;
+                        plain, key_num, k)?;
                     Ok(Self::PGP(encrypted))
                 } else {
-                    Err(format!("Public key {} is not PGP", key_id).into())
+                    Err(format!("Public key {} is not PGP", key_num).into())
                 }
             } else {
-                Err(format!("No public key with key_id: {}", key_id).into())
+                Err(format!("No public key with key_num: {}", key_num)
+                    .into())
             }
         } else { // message is encrypted
-            let msgid = self.key_id()
-                        .ok_or("Epgp: encrypted with no key_id")?; 
-            if msgid == key_id {
+            let msgid = self.key_num()
+                        .ok_or("Epgp: encrypted with no key_num")?; 
+            if msgid == key_num {
                 info!("Already encrypted with key ID {msgid}"); 
                 Ok(self)
             } else {
@@ -154,17 +155,18 @@ impl Epgp {
     pub fn decrypt(self)
     -> Result<Self, Box<dyn std::error::Error + 'static>> {
         if let Self::PGP(ref msg) = self {
-            let key_id = msg.key_id();
-            debug2!("Epgp Decrypt: Message key_id: {key_id}");
-            if let Some(sec_key) = PRIV_KEYS.get(key_id)? {
-                //debug2!("Epgp Decrypt got key: {key_id}");
+            let key_num = msg.key_num();
+            debug2!("Epgp Decrypt: Message key_num: {key_num}");
+            if let Some(sec_key) = PRIV_KEYS.get(key_num)? {
+                //debug2!("Epgp Decrypt got key: {key_num}");
                 if let PrivKey::PGP(k) = sec_key {
-                    //debug2!("Epgp key: {key_id} is PGP");
+                    //debug2!("Epgp key: {key_num} is PGP");
                     Ok(Self::plain(
                         msg.decrypt(k)?
                     ))
                 } else {
-                    Err(format!("Private key {} is not PGP", key_id).into())
+                    Err(format!("Private key {} is not PGP", key_num)
+                        .into())
                 }
             } else {
                 Ok(self) // No Private key found
