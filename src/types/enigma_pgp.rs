@@ -170,10 +170,10 @@ impl Epgp {
             debug2!("Epgp Decrypt: Message key_id: {key_id}");
             if let Some(sec_key) = PRIV_KEYS.get(key_id)? {
                 //debug2!("Epgp Decrypt got key: {key_id}");
-                if let PrivKey::PGP(key,pass) = sec_key {
+                if let PrivKey::PGP(k) = sec_key {
                     //debug2!("Epgp key: {key_id} is PGP");
                     Ok(Self::plain(
-                        msg.decrypt(key,pass.clone())?
+                        msg.decrypt(k)?
                     ))
                 } else {
                     Err(format!("Private key {} is not PGP", key_id).into())

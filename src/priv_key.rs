@@ -1,16 +1,17 @@
 use crate::common::{Decrypt,Plain,Value};
+use crate::crypt::pgp;
 use crate::types::enigma::Enigma;
 //use crate::types::enigma_pgp::Epgp;
 use crate::types::enigma_rsa::Ersa;
 use crate::crypt::pgp::{pgp_decrypt,pgp_sec_key_from,pgp_sec_key_id};
 use crate::crypt::openssl::{rsa_decrypt,rsa_priv_key_from,rsa_key_id};
 use openssl::pkey::{PKey,Private};
-use pgp::composed::SignedSecretKey;
+//use pgp::composed::SignedSecretKey;
 use pgrx::debug2;
 
 pub enum PrivKey {
     /// PGP secret key
-    PGP(SignedSecretKey, String),
+    PGP(pgp::PgpPrivKey),
     /// OpenSSL RSA
     RSA(PKey<Private>)
 }
@@ -20,8 +21,12 @@ impl PrivKey {
     /// from the `armored key` and the provided plain text password
     pub fn new(armored: &str, pw: &str) 
     -> Result<Self, Box<dyn std::error::Error + 'static>> {
-        if let Ok(priv_key) = pgp_sec_key_from(armored) {
+        /* if let Ok(priv_key) = pgp_sec_key_from(armored) {
             return Ok(PrivKey::PGP(priv_key, pw.to_string()));
+        } */
+
+        if let Ok(priv_key) = pgp::PgpPrivKey::new(armored, pw) {
+            return Ok(PrivKey::PGP(priv_key));
         }
 
         if let Ok(priv_key) = rsa_priv_key_from(armored, pw) {
@@ -33,7 +38,8 @@ impl PrivKey {
 
     pub fn priv_key_id(&self) -> String {
         match self {
-            PrivKey::PGP(k,_) => pgp_sec_key_id(k),
+            //PrivKey::PGP(k,_) => pgp_sec_key_id(k),
+            PrivKey::PGP(k) => k.key_id(),
             PrivKey::RSA(k) => rsa_key_id(k)
         }
     }
@@ -47,11 +53,10 @@ impl Decrypt<Enigma> for PrivKey {
         }
 
         match self {
-            PrivKey::PGP(key,pass) => {
+            PrivKey::PGP(_) => {
                 debug2!("Decrypt: PGP key");
                 if enigma.is_pgp() {
-                    Ok(Enigma::plain(
-                        pgp_decrypt(key, pass.clone(), &enigma.value())?))
+                    enigma.decrypt()
                 } else {
                     Err("Message is not PGP encrypted.".into())
                 }

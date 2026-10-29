@@ -208,10 +208,10 @@ impl Enigma {
                     return sec_key.decrypt(self);
                 }
                 if let Self::PGP(ref msg) = self {
-                    if let PrivKey::PGP(key,pass) = sec_key {
+                    if let PrivKey::PGP(k) = sec_key {
                         debug2!("Enigma key: {key_id} is PGP");
                         return Ok(Self::plain(
-                            msg.decrypt(key,pass.clone())?
+                            msg.decrypt(k)?
                         ));
                     } else {
                         return Err(format!("Private key {} is not PGP", 

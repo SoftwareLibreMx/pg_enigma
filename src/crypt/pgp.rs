@@ -55,6 +55,19 @@ impl PgpPubKey {
     }
 }
 
+impl PgpPrivKey {
+    pub fn new(armored: &str, pass: &str) 
+    -> Result<Self, Box<dyn std::error::Error + 'static>>  {
+        let sec_key = pgp_sec_key_from(armored)?;
+        Ok(PgpPrivKey{key: sec_key, pass: pass.to_string()})
+    }
+
+    pub fn key_id(&self) -> String {
+        pgp_sec_key_id(&self.key)
+    }
+
+}
+
 impl PgpMessage {
     pub fn new(id: u32, message: String) -> Self {
         //debug5!("PgpMessage New key: {}\tmessage: {}", id, message);
@@ -68,10 +81,10 @@ impl PgpMessage {
         self.key_id
     }
 
-    pub fn decrypt(&self, key: &SignedSecretKey, pass: String)
+    pub fn decrypt(&self, key: &PgpPrivKey)
     -> Result<String, Box<dyn std::error::Error + 'static>> {
         //debug5!("PgpMessage key: {}\tmessage: {}", self.key_id, self.message);
-        pgp_decrypt(key, pass, &self.message)
+        pgp_decrypt(&key.key, key.pass.clone(), &self.message)
     }
 
     pub fn encrypt(plain: String, key_id: u32, pub_key: &PgpPubKey) 
