@@ -5,6 +5,7 @@ use crate::crypt::openssl::*;
 use crate::crypt::pgp::*;
 //use crate::crypt::pgp::{PgpMessage};
 use crate::priv_key::PrivKey;
+use crate::pub_key::PubKey;
 use enigma_macros::EnigmaType;
 use pgrx::callconv::{ArgAbi, BoxRet};
 use pgrx::datum::Datum;
@@ -163,19 +164,35 @@ impl Enigma {
             return Err("Key id must be zero or greater".into());
         }
         let key_id: u32 = id as u32;
-        if let Some(msgid) = self.key_id() { // message is encrypted
+        // TODO: Borrow plain (without ref)
+        if let Self::Plain(ref plain) = self {
+            if let Some(pub_key) = PUB_KEYS.get(key_id)? {
+                match pub_key {
+                    PubKey::PGP(k) => {
+                        // TODO: Use borrowed plain without conversion
+                        let encrypted = PgpMessage::encrypt(
+                            plain.to_string(), key_id, k)?;
+                        Ok(Self::PGP(encrypted))
+                    }, 
+                    // TODO: obsolete
+                    PubKey::RSA(_) => pub_key.encrypt(key_id, self) 
+                }
+
+            } else {
+                Err(format!("No public key with key_id: {}", key_id).into())
+            }
+        } else { // message is encrypted
+            let msgid = self.key_id()
+                        .ok_or("Epgp: encrypted with no key_id")?; 
             if msgid == key_id {
                 info!("Already encrypted with key ID {msgid}"); 
-                return  Ok(self);
-            };
+                Ok(self)
+            } else {
             // TODO: try to decrypt
-            return Err("Nested encryption not supported".into());
+                Err("Nested encryption not supported".into())
+            }
         }
-        if let Some(pub_key) = PUB_KEYS.get(key_id)? {
-            pub_key.encrypt(key_id, self)
-        } else {
-            Err(format!("No public key with key_id: {}", key_id).into())
-        }
+
     }
 
     /// Will look for the decryption key in it's key map and call

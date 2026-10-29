@@ -29,13 +29,30 @@ pub struct PgpMessage {
     message: String
 }
 
-pub struct PubKey {
+pub struct PgpPubKey {
     key: SignedPublicKey
 }
 
-pub struct PrivKey {
+pub struct PgpPrivKey {
     key: SignedSecretKey,
     pass: String
+}
+
+impl PgpPubKey {
+    pub fn new(armored: &str) 
+    -> Result<Self, Box<dyn std::error::Error + 'static>>  {
+        let pub_key = pgp_pub_key_from(armored)?;
+        Ok(PgpPubKey{key: pub_key})
+    }
+
+    pub fn key_id(&self) -> String {
+        pgp_pub_key_id(&self.key)
+    }
+
+    pub fn encrypt(&self, plain: String) 
+    -> Result<String, Box<dyn std::error::Error + 'static>> {
+        pgp_encrypt(&self.key, plain)
+    }
 }
 
 impl PgpMessage {
@@ -55,6 +72,15 @@ impl PgpMessage {
     -> Result<String, Box<dyn std::error::Error + 'static>> {
         //debug5!("PgpMessage key: {}\tmessage: {}", self.key_id, self.message);
         pgp_decrypt(key, pass, &self.message)
+    }
+
+    pub fn encrypt(plain: String, key_id: u32, pub_key: &PgpPubKey) 
+    -> Result<Self, Box<dyn std::error::Error + 'static>>  {
+        let encrypted = PgpMessage {
+            key_id: key_id,
+            message: pub_key.encrypt(plain)?
+        };
+        Ok(encrypted)
     }
 }
 

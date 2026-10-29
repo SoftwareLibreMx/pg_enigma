@@ -135,24 +135,28 @@ impl Epgp {
             return Err("Key id must be zero or greater".into());
         }
         let key_id: u32 = id as u32;
-        if let Some(msgid) = self.key_id() { // message is encrypted
+        if let Self::Plain(plain) = self {
+            if let Some(pub_key) = PUB_KEYS.get(key_id)? {
+                if let PubKey::PGP(k) = pub_key {
+                    let encrypted = PgpMessage::encrypt(
+                        plain, key_id, k)?;
+                    Ok(Self::PGP(encrypted))
+                } else {
+                    Err(format!("Public key {} is not PGP", key_id).into())
+                }
+            } else {
+                Err(format!("No public key with key_id: {}", key_id).into())
+            }
+        } else { // message is encrypted
+            let msgid = self.key_id()
+                        .ok_or("Epgp: encrypted with no key_id")?; 
             if msgid == key_id {
                 info!("Already encrypted with key ID {msgid}"); 
-                return  Ok(self);
-            };
+                Ok(self)
+            } else {
             // TODO: try to decrypt
-            return Err("Nested encryption not supported".into());
-        }
-
-        if let Some(pub_key) = PUB_KEYS.get(key_id)? {
-            match pub_key {
-                PubKey::PGP(_) => pub_key.encrypt(key_id, self),
-                _ => return Err(
-                    format!("Public key {} is not PGP", key_id).into())
-
+                Err("Nested encryption not supported".into())
             }
-        } else {
-            Err(format!("No public key with key_id: {}", key_id).into())
         }
     }
 
