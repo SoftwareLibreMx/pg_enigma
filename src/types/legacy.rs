@@ -1,6 +1,6 @@
 use crate::common::*;
 use crate::crypt::openssl::*;
-use crate::crypt::pgp::*;
+use crate::crypt::pgp;
 use pgrx::{debug2};
 //use std::fmt::{Display, Formatter};
 
@@ -12,7 +12,7 @@ pub const ENIGMA_INT: u64  = 0x454E49474D417631; // "ENIGMAv1"
 #[derive( Clone, Debug)]
 pub enum Legacy {
     /// PGP message
-    PGP(u32,String),
+    PGP(pgp::Message),
     /// OpenSSL RSA encrypted message
     RSA(u32,String), 
     /* unnecessary
@@ -33,9 +33,9 @@ impl TryFrom<&str> for Legacy {
                         return Ok(Self::plain(payload.to_string()));
                     }, */
                     ENIGMA_INT => {
-                        if pgp_match_msg(payload) {
+                        if pgp::pgp_match_msg(payload) {
                             debug2!("PGP encrypted message");
-                            return Ok(Self::pgp(key, payload.to_string()));
+                            return Ok(Self::pgp(key, payload));
                         }
 
                         if rsa_match_msg(payload) {
@@ -90,8 +90,8 @@ impl Plain for Legacy {
 
 
 impl Legacy {
-    fn pgp(id: u32, value: String) -> Self {
-        Self::PGP(id, pgp_trim_envelope(value))
+    fn pgp(id: u32, value: &str) -> Self {
+        Self::PGP(pgp::Message::new_encrypted(id, value))
     }
 
     fn rsa(id: u32, value: String) -> Self {

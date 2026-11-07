@@ -1,7 +1,7 @@
 use core::ffi::CStr;
 use crate::common::*;
 use crate::{PRIV_KEYS,PUB_KEYS};
-use crate::crypt::pgp::*;
+use crate::crypt::pgp;
 use crate::pub_key::PubKey;
 use crate::priv_key::PrivKey;
 use enigma_macros::EnigmaType;
@@ -24,7 +24,7 @@ pub const E_PGP_INT: u64  = 0x5067455F50475031; // "PgE_PGP1"
 #[enigma_impl( FullBoilerplate )]
 pub enum Epgp {
     /// PGP message
-    PGP(u32,String),
+    PGP(pgp::Message),
     /// Plain unencrypted message
     Plain(String)
 }
@@ -37,13 +37,15 @@ impl TryFrom<&str> for Epgp {
             if let Ok(Header{tag,key}) = Header::try_from(header) {
                 match tag {
                     PLAIN_INT => {
-                        debug2!{"Plain unencrypted message"}
+                        debug2!{"Epgp: Plain unencrypted message"}
                         debug5!{"Payload: {payload}"}
                         return Ok(Self::plain(payload.to_string()));
                     },
                     E_PGP_INT => {
-                        debug2!("PGP encrypted message");
-                        return Ok(Self::pgp(key, payload.to_string()));
+                        debug2!("Epgp: PGP encrypted message");
+                        //debug5!{"Payload: {payload}"}
+                        let msg=pgp::Message::new_encrypted(key, payload);
+                        return Ok(Self::PGP(msg));
                     },
                     ENIGMA_INT => {
                         return Self::try_from(Legacy::try_from(value)?);
@@ -65,7 +67,7 @@ impl TryFrom<Enigma> for Epgp {
 
     fn try_from(value: Enigma) -> Result<Self, Self::Error> {
         match value {
-            Enigma::PGP(key,msg) => Ok(Epgp::PGP(key,msg)),
+            Enigma::PGP(val) => Ok(Self::PGP(val)),
             _ => Err("Not an Enigma PGP message".into())
         }
     }
@@ -84,7 +86,7 @@ impl TryFrom<Legacy> for Epgp {
 
     fn try_from(value: Legacy) -> Result<Self, Self::Error> {
         match value {
-            Legacy::PGP(key,msg) => Ok(Self::PGP(key,msg)),
+            Legacy::PGP(msg) => Ok(Self::PGP(msg)),
             _ => Err("Not a legacy Enigma PGP message".into())
         }
     }
@@ -93,11 +95,11 @@ impl TryFrom<Legacy> for Epgp {
 impl Display for Epgp {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Epgp::PGP(key,msg) => {
-                write!(f, "{}{:08X}{}{}", 
-                E_PGP_TAG, key, SEPARATOR, msg)
+            Self::PGP(msg) => {
+                write!(f, "{}{}", 
+                E_PGP_TAG, msg)
             },
-            Epgp::Plain(s) => {
+            Self::Plain(s) => {
                 write!(f, "{}", s)
             }
         }        
@@ -105,17 +107,9 @@ impl Display for Epgp {
 }
 
 impl Epgp {
-    pub fn pgp(id: u32, value: String) -> Self {
-        Self::PGP(id, pgp_trim_envelope(value))
-    }
-
-    /* pub fn is_pgp(&self) -> bool {
-        matches!(*self, Self::PGP(_,_))
-    } */
-
     pub fn key_id(&self) -> Option<u32> {
         match self {
-            Self::PGP(k,_) => Some(*k),
+            Self::PGP(pgp_msg) => Some(pgp_msg.key_id()),
             Self::Plain(_) => None
         }
     }
@@ -129,24 +123,28 @@ impl Epgp {
             return Err("Key id must be zero or greater".into());
         }
         let key_id: u32 = id as u32;
-        if let Some(msgid) = self.key_id() { // message is encrypted
+        if let Self::Plain(plain) = self {
+            if let Some(pub_key) = PUB_KEYS.get(key_id)? {
+                if let PubKey::PGP(k) = pub_key {
+                    let encrypted = pgp::Message::encrypt(
+                        plain, key_id, k)?;
+                    Ok(Self::PGP(encrypted))
+                } else {
+                    Err(format!("Public key {} is not PGP", key_id).into())
+                }
+            } else {
+                Err(format!("No public key with key_id: {}", key_id).into())
+            }
+        } else { // message is encrypted
+            let msgid = self.key_id()
+                        .ok_or("Epgp: encrypted with no key_id")?; 
             if msgid == key_id {
                 info!("Already encrypted with key ID {msgid}"); 
-                return  Ok(self);
-            };
+                Ok(self)
+            } else {
             // TODO: try to decrypt
-            return Err("Nested encryption not supported".into());
-        }
-
-        if let Some(pub_key) = PUB_KEYS.get(key_id)? {
-            match pub_key {
-                PubKey::PGP(_) => pub_key.encrypt(key_id, self),
-                _ => return Err(
-                    format!("Public key {} is not PGP", key_id).into())
-
+                Err("Nested encryption not supported".into())
             }
-        } else {
-            Err(format!("No public key with key_id: {}", key_id).into())
         }
     }
 
@@ -155,21 +153,24 @@ impl Epgp {
     /// If no decrypting key is found, returns the same encrypted message.
     pub fn decrypt(self)
     -> Result<Self, Box<dyn std::error::Error + 'static>> {
-        let key_id = match self.key_id() {
-            Some(k) => k,
-            None => return Ok(self) // Not encrypted
-        };
-        debug2!("Decrypt: Message key_id: {key_id}");
-        match PRIV_KEYS.get(key_id)? {
-            Some(sec_key) => {
-                debug2!("Decrypt: got secret key");
-                match sec_key {
-                    PrivKey::PGP(_,_) => sec_key.decrypt(self),
-                    _ => return Err(
-                        format!("Private key {} is not PGP", key_id).into())
+        if let Self::PGP(ref msg) = self {
+            let key_id = msg.key_id();
+            debug2!("Epgp Decrypt: Message key_id: {key_id}");
+            if let Some(sec_key) = PRIV_KEYS.get(key_id)? {
+                //debug2!("Epgp Decrypt got key: {key_id}");
+                if let PrivKey::PGP(k) = sec_key {
+                    //debug2!("Epgp key: {key_id} is PGP");
+                    Ok(Self::plain(
+                        msg.decrypt(k)?
+                    ))
+                } else {
+                    Err(format!("Private key {} is not PGP", key_id).into())
                 }
-            },
-            None => Ok(self)
+            } else {
+                Ok(self) // No Private key found
+            }
+        } else {
+            Ok(self) // Not encrypted
         }
     }
 }
