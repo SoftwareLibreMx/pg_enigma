@@ -75,7 +75,7 @@ impl Message {
         }
     }
 
-    pub fn key_id(&self) -> u32 {
+    pub fn key_num(&self) -> u32 {
         self.key_id
     }
 
