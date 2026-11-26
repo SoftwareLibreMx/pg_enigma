@@ -6,10 +6,10 @@ Encrypted postgres data type for fun and profit
 
 ### Quick start:
 
-Install the Rust toolchain version 1.74 or newer.
+Install the Rust toolchain version 1.99.1 or newer.
 
 ```bash
-$ cargo install --locked cargo-pgrx
+$ cargo install --locked cargo-pgrx --version 0.20.1
 $ cargo pgrx init
 ```
 

@@ -1,7 +1,7 @@
 # pg_enigma
 
 # TODO: Obtain TEST_VERSIONS from Cargo.toml
-TEST_VERSIONS := 13 14 15 16 17 18
+TEST_VERSIONS := 15 16 17 18 19
 
 required postgres_version:
 ifndef POSTGRES_VERSION

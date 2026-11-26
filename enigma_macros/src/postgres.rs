@@ -113,7 +113,7 @@ pub fn derive_binary_funcs(ast: &DeriveInput) -> TokenStream {
             };
             let mut serialized = ::pgrx::StringInfo::new();
             // reserve space for the header
-            serialized.push_bytes(&[0u8; ::pgrx::pg_sys::VARHDRSZ]); 
+            serialized.push_bytes(&[0u8; ::pgrx::pg_sys::VARHDRSZ as usize]);
             serialized.push_bytes(unsafe {
                 core::slice::from_raw_parts(
                     buf.data as *const u8,

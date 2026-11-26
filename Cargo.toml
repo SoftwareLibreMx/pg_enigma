@@ -7,13 +7,12 @@ edition = "2021"
 crate-type = ["cdylib", "lib"]
 
 [features]
-default = ["pg13"]
-pg13 = ["pgrx/pg13", "pgrx-tests/pg13" ]
-pg14 = ["pgrx/pg14", "pgrx-tests/pg14" ]
+default = ["pg15"]
 pg15 = ["pgrx/pg15", "pgrx-tests/pg15" ]
 pg16 = ["pgrx/pg16", "pgrx-tests/pg16" ]
 pg17 = ["pgrx/pg17", "pgrx-tests/pg17" ]
 pg18 = ["pgrx/pg18", "pgrx-tests/pg18" ]
+pg19 = ["pgrx/pg19", "pgrx-tests/pg19" ]
 pg_test = []
 
 [dependencies]
@@ -21,13 +20,13 @@ hex = "*"
 once_cell = "*"
 openssl = "~0.10.80"
 pgp = "~0.20.0"
-pgrx = "~0.19.3"
+pgrx = "~0.20.1"
 rand_chacha = "~0.3.1" #TODO: 0.9.0
 
 enigma_macros = { path = "./enigma_macros" }
 
 [dev-dependencies]
-pgrx-tests = "~0.19.3"
+pgrx-tests = "~0.20.1"
 
 [profile.dev]
 panic = "unwind"
